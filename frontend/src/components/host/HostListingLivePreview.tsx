@@ -145,7 +145,8 @@ export default function HostListingLivePreview({
 
   // Completion calculation
   const checks = [
-    { label: 'Location & Type', done: Boolean(city && propertyType) },
+    { label: 'Category & Type', done: Boolean(propertyType) },
+    { label: 'Location & Map', done: Boolean(city && (address || (latitude && longitude))) },
     { label: 'Space & Capacity', done: numBedrooms > 0 && numGuests > 0 },
     { label: 'Amenities', done: amenityIds.length > 0 },
     { label: 'Photos', done: Boolean(coverImage || images.length > 0) },
