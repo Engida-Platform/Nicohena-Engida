@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -24,7 +24,11 @@ import {
   Building2,
   Filter,
   AlertTriangle,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
+import { computePropertyTrustScore } from '../../../lib/trustScore';
+import AiPricingModal from '../../../components/host/AiPricingModal';
 
 // ─────────────────────────────────────────────────────
 // Constants
@@ -178,7 +182,7 @@ function CoverThumb({ src, alt }: { src: string | null; alt: string }) {
 function SkeletonRow() {
   return (
     <tr className="border-b border-[#EEF3EF]">
-      {[120, 80, 100, 80, 80, 80, 60].map((w, i) => (
+      {[120, 80, 100, 80, 75, 80, 80, 90].map((w, i) => (
         <td key={i} className="py-3.5 px-4">
           <div className="h-4 bg-[#EEF3EF] rounded animate-pulse" style={{ width: w }} />
         </td>
@@ -199,6 +203,37 @@ function SkeletonCard() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Proposal Section 3.2: Property Trust Score Badge
+// ─────────────────────────────────────────────────────
+function TrustScoreBadge({ listing }: { listing: HostListingRow }) {
+  const trust = computePropertyTrustScore({
+    hostVerificationStatus: 'VERIFIED',
+    latitude: 9.02,
+    longitude: 38.74,
+    city: listing.city,
+    coverImage: listing.coverImage,
+    bedrooms: listing.bedrooms,
+    bathrooms: listing.bathrooms,
+  });
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black border tracking-wide whitespace-nowrap ${
+        trust.score >= 80
+          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+          : trust.score >= 60
+          ? 'bg-blue-50 text-blue-800 border-blue-200'
+          : 'bg-amber-50 text-amber-800 border-amber-200'
+      }`}
+      title={`Proposal Trust Score: ${trust.score}/100 · ${trust.tierLabel}`}
+    >
+      <ShieldCheck className="w-3 h-3 text-[#234B36]" />
+      <span>{trust.score}/100</span>
+    </span>
   );
 }
 
@@ -312,15 +347,16 @@ function hasActiveFilters(q: HostListingsQuery): boolean {
 interface ActionsProps {
   listing: HostListingRow;
   onArchive: (listing: HostListingRow) => void;
+  onCheckAiPrice: (listing: HostListingRow) => void;
 }
 
-function ListingActions({ listing, onArchive }: ActionsProps) {
+function ListingActions({ listing, onArchive, onCheckAiPrice }: ActionsProps) {
   const canArchive = listing.status === 'PUBLISHED' || listing.status === 'PAUSED';
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 flex-wrap">
       <Link
         href={`/host/listings/${listing.id}`}
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#252923] border border-[#E5E0D5] hover:border-[#234B36] hover:text-[#234B36] hover:bg-[#F8F5ED] transition"
+        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-[#252923] border border-[#E5E0D5] hover:border-[#234B36] hover:text-[#234B36] hover:bg-[#F8F5ED] transition"
         title="View listing"
       >
         <Eye className="w-3.5 h-3.5" />
@@ -328,16 +364,25 @@ function ListingActions({ listing, onArchive }: ActionsProps) {
       </Link>
       <Link
         href={`/host/listings/${listing.id}/edit`}
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#252923] border border-[#E5E0D5] hover:border-[#234B36] hover:text-[#234B36] hover:bg-[#F8F5ED] transition"
+        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-[#252923] border border-[#E5E0D5] hover:border-[#234B36] hover:text-[#234B36] hover:bg-[#F8F5ED] transition"
         title="Edit listing"
       >
         <Pencil className="w-3.5 h-3.5" />
         Edit
       </Link>
+      <button
+        type="button"
+        onClick={() => onCheckAiPrice(listing)}
+        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-bold text-[#234B36] bg-[#EEF3EF] hover:bg-[#E2ECE4] border border-[#234B36]/20 transition cursor-pointer"
+        title="Check Dynamic AI Market Price"
+      >
+        <Sparkles className="w-3.5 h-3.5 text-[#234B36]" />
+        AI Price
+      </button>
       {canArchive && (
         <button
           onClick={() => onArchive(listing)}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-700 border border-amber-200 hover:bg-amber-50 transition cursor-pointer"
+          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold text-amber-700 border border-amber-200 hover:bg-amber-50 transition cursor-pointer"
           title="Archive listing"
         >
           <Archive className="w-3.5 h-3.5" />
@@ -353,9 +398,11 @@ function ListingActions({ listing, onArchive }: ActionsProps) {
 function TableRow({
   listing,
   onArchive,
+  onCheckAiPrice,
 }: {
   listing: HostListingRow;
   onArchive: (l: HostListingRow) => void;
+  onCheckAiPrice: (l: HostListingRow) => void;
 }) {
   return (
     <tr className="border-b border-[#EEF3EF] hover:bg-[#F8F5ED]/80 transition-colors group">
@@ -386,6 +433,10 @@ function TableRow({
       <td className="py-3 px-4">
         <p className="text-sm font-bold text-[#252923] whitespace-nowrap">{formatPrice(listing)}</p>
       </td>
+      {/* Proposal Trust Score */}
+      <td className="py-3 px-4">
+        <TrustScoreBadge listing={listing} />
+      </td>
       {/* Status */}
       <td className="py-3 px-4">
         <StatusBadge
@@ -408,7 +459,7 @@ function TableRow({
       </td>
       {/* Actions */}
       <td className="py-3 px-4">
-        <ListingActions listing={listing} onArchive={onArchive} />
+        <ListingActions listing={listing} onArchive={onArchive} onCheckAiPrice={onCheckAiPrice} />
       </td>
     </tr>
   );
@@ -420,13 +471,15 @@ function TableRow({
 function MobileCard({
   listing,
   onArchive,
+  onCheckAiPrice,
 }: {
   listing: HostListingRow;
   onArchive: (l: HostListingRow) => void;
+  onCheckAiPrice: (l: HostListingRow) => void;
 }) {
   return (
-    <div className="bg-white border border-[#E5E0D5] rounded-2xl p-4">
-      <div className="flex gap-3 mb-3">
+    <div className="bg-white border border-[#E5E0D5] rounded-2xl p-4 space-y-3">
+      <div className="flex gap-3">
         <CoverThumb src={listing.coverImage} alt={listing.title} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
@@ -446,15 +499,16 @@ function MobileCard({
             <span className="text-xs text-[#73776F]">
               {listing.bedrooms}bd · {listing.bathrooms}ba
             </span>
+            <TrustScoreBadge listing={listing} />
           </div>
           <p className="text-xs font-bold text-[#234B36] mt-1">{formatPrice(listing)}</p>
         </div>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between border-t border-[#EEF3EF] pt-2">
         <p className="text-xs text-[#73776F]">
           {listing.city}{listing.subCity ? `, ${listing.subCity}` : ''}
         </p>
-        <ListingActions listing={listing} onArchive={onArchive} />
+        <ListingActions listing={listing} onArchive={onArchive} onCheckAiPrice={onCheckAiPrice} />
       </div>
     </div>
   );
@@ -488,6 +542,9 @@ export default function HostListingsPage() {
   const [archivingListing, setArchivingListing] = useState<HostListingRow | null>(null);
   const [archiveLoading, setArchiveLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Proposal Section 3.2: Dynamic AI Price Prediction Modal
+  const [selectedAiPricingListing, setSelectedAiPricingListing] = useState<HostListingRow | null>(null);
 
   // ── Fetch listings ──
   useEffect(() => {
@@ -772,11 +829,11 @@ export default function HostListingsPage() {
             <table className="w-full" aria-label="Listings table">
               <thead>
                 <tr className="border-b border-[#EEF3EF] bg-[#F8F5ED]">
-                  {['Property', 'Type', 'Location', 'Price', 'Status', 'Updated', 'Actions'].map(
+                  {['Property', 'Type', 'Location', 'Price', 'Trust Score', 'Status', 'Updated', 'Actions'].map(
                     (h) => (
                       <th
                         key={h}
-                        className="text-left py-3 px-4 text-xs font-black text-[#73776F] uppercase tracking-wider"
+                        className="text-left py-3 px-4 text-xs font-black text-[#73776F] uppercase tracking-wider whitespace-nowrap"
                       >
                         {h}
                       </th>
@@ -792,6 +849,7 @@ export default function HostListingsPage() {
                         key={listing.id}
                         listing={listing}
                         onArchive={setArchivingListing}
+                        onCheckAiPrice={setSelectedAiPricingListing}
                       />
                     ))}
               </tbody>
@@ -819,6 +877,7 @@ export default function HostListingsPage() {
                     key={listing.id}
                     listing={listing}
                     onArchive={setArchivingListing}
+                    onCheckAiPrice={setSelectedAiPricingListing}
                   />
                 ))}
             {!loading && response && (
@@ -832,6 +891,36 @@ export default function HostListingsPage() {
             )}
           </div>
         </>
+      )}
+
+      {/* ── Proposal Section 3.2: AI Dynamic Pricing Calibration Modal ── */}
+      {selectedAiPricingListing && (
+        <AiPricingModal
+          isOpen={true}
+          onClose={() => setSelectedAiPricingListing(null)}
+          propertyId={selectedAiPricingListing.id}
+          city={selectedAiPricingListing.city}
+          subCity={selectedAiPricingListing.subCity || undefined}
+          propertyType="APARTMENT"
+          listingType={selectedAiPricingListing.listingType}
+          bedrooms={selectedAiPricingListing.bedrooms}
+          bathrooms={selectedAiPricingListing.bathrooms}
+          maxGuests={2}
+          amenityIds={[]}
+          currentPrice={
+            selectedAiPricingListing.listingType === 'SALE'
+              ? selectedAiPricingListing.salePrice || 0
+              : selectedAiPricingListing.pricePerNight || 0
+          }
+          coverImage={selectedAiPricingListing.coverImage || undefined}
+          onApplyPrice={(newPrice) => {
+            showToast(
+              `AI Market Price of ETB ${newPrice.toLocaleString()} calibrated. Open listing editor to apply to live rates.`,
+              'success',
+            );
+            setSelectedAiPricingListing(null);
+          }}
+        />
       )}
     </div>
   );

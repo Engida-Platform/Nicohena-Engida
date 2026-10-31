@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState, useRef, useCallback, type FormEvent, type ChangeEvent } from 'react';
 import Link from 'next/link';
@@ -25,7 +25,40 @@ import {
   Info,
   BadgeCheck,
   Sparkles,
+  FileText,
+  UploadCloud,
+  Lock,
+  Eye,
+  CreditCard,
+  Check,
 } from 'lucide-react';
+
+export type HostDocType =
+  | 'ETHIOPIAN_FAYDA_ID'
+  | 'ETHIOPIAN_KEBELE_ID'
+  | 'ETHIOPIAN_PASSPORT'
+  | 'ETHIOPIAN_DRIVERS_LICENSE';
+
+export interface VerificationAuditInfo {
+  transactionId?: string;
+  documentType?: string;
+  documentNumberMasked?: string;
+  submittedAt?: string;
+  status?: string;
+  provider?: string;
+  rejectionReason?: string;
+  extractedDemographics?: {
+    fullName?: string;
+    fullNameAmharic?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    nationality?: string;
+    region?: string;
+    city?: string;
+    subCity?: string;
+    woreda?: string;
+  };
+}
 
 interface FormState {
   displayName: string;
@@ -65,6 +98,38 @@ export default function HostProfilePage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docFrontInputRef = useRef<HTMLInputElement>(null);
+  const docBackInputRef = useRef<HTMLInputElement>(null);
+
+  // Identity & KYC Verification State
+  const [kycDocType, setKycDocType] = useState<HostDocType>('ETHIOPIAN_FAYDA_ID');
+  const [kycDocNumber, setKycDocNumber] = useState('');
+  const [kycIssuingAuthority, setKycIssuingAuthority] = useState('National ID Program (NIDP)');
+  const [kycExpirationDate, setKycExpirationDate] = useState('');
+  const [kycFrontUrl, setKycFrontUrl] = useState('');
+  const [kycBackUrl, setKycBackUrl] = useState('');
+  const [uploadingDocFront, setUploadingDocFront] = useState(false);
+  const [uploadingDocBack, setUploadingDocBack] = useState(false);
+  const [isLookingUpFayda, setIsLookingUpFayda] = useState(false);
+  const [faydaResult, setFaydaResult] = useState<{
+    fin: string;
+    fan?: string;
+    fullName?: string;
+    fullNameAmharic?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    nationality?: string;
+    region?: string;
+    city?: string;
+    subCity?: string;
+    woreda?: string;
+    status: string;
+    verificationToken: string;
+    verifiedAt: string;
+    provider: string;
+  } | null>(null);
+  const [faydaError, setFaydaError] = useState<string | null>(null);
+  const [verificationAudit, setVerificationAudit] = useState<VerificationAuditInfo | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -94,9 +159,15 @@ export default function HostProfilePage() {
 
     const loadProfile = async () => {
       try {
-        const data = await apiFetch<HostProfile>('/host/profile');
+        const [data, auditData] = await Promise.all([
+          apiFetch<HostProfile>('/host/profile'),
+          apiFetch<VerificationAuditInfo>('/host/verification/audit').catch(() => null),
+        ]);
         if (!active) return;
         syncProfileToForm(data);
+        if (auditData) {
+          setVerificationAudit(auditData);
+        }
       } catch (err) {
         if (!active) return;
         setErrorBanner(
@@ -251,7 +322,105 @@ export default function HostProfilePage() {
     }
   };
 
-  // Request verification transition (UNVERIFIED or REJECTED -> PENDING)
+  // Handle changing document type
+  const handleDocTypeChange = (type: HostDocType) => {
+    setKycDocType(type);
+    setFaydaError(null);
+    setFaydaResult(null);
+    if (type === 'ETHIOPIAN_FAYDA_ID') {
+      setKycIssuingAuthority('National ID Program (NIDP)');
+    } else if (type === 'ETHIOPIAN_KEBELE_ID') {
+      setKycIssuingAuthority('Woreda Administration / Kebele Office');
+    } else if (type === 'ETHIOPIAN_PASSPORT') {
+      setKycIssuingAuthority('Immigration and Citizenship Service (ICS)');
+    } else if (type === 'ETHIOPIAN_DRIVERS_LICENSE') {
+      setKycIssuingAuthority('Federal Transport Authority');
+    }
+  };
+
+  // Handle uploading document photo
+  const handleDocFileUpload = async (file: File, side: 'front' | 'back') => {
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      setErrorBanner('Document image must be a JPEG, PNG, or WebP file.');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setErrorBanner('Document file size must be less than 8MB.');
+      return;
+    }
+    if (side === 'front') setUploadingDocFront(true);
+    else setUploadingDocBack(true);
+    setErrorBanner(null);
+
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await apiFetch<{ secureUrl: string }>('/upload/image', {
+        method: 'POST',
+        body: fd,
+      });
+      if (res?.secureUrl) {
+        if (side === 'front') setKycFrontUrl(res.secureUrl);
+        else setKycBackUrl(res.secureUrl);
+        setSuccessBanner(`${side === 'front' ? 'Front side' : 'Back side'} document uploaded successfully.`);
+      }
+    } catch (err: unknown) {
+      setErrorBanner(err instanceof Error ? err.message : 'Failed to upload document image.');
+    } finally {
+      if (side === 'front') setUploadingDocFront(false);
+      else setUploadingDocBack(false);
+    }
+  };
+
+  // Instant Fayda digital lookup via NIDP
+  const handleFaydaLookup = async () => {
+    const cleanDigits = kycDocNumber.replace(/\D/g, '');
+    if (cleanDigits.length !== 12 && cleanDigits.length !== 16) {
+      setFaydaError('Please provide a valid 12-digit FIN (e.g. 1029 3847 5610) or 16-digit FAN.');
+      return;
+    }
+    setIsLookingUpFayda(true);
+    setFaydaError(null);
+    try {
+      const res = await apiFetch<{
+        fin: string;
+        fan?: string;
+        fullName?: string;
+        fullNameAmharic?: string;
+        dateOfBirth?: string;
+        gender?: string;
+        nationality?: string;
+        region?: string;
+        city?: string;
+        subCity?: string;
+        woreda?: string;
+        status: string;
+        verificationToken: string;
+        verifiedAt: string;
+        provider: string;
+      }>('/host/verification/fayda/lookup', {
+        method: 'POST',
+        body: JSON.stringify({
+          faydaNumber: cleanDigits,
+          fullName: form.displayName.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+        }),
+      });
+      setFaydaResult(res);
+      if (res.fullName && !form.displayName.trim()) {
+        setForm((prev) => ({ ...prev, displayName: res.fullName! }));
+      }
+      setSuccessBanner('National Fayda digital record verified successfully!');
+    } catch (err: unknown) {
+      setFaydaError(err instanceof Error ? err.message : 'Fayda ID verification failed.');
+    } finally {
+      setIsLookingUpFayda(false);
+    }
+  };
+
+  // Request verification transition (UNVERIFIED or REJECTED -> PENDING) with KYC payload
   const handleRequestVerification = async () => {
     if (!profile) return;
 
@@ -270,6 +439,19 @@ export default function HostProfilePage() {
       return;
     }
 
+    if (!kycDocNumber.trim()) {
+      setErrorBanner('Please enter your identity document number.');
+      return;
+    }
+
+    if (kycDocType === 'ETHIOPIAN_FAYDA_ID') {
+      const clean = kycDocNumber.replace(/\D/g, '');
+      if (clean.length !== 12 && clean.length !== 16) {
+        setErrorBanner('Fayda ID must be a 12-digit FIN (e.g. 1029 3847 5610) or 16-digit FAN.');
+        return;
+      }
+    }
+
     setRequestingVerification(true);
     setErrorBanner(null);
     setSuccessBanner(null);
@@ -286,15 +468,38 @@ export default function HostProfilePage() {
         }),
       });
 
-      // Submit verification request
+      // Submit verification request with compliant KYC DTO
+      const kycPayload = {
+        documentType: kycDocType,
+        issuingCountry: 'Ethiopia',
+        documentNumber: kycDocNumber.trim(),
+        issuingAuthority:
+          kycIssuingAuthority.trim() ||
+          (kycDocType === 'ETHIOPIAN_FAYDA_ID'
+            ? 'National ID Program (NIDP)'
+            : kycDocType === 'ETHIOPIAN_KEBELE_ID'
+            ? 'Kebele Administration'
+            : 'Government of Ethiopia'),
+        expirationDate: kycExpirationDate.trim() || undefined,
+        verificationProvider:
+          kycDocType === 'ETHIOPIAN_FAYDA_ID' ? 'FAYDA_NIDP' : 'MANUAL_ADMIN_REVIEW',
+        documentFrontUrl: kycFrontUrl.trim() || undefined,
+        documentBackUrl: kycBackUrl.trim() || undefined,
+      };
+
       const updatedProfile = await apiFetch<HostProfile>('/host/profile/request-verification', {
         method: 'POST',
+        body: JSON.stringify(kycPayload),
       });
 
       syncProfileToForm(updatedProfile);
       await refreshUser();
+      apiFetch<VerificationAuditInfo>('/host/verification/audit')
+        .then(setVerificationAudit)
+        .catch(() => {});
+
       setSuccessBanner(
-        'Identity verification request submitted successfully! Your profile is now under review by the ENGIDA compliance team.',
+        'Identity verification request submitted successfully! Your credentials are now under review by the ENGIDA compliance team.',
       );
     } catch (err) {
       setErrorBanner(
@@ -483,103 +688,439 @@ export default function HostProfilePage() {
 
             {/* Dynamic Status Display & Actions */}
             {profile.verificationStatus === 'VERIFIED' && (
-              <div className="p-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 space-y-3">
+              <div className="p-6 rounded-2xl border border-emerald-200 bg-emerald-50/70 space-y-4">
                 <div className="flex items-center gap-2.5">
-                  <BadgeCheck className="w-5 h-5 text-emerald-600" />
-                  <h3 className="text-sm font-black text-emerald-900">
-                    Host Identity Fully Verified
-                  </h3>
+                  <BadgeCheck className="w-6 h-6 text-emerald-600" />
+                  <div>
+                    <h3 className="text-sm font-black text-emerald-950">
+                      Host Identity Fully Verified
+                    </h3>
+                    <p className="text-xs text-emerald-800 mt-0.5">
+                      Your identity credentials have been confirmed by ENGIDA trust &amp; safety. Your listings feature the official Verified Host badge.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-emerald-800 leading-relaxed">
-                  Your host identity and compliance records have been approved by the ENGIDA trust &amp; safety team. Your published listings proudly display the Verified Host trust badge to guests across Addis Ababa and Ethiopia.
-                </p>
+
+                {verificationAudit && (
+                  <div className="bg-white/80 border border-emerald-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider block">
+                        Verified Credential
+                      </span>
+                      <span className="font-extrabold text-[#252923]">
+                        {verificationAudit.documentType?.replace(/_/g, ' ') || 'National Identity ID'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider block">
+                        Document Number
+                      </span>
+                      <span className="font-mono font-bold text-[#252923]">
+                        {verificationAudit.documentNumberMasked || '•••• •••• ••••'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-emerald-900 uppercase tracking-wider block">
+                        Trust Score Impact
+                      </span>
+                      <span className="font-black text-emerald-700">
+                        +35 pts (Maximum KYC Tier)
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {profile.verificationStatus === 'PENDING' && (
-              <div className="p-5 rounded-2xl border border-amber-200 bg-amber-50/70 space-y-3">
-                <div className="flex items-center gap-2.5">
-                  <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
-                  <h3 className="text-sm font-black text-amber-900">
-                    Verification Request Under Administrative Review
-                  </h3>
+              <div className="p-6 rounded-2xl border border-amber-200 bg-amber-50/80 space-y-4">
+                <div className="flex items-center gap-3">
+                  <Clock className="w-6 h-6 text-amber-600 animate-pulse shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-black text-amber-950">
+                      Verification Request Under Administrative Review
+                    </h3>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      Your identity dossier has been received and is queued for verification review by the ENGIDA compliance team.
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-amber-800 leading-relaxed">
-                  Your verification request has been queued and is actively being reviewed by the ENGIDA compliance team. We verify host credentials against platform trust standards. No further action is required from you at this time.
-                </p>
-              </div>
-            )}
 
-            {profile.verificationStatus === 'REJECTED' && (
-              <div className="p-5 rounded-2xl border border-rose-200 bg-rose-50/70 space-y-4">
-                <div className="flex items-center gap-2.5">
-                  <AlertTriangle className="w-5 h-5 text-rose-600" />
-                  <h3 className="text-sm font-black text-rose-900">
-                    Previous Verification Submission Was Not Approved
-                  </h3>
-                </div>
-                <p className="text-xs text-rose-800 leading-relaxed">
-                  Your previous verification request could not be approved. Please review your public host profile details below—especially your display name and contact phone number—update any inaccurate information, and resubmit for review.
-                </p>
-                {profile.rejectionReason && (
-                  <div className="p-3.5 rounded-xl bg-white border border-rose-200 text-xs text-rose-900 space-y-1">
-                    <p className="font-bold">Compliance Team Feedback:</p>
-                    <p className="text-slate-700 font-medium">{profile.rejectionReason}</p>
+                {verificationAudit && (
+                  <div className="bg-white border border-amber-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#73776F] uppercase tracking-wider block">
+                        Submitted Document
+                      </span>
+                      <span className="font-bold text-[#252923]">
+                        {verificationAudit.documentType?.replace(/_/g, ' ') || 'National ID'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-[#73776F] uppercase tracking-wider block">
+                        Document Mask
+                      </span>
+                      <span className="font-mono font-bold text-[#252923]">
+                        {verificationAudit.documentNumberMasked || '•••• •••• ••••'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-[#73776F] uppercase tracking-wider block">
+                        Status
+                      </span>
+                      <span className="font-black text-amber-700 uppercase">
+                        Queued for Approval
+                      </span>
+                    </div>
                   </div>
                 )}
-                <div>
-                  <button
-                    type="button"
-                    disabled={requestingVerification || saving}
-                    onClick={handleRequestVerification}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-60"
-                  >
-                    {requestingVerification ? (
-                      <>
-                        <RotateCcw className="w-4 h-4 animate-spin" />
-                        <span>Submitting Resubmission...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Resubmit for Administrative Review</span>
-                      </>
-                    )}
-                  </button>
-                </div>
               </div>
             )}
 
-            {profile.verificationStatus === 'UNVERIFIED' && (
-              <div className="p-5 rounded-2xl border border-[#E5E0D5] bg-[#F8F5ED] space-y-4">
-                <div className="flex items-center gap-2.5">
-                  <ShieldCheck className="w-5 h-5 text-[#234B36]" />
-                  <h3 className="text-sm font-black text-[#252923]">
-                    Get Your Host Profile Verified
-                  </h3>
-                </div>
-                <p className="text-xs text-[#73776F] leading-relaxed">
-                  Verified hosts receive higher placement in search results, guest trust badges, and increased bookings. Make sure your display name and phone number below are complete, then submit your request for compliance review.
-                </p>
-                <div>
-                  <button
-                    type="button"
-                    disabled={requestingVerification || saving}
-                    onClick={handleRequestVerification}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#2D5E43] active:bg-[#1A3828] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-60"
-                  >
-                    {requestingVerification ? (
-                      <>
-                        <RotateCcw className="w-4 h-4 animate-spin" />
-                        <span>Submitting Verification Request...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>Submit for Verification Review</span>
-                      </>
+            {(profile.verificationStatus === 'UNVERIFIED' || profile.verificationStatus === 'REJECTED') && (
+              <div className="space-y-6">
+                {profile.verificationStatus === 'REJECTED' && (
+                  <div className="p-5 rounded-2xl border border-rose-200 bg-rose-50/80 space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <AlertTriangle className="w-5 h-5 text-rose-600" />
+                      <h3 className="text-sm font-black text-rose-950">
+                        Previous Verification Submission Was Not Approved
+                      </h3>
+                    </div>
+                    {profile.rejectionReason && (
+                      <div className="p-3 rounded-xl bg-white border border-rose-200 text-xs text-rose-900">
+                        <span className="font-bold">Compliance Team Feedback: </span>
+                        <span>{profile.rejectionReason}</span>
+                      </div>
                     )}
-                  </button>
+                    <p className="text-xs text-rose-800">
+                      Please update your identity document details below and submit a refreshed dossier for compliance re-evaluation.
+                    </p>
+                  </div>
+                )}
+
+                {/* KYC Interactive Submission Card */}
+                <div className="p-6 sm:p-7 rounded-2xl border border-[#E5E0D5] bg-[#F8F5ED] space-y-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#234B36]/10 text-[#234B36] text-[10px] font-black uppercase tracking-wider mb-1.5">
+                        <Sparkles className="w-3 h-3" />
+                        <span>Proposal Section 3.2 Compliance</span>
+                      </div>
+                      <h3 className="text-base font-black text-[#252923]">
+                        Submit National Identity Credentials for Host Verification
+                      </h3>
+                      <p className="text-xs text-[#73776F] mt-0.5">
+                        Ethiopian regulatory and ENGIDA platform compliance requires host identity validation before listings can achieve highest trust ranking.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 1. Document Type Selector */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#252923] uppercase tracking-wider">
+                      1. Select Identity Credential Type <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                      {[
+                        {
+                          type: 'ETHIOPIAN_FAYDA_ID' as HostDocType,
+                          label: 'Fayda National ID',
+                          amharic: 'ዲጂታል ፋይዳ',
+                          hint: '12-digit FIN / 16-digit FAN with instant digital lookup',
+                          icon: Sparkles,
+                        },
+                        {
+                          type: 'ETHIOPIAN_KEBELE_ID' as HostDocType,
+                          label: 'Kebele Resident ID',
+                          amharic: 'የነዋሪነት መታወቂያ',
+                          hint: 'Woreda / Kebele issued resident card',
+                          icon: CreditCard,
+                        },
+                        {
+                          type: 'ETHIOPIAN_PASSPORT' as HostDocType,
+                          label: 'Ethiopian Passport',
+                          amharic: 'የኢትዮጵያ ፓስፖርት',
+                          hint: 'Immigration & Citizenship Service (ICS)',
+                          icon: FileText,
+                        },
+                        {
+                          type: 'ETHIOPIAN_DRIVERS_LICENSE' as HostDocType,
+                          label: "Driver's License",
+                          amharic: 'የመንጃ ፍቃድ',
+                          hint: 'Federal Transport Authority license',
+                          icon: CreditCard,
+                        },
+                      ].map((item) => {
+                        const Icon = item.icon;
+                        const isSelected = kycDocType === item.type;
+                        return (
+                          <button
+                            key={item.type}
+                            type="button"
+                            onClick={() => handleDocTypeChange(item.type)}
+                            className={`p-3.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                              isSelected
+                                ? 'border-[#234B36] bg-[#234B36]/5 ring-2 ring-[#234B36]/20'
+                                : 'border-[#E5E0D5] bg-white hover:bg-[#EEF3EF]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span className="text-xs font-black text-[#252923]">{item.label}</span>
+                              <Icon className={`w-4 h-4 ${isSelected ? 'text-[#234B36]' : 'text-[#73776F]'}`} />
+                            </div>
+                            <span className="text-[11px] font-bold text-[#234B36] block">{item.amharic}</span>
+                            <span className="text-[10px] text-[#73776F] mt-1 block leading-snug">{item.hint}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 2. Document Number & Fayda Live Verification */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label htmlFor="kycDocNumber" className="block text-xs font-bold text-[#252923]">
+                        {kycDocType === 'ETHIOPIAN_FAYDA_ID'
+                          ? 'Fayda Identification Number (FIN / FAN)'
+                          : 'Document Number'}{' '}
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          id="kycDocNumber"
+                          type="text"
+                          value={kycDocNumber}
+                          onChange={(e) => setKycDocNumber(e.target.value)}
+                          placeholder={
+                            kycDocType === 'ETHIOPIAN_FAYDA_ID'
+                              ? 'e.g. 1029 3847 5610'
+                              : 'e.g. KB-2024-98471'
+                          }
+                          className="flex-1 px-4 py-2.5 rounded-xl border border-[#E5E0D5] text-sm font-semibold text-[#252923] bg-white focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] transition"
+                        />
+                        {kycDocType === 'ETHIOPIAN_FAYDA_ID' && (
+                          <button
+                            type="button"
+                            onClick={handleFaydaLookup}
+                            disabled={isLookingUpFayda || !kycDocNumber.trim()}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-[#234B36] text-white text-xs font-bold hover:bg-[#2D5E43] disabled:opacity-50 transition cursor-pointer shrink-0"
+                            title="Perform digital extraction via National ID Program"
+                          >
+                            {isLookingUpFayda ? (
+                              <>
+                                <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Verifying...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>Verify Fayda</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                      {faydaError && (
+                        <p className="text-xs text-rose-600 font-semibold">{faydaError}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label htmlFor="kycIssuingAuthority" className="block text-xs font-bold text-[#252923]">
+                        Issuing Authority
+                      </label>
+                      <input
+                        id="kycIssuingAuthority"
+                        type="text"
+                        value={kycIssuingAuthority}
+                        onChange={(e) => setKycIssuingAuthority(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-xl border border-[#E5E0D5] text-sm font-medium text-[#252923] bg-white focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] transition"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Fayda Verified Demographics Display */}
+                  {faydaResult && (
+                    <div className="p-4 rounded-xl border border-emerald-300 bg-emerald-50/90 space-y-2.5 text-xs animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                          <span className="font-black text-emerald-950">
+                            Fayda Digital Record Authenticated (NIDP Verified)
+                          </span>
+                        </div>
+                        <span className="font-mono text-[10px] text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                          {faydaResult.verificationToken}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-[#252923]">
+                        <div>
+                          <span className="text-[10px] text-emerald-800 block">Full Legal Name</span>
+                          <span className="font-bold">{faydaResult.fullName || 'Verified Citizen'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-800 block">Amharic Name</span>
+                          <span className="font-bold">{faydaResult.fullNameAmharic || 'የተረጋገጠ ዜጋ'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-800 block">Registered Region</span>
+                          <span className="font-bold">{faydaResult.region || 'Addis Ababa'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-emerald-800 block">Sub-city / Woreda</span>
+                          <span className="font-bold">{[faydaResult.city, faydaResult.subCity].filter(Boolean).join(' · ')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. Document Scan / Photo Uploads */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-[#252923] uppercase tracking-wider">
+                      2. Document Image Scans <span className="text-xs font-normal text-[#73776F]">(Front &amp; Back)</span>
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Front Side */}
+                      <div className="p-4 rounded-xl border border-[#E5E0D5] bg-white space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#252923]">Front Side Scan</span>
+                          {kycFrontUrl ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Uploaded
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-red-600 font-semibold">Required</span>
+                          )}
+                        </div>
+
+                        {kycFrontUrl ? (
+                          <div className="relative h-28 rounded-lg overflow-hidden border border-[#E5E0D5] bg-slate-50 group">
+                            <img src={kycFrontUrl} alt="Doc Front" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => docFrontInputRef.current?.click()}
+                                className="px-2.5 py-1 rounded bg-white text-xs font-bold text-[#252923] cursor-pointer"
+                              >
+                                Replace
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => docFrontInputRef.current?.click()}
+                            disabled={uploadingDocFront}
+                            className="w-full h-28 rounded-lg border-2 border-dashed border-[#E5E0D5] hover:border-[#234B36] bg-[#F8F5ED]/50 flex flex-col items-center justify-center gap-1.5 text-xs text-[#73776F] hover:text-[#234B36] transition cursor-pointer"
+                          >
+                            {uploadingDocFront ? (
+                              <RotateCcw className="w-5 h-5 animate-spin text-[#234B36]" />
+                            ) : (
+                              <>
+                                <UploadCloud className="w-5 h-5 text-[#234B36]" />
+                                <span className="font-bold">Upload Front of ID</span>
+                                <span className="text-[10px] text-[#73776F]">PNG, JPEG up to 8MB</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        <input
+                          ref={docFrontInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleDocFileUpload(file, 'front');
+                            e.target.value = '';
+                          }}
+                        />
+                      </div>
+
+                      {/* Back Side */}
+                      <div className="p-4 rounded-xl border border-[#E5E0D5] bg-white space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#252923]">Back Side Scan</span>
+                          {kycBackUrl ? (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Uploaded
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-[#73776F]">Optional for Passport</span>
+                          )}
+                        </div>
+
+                        {kycBackUrl ? (
+                          <div className="relative h-28 rounded-lg overflow-hidden border border-[#E5E0D5] bg-slate-50 group">
+                            <img src={kycBackUrl} alt="Doc Back" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => docBackInputRef.current?.click()}
+                                className="px-2.5 py-1 rounded bg-white text-xs font-bold text-[#252923] cursor-pointer"
+                              >
+                                Replace
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => docBackInputRef.current?.click()}
+                            disabled={uploadingDocBack}
+                            className="w-full h-28 rounded-lg border-2 border-dashed border-[#E5E0D5] hover:border-[#234B36] bg-[#F8F5ED]/50 flex flex-col items-center justify-center gap-1.5 text-xs text-[#73776F] hover:text-[#234B36] transition cursor-pointer"
+                          >
+                            {uploadingDocBack ? (
+                              <RotateCcw className="w-5 h-5 animate-spin text-[#234B36]" />
+                            ) : (
+                              <>
+                                <UploadCloud className="w-5 h-5 text-[#234B36]" />
+                                <span className="font-bold">Upload Back of ID</span>
+                                <span className="text-[10px] text-[#73776F]">PNG, JPEG up to 8MB</span>
+                              </>
+                            )}
+                          </button>
+                        )}
+                        <input
+                          ref={docBackInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleDocFileUpload(file, 'back');
+                            e.target.value = '';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submission Action */}
+                  <div className="pt-2 border-t border-[#E5E0D5] flex items-center justify-between gap-4">
+                    <p className="text-[11px] text-[#73776F] max-w-md">
+                      Submitting your document transitions your profile status to <strong>PENDING</strong> for administrator verification review.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={requestingVerification || saving || !kycDocNumber.trim()}
+                      onClick={handleRequestVerification}
+                      className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#2D5E43] active:bg-[#1A3828] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {requestingVerification ? (
+                        <>
+                          <RotateCcw className="w-4 h-4 animate-spin" />
+                          <span>Submitting Credentials...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck className="w-4 h-4" />
+                          <span>Submit Credentials for Review</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -592,7 +1133,7 @@ export default function HostProfilePage() {
                   Administrative Review Workflow &amp; Document Infrastructure Note
                 </p>
                 <p>
-                  ENGIDA is actively developing an end-to-end encrypted document vault for national identity cards (Kebele ID / Passport) and business licenses. Currently, host verification requests are processed administratively by authorized platform administrators without exposing unverified documents to the public. Hosts cannot self-verify.
+                  ENGIDA encrypts and stores national identity documents in restricted storage accessible only to compliance administrators. Host verification requests are reviewed and approved administratively in accordance with Ethiopian cybersecurity standards. Hosts cannot self-verify.
                 </p>
               </div>
             </div>

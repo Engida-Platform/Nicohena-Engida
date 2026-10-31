@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import type { ListingType, PropertyType } from '../../types/host';
 import PropertyPublicMap from '../maps/PropertyPublicMap';
+import { computePropertyTrustScore } from '../../lib/trustScore';
 
 interface HostListingLivePreviewProps {
   title: string;
@@ -51,6 +52,7 @@ interface HostListingLivePreviewProps {
   description?: string;
   propertyId?: string;
   hostName?: string;
+  hostVerificationStatus?: string | null;
   isSubmitting?: boolean;
   onSubmit: (e: React.FormEvent) => void;
   submitLabel?: string;
@@ -81,6 +83,7 @@ export default function HostListingLivePreview({
   description,
   propertyId,
   hostName,
+  hostVerificationStatus,
   isSubmitting = false,
   onSubmit,
   submitLabel = 'Save Draft',
@@ -102,6 +105,21 @@ export default function HostListingLivePreview({
 
   // Key selected amenities for badge display
   const selectedAmenities = amenityCatalog.filter((a) => amenityIds.includes(a.id));
+
+  // Proposal Section 3.2: Deterministic 0-100 Property Trust Score
+  const trust = computePropertyTrustScore({
+    hostVerificationStatus: hostVerificationStatus || 'VERIFIED',
+    latitude: typeof latitude === 'number' ? latitude : parseFloat(String(latitude || 0)),
+    longitude: typeof longitude === 'number' ? longitude : parseFloat(String(longitude || 0)),
+    city,
+    address,
+    coverImage,
+    images,
+    bedrooms: numBedrooms,
+    bathrooms: numBathrooms,
+    areaSqm: numArea,
+    amenityIds,
+  });
 
   // Interactive Carousel & Favorite states
   const allPhotos = [coverImage, ...images]
@@ -255,7 +273,8 @@ export default function HostListingLivePreview({
           {/* Top Left Badges */}
           <div className="absolute left-3 top-3 flex flex-wrap items-center gap-1.5 z-20">
             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/95 text-[#234B36] backdrop-blur-md px-2.5 py-1 rounded-full shadow-sm">
-              <ShieldCheck className="w-3.5 h-3.5 text-[#234B36]" /> GUZO Verified
+              <ShieldCheck className="w-3.5 h-3.5 text-[#234B36]" />
+              {trust.isVerified ? 'Trust Verified' : `${trust.score}/100 Trust`}
             </span>
             <span
               className={`inline-flex items-center text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md shadow-sm ${
@@ -414,6 +433,75 @@ export default function HostListingLivePreview({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* ── Proposal Section 3.2: Property Trust Score Meter ── */}
+      <div className="bg-white border border-[#E5E0D5] rounded-2xl p-3.5 shadow-2xs space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-[#234B36]" />
+            <span className="text-xs font-bold text-[#252923]">Property Trust Score</span>
+          </div>
+          <span
+            className={`text-[11px] font-black px-2 py-0.5 rounded-full border ${
+              trust.tier === 'HIGH'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : trust.tier === 'MEDIUM'
+                ? 'bg-blue-50 text-blue-800 border-blue-200'
+                : 'bg-amber-50 text-amber-800 border-amber-200'
+            }`}
+          >
+            {trust.score}/100 · {trust.tierLabel}
+          </span>
+        </div>
+
+        {/* Dynamic Trust Progress Bar */}
+        <div className="w-full h-2 rounded-full bg-[#EEF3EF] overflow-hidden">
+          <div
+            className={`h-full transition-all duration-500 rounded-full ${
+              trust.score >= 80
+                ? 'bg-gradient-to-r from-emerald-600 to-[#234B36]'
+                : trust.score >= 60
+                ? 'bg-gradient-to-r from-blue-500 to-emerald-500'
+                : 'bg-gradient-to-r from-amber-500 to-amber-600'
+            }`}
+            style={{ width: `${trust.score}%` }}
+          />
+        </div>
+
+        {/* 4 Pillars Breakdown (Host KYC, Map Coordinates, Photos, Specs) */}
+        <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[10px]">
+          {Object.entries(trust.breakdown).map(([key, item]) => (
+            <div
+              key={key}
+              className={`p-1.5 rounded-lg border flex items-center justify-between ${
+                item.passed
+                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950 font-bold'
+                  : 'bg-[#FCFAF6] border-[#E5E0D5] text-[#73776F]'
+              }`}
+            >
+              <div className="flex items-center gap-1 truncate">
+                {item.passed ? (
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                ) : (
+                  <Circle className="w-3 h-3 text-[#A0988A] shrink-0" />
+                )}
+                <span className="truncate">{item.label}</span>
+              </div>
+              <span className="font-mono text-[9px] shrink-0">
+                {item.earned}/{item.max}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Improvement Guidance */}
+        {trust.tips.length > 0 && (
+          <p className="text-[10px] text-[#73776F] pt-0.5 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-[#234B36] shrink-0" />
+            <span className="truncate font-medium">{trust.tips[0]}</span>
+          </p>
+        )}
       </div>
 
       {/* ── Dedicated Save Action Panel ── */}

@@ -160,13 +160,14 @@ const PROPERTY_TYPE_OPTIONS: {
 ];
 
 const SECTIONS_NAV = [
-  { id: 'section-location', label: '1. Location' },
-  { id: 'section-space', label: '2. Space' },
-  { id: 'section-amenities', label: '3. Amenities' },
-  { id: 'section-photos', label: '4. Photos' },
-  { id: 'section-narrative', label: '5. Title & Description' },
-  { id: 'section-pricing', label: '6. Pricing' },
-  { id: 'section-policies', label: '7. Policies' },
+  { id: 'section-category', label: '1. Category' },
+  { id: 'section-location', label: '2. Location & Map' },
+  { id: 'section-space', label: '3. Space' },
+  { id: 'section-amenities', label: '4. Amenities' },
+  { id: 'section-photos', label: '5. Photos' },
+  { id: 'section-narrative', label: '6. Narrative' },
+  { id: 'section-pricing', label: '7. Pricing' },
+  { id: 'section-policies', label: '8. Policies' },
 ];
 
 interface EditFormState {
@@ -603,18 +604,18 @@ export default function EditListingPage() {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* ═══════════════════════════════════════════════════
-                SECTION 1: Property Identity & Location
+                SECTION 1: Property Category & Type
             ═══════════════════════════════════════════════════ */}
             <section
-              id="section-location"
+              id="section-category"
               className="bg-white border border-[#E5E0D5] rounded-2xl p-6 md:p-8 space-y-6 scroll-mt-14"
             >
               <div className="flex items-center gap-2.5 pb-3 border-b border-[#EEF3EF]">
-                <MapPin className="w-5 h-5 text-[#234B36]" />
+                <Building2 className="w-5 h-5 text-[#234B36]" />
                 <div>
-                  <h2 className="text-lg font-black text-[#252923]">1. Property Identity &amp; Location</h2>
+                  <h2 className="text-lg font-black text-[#252923]">1. Property Category &amp; Type</h2>
                   <p className="text-xs text-[#73776F] mt-0.5">
-                    Property category and geographic coordinates for your listing.
+                    Select your architectural property category and review listing intent.
                   </p>
                 </div>
               </div>
@@ -649,7 +650,7 @@ export default function EditListingPage() {
                         key={opt.value}
                         type="button"
                         onClick={() => handlePropertyTypeChange(opt.value)}
-                        className={`p-3 rounded-xl border text-left transition ${
+                        className={`p-3.5 rounded-xl border text-left transition cursor-pointer ${
                           isSelected
                             ? 'border-[#234B36] bg-[#234B36]/5 ring-2 ring-[#234B36]/20'
                             : 'border-[#E5E0D5] bg-white hover:bg-[#F8F5ED]'
@@ -669,9 +670,27 @@ export default function EditListingPage() {
                   })}
                 </div>
               </div>
+            </section>
+
+            {/* ═══════════════════════════════════════════════════
+                SECTION 2: Geographic Location & Interactive Map
+            ═══════════════════════════════════════════════════ */}
+            <section
+              id="section-location"
+              className="bg-white border border-[#E5E0D5] rounded-2xl p-6 md:p-8 space-y-6 scroll-mt-14"
+            >
+              <div className="flex items-center gap-2.5 pb-3 border-b border-[#EEF3EF]">
+                <MapPin className="w-5 h-5 text-[#234B36]" />
+                <div>
+                  <h2 className="text-lg font-black text-[#252923]">2. Geographic Location &amp; Interactive Map</h2>
+                  <p className="text-xs text-[#73776F] mt-0.5">
+                    Precise GPS coordinates, interactive map pin, and administrative hierarchy.
+                  </p>
+                </div>
+              </div>
 
               {/* Interactive Real Map Location Picker */}
-              <div className="space-y-2 pt-2">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="block text-sm font-bold text-[#252923]">
                     Interactive Property Location Map <span className="text-xs text-[#73776F] font-normal">(Drag pin or search to auto-fill address)</span>
@@ -802,7 +821,7 @@ export default function EditListingPage() {
             </section>
 
             {/* ═══════════════════════════════════════════════════
-                SECTION 2: Space & Capacity
+                SECTION 3: Space & Capacity
             ═══════════════════════════════════════════════════ */}
             <section
               id="section-space"
@@ -811,7 +830,7 @@ export default function EditListingPage() {
               <div className="flex items-center gap-2.5 pb-3 border-b border-[#EEF3EF]">
                 <Layers className="w-5 h-5 text-[#234B36]" />
                 <div>
-                  <h2 className="text-lg font-black text-[#252923]">2. Space &amp; Capacity</h2>
+                  <h2 className="text-lg font-black text-[#252923]">3. Space &amp; Capacity</h2>
                   <p className="text-xs text-[#73776F] mt-0.5">
                     Physical dimensions, guest capacity, and room layout.
                   </p>
@@ -901,7 +920,7 @@ export default function EditListingPage() {
             </section>
 
             {/* ═══════════════════════════════════════════════════
-                SECTION 3: Features & Amenities
+                SECTION 4: Features & Amenities
             ═══════════════════════════════════════════════════ */}
             <section
               id="section-amenities"
@@ -910,7 +929,7 @@ export default function EditListingPage() {
               <div className="flex items-center gap-2.5 pb-3 border-b border-[#EEF3EF]">
                 <Sparkles className="w-5 h-5 text-[#234B36]" />
                 <div>
-                  <h2 className="text-lg font-black text-[#252923]">3. Features &amp; Infrastructure</h2>
+                  <h2 className="text-lg font-black text-[#252923]">4. Features &amp; Infrastructure</h2>
                   <p className="text-xs text-[#73776F] mt-0.5">
                     Verified infrastructure amenities (Generator, Water, WiFi).
                   </p>
@@ -927,7 +946,7 @@ export default function EditListingPage() {
             </section>
 
             {/* ═══════════════════════════════════════════════════
-                SECTION 4: Photos & Gallery
+                SECTION 5: Photos & Gallery
             ═══════════════════════════════════════════════════ */}
             <section
               id="section-photos"
@@ -936,7 +955,7 @@ export default function EditListingPage() {
               <div className="flex items-center gap-2.5 pb-3 border-b border-[#EEF3EF]">
                 <ImageIcon className="w-5 h-5 text-[#234B36]" />
                 <div>
-                  <h2 className="text-lg font-black text-[#252923]">4. Photos &amp; Gallery</h2>
+                  <h2 className="text-lg font-black text-[#252923]">5. Photos &amp; Gallery</h2>
                   <p className="text-xs text-[#73776F] mt-0.5">
                     Manage your cover image and uploaded photo gallery.
                   </p>
@@ -979,7 +998,7 @@ export default function EditListingPage() {
             </section>
 
             {/* ═══════════════════════════════════════════════════
-                SECTION 5: Title & Description (AI Copilot)
+                SECTION 6: Title & Description (AI Copilot)
             ═══════════════════════════════════════════════════ */}
             <section
               id="section-narrative"
@@ -989,7 +1008,7 @@ export default function EditListingPage() {
                 <div className="flex items-center gap-2.5">
                   <Sparkles className="w-5 h-5 text-[#234B36]" />
                   <div>
-                    <h2 className="text-lg font-black text-[#252923]">5. Title &amp; Description</h2>
+                    <h2 className="text-lg font-black text-[#252923]">6. Title &amp; Description</h2>
                     <p className="text-xs text-[#73776F] mt-0.5">
                       Grounded in your property specs and uploaded photo gallery.
                     </p>
@@ -1068,7 +1087,7 @@ export default function EditListingPage() {
             </section>
 
             {/* ═══════════════════════════════════════════════════
-                SECTION 6: Pricing & Financials
+                SECTION 7: Pricing & Financials
             ═══════════════════════════════════════════════════ */}
             <section
               id="section-pricing"
@@ -1077,7 +1096,7 @@ export default function EditListingPage() {
               <div className="flex items-center gap-2.5 pb-3 border-b border-[#EEF3EF]">
                 <Tag className="w-5 h-5 text-[#234B36]" />
                 <div>
-                  <h2 className="text-lg font-black text-[#252923]">6. Pricing &amp; Commercial Value</h2>
+                  <h2 className="text-lg font-black text-[#252923]">7. Pricing &amp; Commercial Value</h2>
                   <p className="text-xs text-[#73776F] mt-0.5">
                     Calibrated market pricing in Ethiopian Birr (ETB).
                   </p>
@@ -1206,7 +1225,7 @@ export default function EditListingPage() {
             </section>
 
             {/* ═══════════════════════════════════════════════════
-                SECTION 7: Operational Policies & Rooms
+                SECTION 8: Operational Policies & Rooms
             ═══════════════════════════════════════════════════ */}
             <section
               id="section-policies"
@@ -1215,7 +1234,7 @@ export default function EditListingPage() {
               <div className="flex items-center gap-2.5 pb-3 border-b border-[#EEF3EF]">
                 <ShieldCheck className="w-5 h-5 text-[#234B36]" />
                 <div>
-                  <h2 className="text-lg font-black text-[#252923]">7. Policies &amp; Room Configuration</h2>
+                  <h2 className="text-lg font-black text-[#252923]">8. Policies &amp; Room Configuration</h2>
                   <p className="text-xs text-[#73776F] mt-0.5">
                     Standard guest rules and individual room allocations.
                   </p>
