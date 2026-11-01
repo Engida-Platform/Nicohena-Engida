@@ -154,7 +154,7 @@ export class AdminReportsService {
       };
 
       report.status = dto.status;
-      report.resolutionNote = terminal ? note : null;
+      report.resolutionNote = note ? note : (terminal ? null : report.resolutionNote);
       report.resolvedById = terminal ? actor.id : null;
       report.resolvedAt = terminal ? new Date() : null;
       const saved = await repository.save(report);

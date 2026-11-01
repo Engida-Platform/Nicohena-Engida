@@ -29,12 +29,14 @@ export interface ReviewQueueItem {
   };
   submittedByHost?: {
     id: string;
-    fullName: string;
+    fullName?: string;
+    name?: string;
     email: string;
   };
   reviewedByAdmin?: {
     id: string;
-    fullName: string;
+    fullName?: string;
+    name?: string;
     email: string;
   };
 }

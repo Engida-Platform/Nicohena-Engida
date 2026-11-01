@@ -168,7 +168,10 @@ export class AuditService {
       qb.andWhere('audit.actorId = :actorId', { actorId: query.actorId });
     }
     if (query.action?.trim()) {
-      qb.andWhere('audit.action = :action', { action: query.action.trim() });
+      const action = query.action.trim();
+      qb.andWhere('audit.action ILIKE :action', {
+        action: action.includes('%') ? action : `%${action}%`,
+      });
     }
     if (query.entityType?.trim()) {
       qb.andWhere('audit.entityType = :entityType', {

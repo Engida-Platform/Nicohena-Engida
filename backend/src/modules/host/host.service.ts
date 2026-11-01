@@ -8,7 +8,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder, In } from 'typeorm';
+import { Repository, SelectQueryBuilder, In, EntityManager } from 'typeorm';
 import {
   Property,
   ListingStatus,
@@ -342,12 +342,19 @@ export class HostService {
     const page = Math.max(query?.page || 1, 1);
     const limit = Math.min(query?.limit || 20, 100);
     const skip = (page - 1) * limit;
-    const status = query?.status || HostVerificationStatus.PENDING;
+    const status = query?.status;
 
     const qb = this.hostProfileRepository
       .createQueryBuilder('profile')
-      .leftJoinAndSelect('profile.user', 'user')
-      .where('profile.verificationStatus = :status', { status });
+      .leftJoinAndSelect('profile.user', 'user');
+
+    if (status && status !== 'ALL') {
+      qb.where('profile.verificationStatus = :status', { status });
+    } else if (!status) {
+      qb.where('profile.verificationStatus = :status', {
+        status: HostVerificationStatus.PENDING,
+      });
+    }
 
     if (query?.search?.trim()) {
       const term = `%${query.search.trim().toLowerCase()}%`;
@@ -361,18 +368,33 @@ export class HostService {
 
     const [data, total] = await qb.skip(skip).take(limit).getManyAndCount();
 
-    const enriched = data.map((profile) => {
-      const audit = this.identityVerificationService?.getVerificationAudit(profile.userId) || null;
-      return Object.assign(profile, { verificationAudit: audit });
+    // Strip sensitive verificationAudit from list response to prevent leaking identity-audit data.
+    // Authorized compliance inspection fetches GET /admin/host-verifications/:id/audit-trail directly.
+    const safeData = data.map((profile) => {
+      const copy = { ...profile };
+      delete (copy as any).verificationAudit;
+      return copy;
     });
 
     return {
-      data: enriched,
+      data: safeData,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit) || 1,
     };
+  }
+
+  private async runTransaction<T>(
+    operation: (manager: EntityManager) => Promise<T>,
+  ): Promise<T> {
+    const mgr = this.hostProfileRepository.manager;
+    if (mgr && typeof mgr.transaction === 'function') {
+      return mgr.transaction(operation);
+    }
+    return operation({
+      getRepository: () => this.hostProfileRepository,
+    } as unknown as EntityManager);
   }
 
   /**
@@ -384,49 +406,69 @@ export class HostService {
     admin: User,
     auditContext?: AuditRequestContext,
   ): Promise<HostProfile> {
-    const profile = await this.hostProfileRepository.findOne({
-      where: { id: profileId },
-      relations: ['user'],
+    const saved = await this.runTransaction(async (manager) => {
+      const repo = manager.getRepository(HostProfile);
+      const profile = await repo.findOne({
+        where: { id: profileId },
+        relations: ['user'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Host profile with ID "${profileId}" not found.`);
+      }
+
+      if (profile.verificationStatus !== HostVerificationStatus.PENDING) {
+        throw new BadRequestException(
+          `Only host profiles in PENDING status can be approved. Current status: ${profile.verificationStatus}`,
+        );
+      }
+
+      const previousStatus = profile.verificationStatus;
+      profile.verificationStatus = HostVerificationStatus.VERIFIED;
+      const updated = await repo.save(profile);
+
+      await this.auditService.record({
+        actor: admin,
+        action: 'host.verification.approve',
+        entityType: 'host_profile',
+        entityId: updated.id,
+        before: { verificationStatus: previousStatus },
+        after: { verificationStatus: updated.verificationStatus },
+        metadata: { userId: updated.userId },
+        ipAddress: auditContext?.ipAddress ?? null,
+        userAgent: auditContext?.userAgent ?? null,
+      });
+
+      return updated;
     });
 
-    if (!profile) {
-      throw new NotFoundException(`Host profile with ID "${profileId}" not found.`);
-    }
-
-    if (profile.verificationStatus !== HostVerificationStatus.PENDING) {
-      throw new BadRequestException(
-        `Only host profiles in PENDING status can be approved. Current status: ${profile.verificationStatus}`,
-      );
-    }
-
-    profile.verificationStatus = HostVerificationStatus.VERIFIED;
-    const saved = await this.hostProfileRepository.save(profile);
     this.logger.log(`Host verification approved for profile ${profileId} by admin ${admin.id}`);
 
     if (this.identityVerificationService) {
-      this.identityVerificationService.recordAdminDecision(profile.userId, 'APPROVED', admin.id);
+      this.identityVerificationService.recordAdminDecision(saved.userId, 'APPROVED', admin.id);
     }
 
     if (this.notificationsService) {
       try {
         await this.notificationsService.createNotification({
-          userId: profile.userId,
+          userId: saved.userId,
           type: NotificationType.LISTING_APPROVED,
           title: 'Host Verification Approved',
           message:
             'Congratulations! Your host profile identity has been verified by the ENGIDA compliance team. Your published listings now feature the Verified Host trust badge.',
           link: '/host/profile',
           metadata: {
-            profileId: profile.id,
+            profileId: saved.id,
             verificationStatus: HostVerificationStatus.VERIFIED,
             reviewedByAdminId: admin.id,
           },
-          idempotencyKey: `host-verification-approved-${profile.id}-${Date.now()}`,
+          idempotencyKey: `host-verification-approved-${saved.id}-${Date.now()}`,
         });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.warn(
-          `Host verification ${profile.id} was approved but the notification failed: ${message}`,
+          `Host verification ${saved.id} was approved but the notification failed: ${message}`,
         );
       }
     }
@@ -452,51 +494,71 @@ export class HostService {
       throw new BadRequestException('Rejection explanation cannot exceed 500 characters.');
     }
 
-    const profile = await this.hostProfileRepository.findOne({
-      where: { id: profileId },
-      relations: ['user'],
+    const saved = await this.runTransaction(async (manager) => {
+      const repo = manager.getRepository(HostProfile);
+      const profile = await repo.findOne({
+        where: { id: profileId },
+        relations: ['user'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Host profile with ID "${profileId}" not found.`);
+      }
+
+      if (profile.verificationStatus !== HostVerificationStatus.PENDING) {
+        throw new BadRequestException(
+          `Only host profiles in PENDING status can be rejected. Current status: ${profile.verificationStatus}`,
+        );
+      }
+
+      const previousStatus = profile.verificationStatus;
+      profile.verificationStatus = HostVerificationStatus.REJECTED;
+      const updated = await repo.save(profile);
+
+      await this.auditService.record({
+        actor: admin,
+        action: 'host.verification.reject',
+        entityType: 'host_profile',
+        entityId: updated.id,
+        before: { verificationStatus: previousStatus },
+        after: { verificationStatus: updated.verificationStatus },
+        metadata: { userId: updated.userId, rejectionReason: trimmed },
+        ipAddress: auditContext?.ipAddress ?? null,
+        userAgent: auditContext?.userAgent ?? null,
+      });
+
+      return updated;
     });
 
-    if (!profile) {
-      throw new NotFoundException(`Host profile with ID "${profileId}" not found.`);
-    }
-
-    if (profile.verificationStatus !== HostVerificationStatus.PENDING) {
-      throw new BadRequestException(
-        `Only host profiles in PENDING status can be rejected. Current status: ${profile.verificationStatus}`,
-      );
-    }
-
-    profile.verificationStatus = HostVerificationStatus.REJECTED;
-    const saved = await this.hostProfileRepository.save(profile);
     this.logger.log(
       `Host verification rejected for profile ${profileId} by admin ${admin.id}: "${trimmed}"`,
     );
 
     if (this.identityVerificationService) {
-      this.identityVerificationService.recordAdminDecision(profile.userId, 'REJECTED', admin.id, trimmed);
+      this.identityVerificationService.recordAdminDecision(saved.userId, 'REJECTED', admin.id, trimmed);
     }
 
     if (this.notificationsService) {
       try {
         await this.notificationsService.createNotification({
-          userId: profile.userId,
+          userId: saved.userId,
           type: NotificationType.LISTING_REJECTED,
           title: 'Host Verification Not Approved',
           message: `Your host verification request was not approved. Feedback: ${trimmed}`,
           link: '/host/profile',
           metadata: {
-            profileId: profile.id,
+            profileId: saved.id,
             verificationStatus: HostVerificationStatus.REJECTED,
             rejectionReason: trimmed,
             reviewedByAdminId: admin.id,
           },
-          idempotencyKey: `host-verification-rejected-${profile.id}-${Date.now()}`,
+          idempotencyKey: `host-verification-rejected-${saved.id}-${Date.now()}`,
         });
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         this.logger.warn(
-          `Host verification ${profile.id} was rejected but the notification failed: ${message}`,
+          `Host verification ${saved.id} was rejected but the notification failed: ${message}`,
         );
       }
     }
@@ -513,6 +575,7 @@ export class HostService {
     profileId: string,
     explanation: string,
     admin: User,
+    auditContext?: AuditRequestContext,
   ): Promise<HostProfile> {
     const trimmed = explanation?.trim();
     if (!trimmed || trimmed.length < 5) {
@@ -522,51 +585,72 @@ export class HostService {
       throw new BadRequestException('Revocation explanation cannot exceed 500 characters.');
     }
 
-    const profile = await this.hostProfileRepository.findOne({
-      where: { id: profileId },
-      relations: ['user'],
+    const saved = await this.runTransaction(async (manager) => {
+      const repo = manager.getRepository(HostProfile);
+      const profile = await repo.findOne({
+        where: { id: profileId },
+        relations: ['user'],
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!profile) {
+        throw new NotFoundException(`Host profile with ID "${profileId}" not found.`);
+      }
+
+      if (profile.verificationStatus !== HostVerificationStatus.VERIFIED) {
+        throw new BadRequestException(
+          `Only host profiles in VERIFIED status can have verification revoked. Current status: ${profile.verificationStatus}`,
+        );
+      }
+
+      const previousStatus = profile.verificationStatus;
+      profile.verificationStatus = HostVerificationStatus.REJECTED;
+      const updated = await repo.save(profile);
+
+      await this.auditService.record({
+        actor: admin,
+        action: 'host.verification.revoke',
+        entityType: 'host_profile',
+        entityId: updated.id,
+        before: { verificationStatus: previousStatus },
+        after: { verificationStatus: updated.verificationStatus },
+        metadata: { userId: updated.userId, revocationReason: trimmed },
+        ipAddress: auditContext?.ipAddress ?? null,
+        userAgent: auditContext?.userAgent ?? null,
+      });
+
+      return updated;
     });
 
-    if (!profile) {
-      throw new NotFoundException(`Host profile with ID "${profileId}" not found.`);
-    }
-
-    if (profile.verificationStatus !== HostVerificationStatus.VERIFIED) {
-      throw new BadRequestException(
-        `Only host profiles in VERIFIED status can have verification revoked. Current status: ${profile.verificationStatus}`,
-      );
-    }
-
-    profile.verificationStatus = HostVerificationStatus.REJECTED;
-    const saved = await this.hostProfileRepository.save(profile);
     this.logger.log(
       `Host verification revoked for profile ${profileId} by admin ${admin.id}: "${trimmed}"`,
     );
 
     if (this.identityVerificationService) {
-      this.identityVerificationService.recordAdminDecision(profile.userId, 'REVOKED', admin.id, trimmed);
+      this.identityVerificationService.recordAdminDecision(saved.userId, 'REVOKED', admin.id, trimmed);
     }
 
     if (this.notificationsService) {
       await this.notificationsService.createNotification({
-        userId: profile.userId,
+        userId: saved.userId,
         type: NotificationType.LISTING_REJECTED,
         title: 'Host Verification Revoked',
         message: `Your host verification has been revoked by an administrator: ${trimmed}`,
         link: '/host/profile',
         metadata: {
-          profileId: profile.id,
+          profileId: saved.id,
           verificationStatus: HostVerificationStatus.REJECTED,
           rejectionReason: trimmed,
           reviewedByAdminId: admin.id,
         },
-        idempotencyKey: `host-verification-revoked-${profile.id}-${Date.now()}`,
+        idempotencyKey: `host-verification-revoked-${saved.id}-${Date.now()}`,
       });
     }
 
     (saved as any).rejectionReason = trimmed;
     return saved;
   }
+
 
   /**
    * Process an authoritative identity verification provider result (e.g. from webhook).

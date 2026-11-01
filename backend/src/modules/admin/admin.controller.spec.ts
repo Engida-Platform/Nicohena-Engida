@@ -180,6 +180,7 @@ describe('AdminController - Host Verification', () => {
         'profile-uuid-1',
         'Repeated platform policy violation.',
         mockAdminUser,
+        { ipAddress: undefined, userAgent: undefined },
       );
       expect(result.verificationStatus).toBe(HostVerificationStatus.REJECTED);
     });

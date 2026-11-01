@@ -47,6 +47,7 @@ import {
 } from '../../../types/admin';
 
 type RoleFilter = 'all' | 'USER' | 'ADMIN';
+type AdminRoleFilter = 'all' | AdminRole | 'none';
 type StatusFilter = 'all' | 'active' | 'suspended';
 
 const PAGE_SIZE = 20;
@@ -106,9 +107,10 @@ export default function AdminUsersPage() {
   const [filters, setFilters] = useState<{
     q: string;
     role: RoleFilter;
+    adminRole: AdminRoleFilter;
     status: StatusFilter;
     page: number;
-  }>({ q: '', role: 'all', status: 'all', page: 1 });
+  }>({ q: '', role: 'all', adminRole: 'all', status: 'all', page: 1 });
 
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(
     null,
@@ -143,12 +145,14 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     const roleParam = searchParams.get('role');
+    const adminRoleParam = searchParams.get('adminRole');
     const activeParam = searchParams.get('isActive');
     const pageParam = searchParams.get('page');
 
     setFilters((current) => ({
       ...current,
       role: roleParam === 'ADMIN' || roleParam === 'USER' ? roleParam : 'all',
+      adminRole: (adminRoleParam as AdminRoleFilter) || 'all',
       status:
         activeParam === 'false' ? 'suspended' : activeParam === 'true' ? 'active' : 'all',
       page: pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1,
@@ -193,6 +197,7 @@ export default function AdminUsersPage() {
         params.set('limit', String(PAGE_SIZE));
         if (filters.q.trim()) params.set('q', filters.q.trim());
         if (filters.role !== 'all') params.set('role', filters.role);
+        if (filters.adminRole !== 'all') params.set('adminRole', filters.adminRole);
         if (filters.status !== 'all') {
           params.set('isActive', String(filters.status === 'active'));
         }
@@ -232,6 +237,7 @@ export default function AdminUsersPage() {
       const params = new URLSearchParams();
       if (filters.q.trim()) params.set('q', filters.q.trim());
       if (filters.role !== 'all') params.set('role', filters.role);
+      if (filters.adminRole !== 'all') params.set('adminRole', filters.adminRole);
       if (filters.status !== 'all') {
         params.set('isActive', filters.status === 'active' ? 'true' : 'false');
       }
@@ -391,7 +397,7 @@ export default function AdminUsersPage() {
 
   const resetFilters = () => {
     setSearchInput('');
-    setFilters({ q: '', role: 'all', status: 'all', page: 1 });
+    setFilters({ q: '', role: 'all', adminRole: 'all', status: 'all', page: 1 });
   };
 
   return (
@@ -467,6 +473,26 @@ export default function AdminUsersPage() {
               </select>
 
               <select
+                value={filters.adminRole}
+                onChange={(event) =>
+                  setFilters((current) => ({
+                    ...current,
+                    adminRole: event.target.value as AdminRoleFilter,
+                    page: 1,
+                  }))
+                }
+                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                aria-label="Filter by admin role"
+              >
+                <option value="all">All admin roles</option>
+                <option value="SUPER_ADMIN">Super Admin</option>
+                <option value="PROPERTY_MODERATOR">Property Moderator</option>
+                <option value="SUPPORT_AGENT">Support Agent</option>
+                <option value="BOOKING_MANAGER">Booking Manager</option>
+                <option value="FINANCE_MANAGER">Finance Manager</option>
+              </select>
+
+              <select
                 value={filters.status}
                 onChange={(event) =>
                   setFilters((current) => ({
@@ -499,7 +525,7 @@ export default function AdminUsersPage() {
               </div>
             </div>
 
-            {(filters.q || filters.role !== 'all' || filters.status !== 'all') && (
+            {(filters.q || filters.role !== 'all' || filters.adminRole !== 'all' || filters.status !== 'all') && (
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                 <span className="font-semibold text-[#7a6b5f]">Active filters:</span>
                 {filters.q && (
@@ -510,6 +536,11 @@ export default function AdminUsersPage() {
                 {filters.role !== 'all' && (
                   <span className="rounded-full bg-[#efe7dc] px-2.5 py-1 font-medium text-[#6c5d52]">
                     {filters.role === 'ADMIN' ? 'Administrators' : 'Guests & hosts'}
+                  </span>
+                )}
+                {filters.adminRole !== 'all' && (
+                  <span className="rounded-full bg-[#efe7dc] px-2.5 py-1 font-medium text-[#6c5d52]">
+                    Admin: {filters.adminRole.replace('_', ' ')}
                   </span>
                 )}
                 <span className="rounded-full bg-[#efe7dc] px-2.5 py-1 font-medium text-[#6c5d52]">

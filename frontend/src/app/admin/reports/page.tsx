@@ -1,6 +1,7 @@
 'use client';
 
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertTriangle,
   Building2,
@@ -101,12 +102,14 @@ export default function AdminReportsPage() {
 
   const [draft, setDraft] = useState({
     q: '',
+    targetId: '',
     status: 'all',
     targetType: 'all',
     reason: 'all',
   });
   const [applied, setApplied] = useState({
     q: '',
+    targetId: '',
     status: 'all',
     targetType: 'all',
     reason: 'all',
@@ -141,6 +144,7 @@ export default function AdminReportsPage() {
         params.set('page', String(page));
         params.set('limit', String(PAGE_SIZE));
         if (applied.q.trim()) params.set('q', applied.q.trim());
+        if (applied.targetId.trim()) params.set('targetId', applied.targetId.trim());
         if (applied.status !== 'all') params.set('status', applied.status);
         if (applied.targetType !== 'all') params.set('targetType', applied.targetType);
         if (applied.reason !== 'all') params.set('reason', applied.reason);
@@ -179,8 +183,8 @@ export default function AdminReportsPage() {
   };
 
   const clearFilters = () => {
-    setDraft({ q: '', status: 'all', targetType: 'all', reason: 'all' });
-    setApplied({ q: '', status: 'all', targetType: 'all', reason: 'all' });
+    setDraft({ q: '', targetId: '', status: 'all', targetType: 'all', reason: 'all' });
+    setApplied({ q: '', targetId: '', status: 'all', targetType: 'all', reason: 'all' });
     setPage(1);
   };
 
@@ -240,6 +244,7 @@ export default function AdminReportsPage() {
 
   const hasFilters =
     Boolean(applied.q) ||
+    Boolean(applied.targetId) ||
     applied.status !== 'all' ||
     applied.targetType !== 'all' ||
     applied.reason !== 'all';
@@ -274,7 +279,7 @@ export default function AdminReportsPage() {
             onSubmit={applyFilters}
             className="rounded-2xl border border-[#d8d0c8] bg-white p-4 shadow-sm sm:p-5"
           >
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1fr)_150px_150px_180px_auto]">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(200px,1fr)_minmax(140px,1fr)_130px_130px_160px_auto]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7a6b5f]" />
                 <input
@@ -285,6 +290,18 @@ export default function AdminReportsPage() {
                   }
                   placeholder="Search reporter or details"
                   className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] pl-9 pr-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                />
+              </div>
+
+              <div>
+                <input
+                  type="text"
+                  value={draft.targetId}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, targetId: event.target.value }))
+                  }
+                  placeholder="Target ID (UUID)"
+                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
                 />
               </div>
 
@@ -345,6 +362,7 @@ export default function AdminReportsPage() {
                   disabled={
                     !hasFilters &&
                     !draft.q &&
+                    !draft.targetId &&
                     draft.status === 'all' &&
                     draft.targetType === 'all' &&
                     draft.reason === 'all'
@@ -449,9 +467,24 @@ export default function AdminReportsPage() {
                                 <p className="max-w-[220px] truncate text-xs font-semibold text-[#5a4c42]">
                                   {targetLabel(report.target)}
                                 </p>
-                                <p className="mt-0.5 text-xs text-[#7a6b5f]">
-                                  {report.targetType === 'LISTING' ? 'Listing' : 'Guest review'}
-                                </p>
+                                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[#7a6b5f]">
+                                  <span>{report.targetType === 'LISTING' ? 'Listing' : 'Guest review'}</span>
+                                  {report.target?.id && (
+                                    <>
+                                      <span>·</span>
+                                      <Link
+                                        href={
+                                          report.targetType === 'LISTING'
+                                            ? `/admin/moderation?tab=takedowns&propertyId=${report.target.id}`
+                                            : `/admin/reviews?propertyId=${report.target.id}`
+                                        }
+                                        className="text-[#b3541e] hover:underline"
+                                      >
+                                        Console
+                                      </Link>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -686,6 +719,16 @@ export default function AdminReportsPage() {
                           Hide reason: {detail.target.adminHiddenReason}
                         </p>
                       )}
+                      {detail.target.id && (
+                        <div className="mt-3">
+                          <Link
+                            href={`/admin/moderation?tab=takedowns&propertyId=${detail.target.id}`}
+                            className="inline-flex items-center text-xs font-semibold text-[#b3541e] hover:underline"
+                          >
+                            View in moderation console &rarr;
+                          </Link>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -732,6 +775,16 @@ export default function AdminReportsPage() {
                         <p className="mt-2 rounded-lg bg-[#f6f0e8] px-2.5 py-2 text-xs text-[#6c5d52]">
                           Moderation note: {detail.target.moderationReason}
                         </p>
+                      )}
+                      {(detail.target.propertyId || detail.target.id) && (
+                        <div className="mt-3">
+                          <Link
+                            href={`/admin/reviews?propertyId=${detail.target.propertyId || detail.target.id}`}
+                            className="inline-flex items-center text-xs font-semibold text-[#b3541e] hover:underline"
+                          >
+                            View in reviews console &rarr;
+                          </Link>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -4,174 +4,24 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Activity,
   ArrowUpRight,
-  BarChart3,
-  CalendarRange,
-  ClipboardCheck,
-  FileText,
-  Flag,
-  LayoutDashboard,
   LogOut,
-  Landmark,
-  MapPin,
   Menu,
-  MessagesSquare,
   PanelLeftClose,
   PanelLeftOpen,
-  ScrollText,
   ShieldCheck,
-  Sliders,
-  Star,
-  Tag,
-  Users,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useAdminPermissions } from '../../hooks/useAdminPermissions';
+import AdminNoAccess from '../../components/admin/AdminNoAccess';
 import {
-  ADMIN_PERMISSIONS,
-  ALL_ADMIN_PERMISSIONS,
-  formatAdminRole,
-  getEffectivePermissions,
-  type Permission,
-} from '../../types/admin';
-
-export interface NavItem {
-  href: string;
-  label: string;
-  shortLabel: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  permission?: Permission;
-  anyOf?: Permission[];
-}
-
-export interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
-export const NAV_SECTIONS: NavSection[] = [
-  {
-    title: 'Operations',
-    items: [
-      {
-        href: '/admin',
-        label: 'Overview',
-        shortLabel: 'Overview',
-        icon: LayoutDashboard,
-        permission: ADMIN_PERMISSIONS.DASHBOARD_VIEW,
-      },
-      {
-        href: '/admin/bookings',
-        label: 'Bookings',
-        shortLabel: 'Bookings',
-        icon: CalendarRange,
-        permission: ADMIN_PERMISSIONS.BOOKINGS_VIEW,
-      },
-      {
-        href: '/admin/cases',
-        label: 'Support cases',
-        shortLabel: 'Cases',
-        icon: MessagesSquare,
-        permission: ADMIN_PERMISSIONS.CASES_VIEW,
-      },
-      {
-        href: '/admin/moderation',
-        label: 'Moderation',
-        shortLabel: 'Moderation',
-        icon: ClipboardCheck,
-        anyOf: [ADMIN_PERMISSIONS.LISTINGS_REVIEW, ADMIN_PERMISSIONS.HOSTS_VERIFY],
-      },
-      {
-        href: '/admin/reports',
-        label: 'Reports',
-        shortLabel: 'Reports',
-        icon: Flag,
-        permission: ADMIN_PERMISSIONS.REPORTS_VIEW,
-      },
-    ],
-  },
-  {
-    title: 'Management & Growth',
-    items: [
-      {
-        href: '/admin/users',
-        label: 'Users & admins',
-        shortLabel: 'Users',
-        icon: Users,
-        permission: ADMIN_PERMISSIONS.USERS_VIEW,
-      },
-      {
-        href: '/admin/reviews',
-        label: 'Guest reviews',
-        shortLabel: 'Reviews',
-        icon: Star,
-        permission: ADMIN_PERMISSIONS.REVIEWS_VIEW,
-      },
-      {
-        href: '/admin/finance',
-        label: 'Finance & Escrow',
-        shortLabel: 'Finance',
-        icon: Landmark,
-        permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
-      },
-      {
-        href: '/admin/analytics',
-        label: 'Analytics & BI',
-        shortLabel: 'Analytics',
-        icon: BarChart3,
-        permission: ADMIN_PERMISSIONS.ANALYTICS_VIEW,
-      },
-      {
-        href: '/admin/coupons',
-        label: 'Coupons & Discounts',
-        shortLabel: 'Coupons',
-        icon: Tag,
-        permission: ADMIN_PERMISSIONS.COUPONS_MANAGE,
-      },
-    ],
-  },
-  {
-    title: 'System & Catalog',
-    items: [
-      {
-        href: '/admin/categories',
-        label: 'Categories & Locations',
-        shortLabel: 'Catalog',
-        icon: MapPin,
-        permission: ADMIN_PERMISSIONS.CATALOG_MANAGE,
-      },
-      {
-        href: '/admin/content',
-        label: 'Content & CMS',
-        shortLabel: 'Content',
-        icon: FileText,
-        permission: ADMIN_PERMISSIONS.CONTENT_MANAGE,
-      },
-      {
-        href: '/admin/settings',
-        label: 'Platform Settings',
-        shortLabel: 'Settings',
-        icon: Sliders,
-        permission: ADMIN_PERMISSIONS.SETTINGS_VIEW,
-      },
-      {
-        href: '/admin/system',
-        label: 'System Health',
-        shortLabel: 'System',
-        icon: Activity,
-        permission: ADMIN_PERMISSIONS.SYSTEM_VIEW,
-      },
-      {
-        href: '/admin/audit',
-        label: 'Audit log',
-        shortLabel: 'Audit',
-        icon: ScrollText,
-        permission: ADMIN_PERMISSIONS.AUDIT_VIEW,
-      },
-    ],
-  },
-];
+  canAccessNavItem,
+  filterNavSections,
+  findNavItemForPath,
+  firstAccessibleHref,
+} from '../../components/admin/admin-nav';
+import { formatAdminRole } from '../../types/admin';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
@@ -224,47 +74,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
   }, [mobileOpen]);
 
-  const effectivePermissions = useMemo(() => {
-    return getEffectivePermissions(user);
-  }, [user]);
+  const { permissions: effectivePermissions } = useAdminPermissions();
 
-  // Robust visibility resolver:
-  // If an administrator is logged in, show all sections matching their role permissions.
-  // If permission filtering would result in zero navigation items (e.g., transitional
-  // or legacy session state), gracefully fall back to displaying all sections so that
-  // navigation is NEVER blank or broken.
-  const visibleSections = useMemo(() => {
-    const isSuperOrUnrestricted =
-      !user?.adminRole ||
-      user.adminRole === 'SUPER_ADMIN' ||
-      effectivePermissions.length >= ALL_ADMIN_PERMISSIONS.length;
-
-    if (isSuperOrUnrestricted) {
-      return NAV_SECTIONS;
-    }
-
-    const filtered = NAV_SECTIONS.map((section) => ({
-      ...section,
-      items: section.items.filter((item) => {
-        if (!item.permission && !item.anyOf) return true;
-        if (effectivePermissions.length === 0) return true;
-        if (item.permission) return effectivePermissions.includes(item.permission);
-        if (item.anyOf) return item.anyOf.some((p) => effectivePermissions.includes(p));
-        return false;
-      }),
-    })).filter((section) => section.items.length > 0);
-
-    return filtered.length > 0 ? filtered : NAV_SECTIONS;
-  }, [user, effectivePermissions]);
+  // Strict visibility: an admin only ever sees the pages their role grants.
+  // There is deliberately no "show everything" fallback; the backend enforces
+  // the same permissions on every endpoint.
+  const visibleSections = useMemo(
+    () => filterNavSections(effectivePermissions),
+    [effectivePermissions],
+  );
 
   const allVisibleItems = useMemo(
     () => visibleSections.flatMap((s) => s.items),
     [visibleSections],
   );
 
-  const activeItem = allVisibleItems
-    .filter((item) => (item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href)))
-    .sort((a, b) => b.href.length - a.href.length)[0];
+  const routeItem = findNavItemForPath(pathname || '/admin');
+  const routeAllowed = !routeItem || canAccessNavItem(routeItem, effectivePermissions);
+  const activeItem = routeItem && routeAllowed
+    ? allVisibleItems.find((item) => item.href === routeItem.href)
+    : undefined;
+  const landingHref = firstAccessibleHref(effectivePermissions);
 
   if (loading) {
     return (
@@ -584,7 +414,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         <main className="px-4 py-7 sm:px-6 md:px-8 lg:px-10 lg:py-9">
-          <div className="mx-auto max-w-[1440px]">{children}</div>
+          <div className="mx-auto max-w-[1440px]">
+            {routeAllowed ? (
+              children
+            ) : (
+              <AdminNoAccess
+                area={routeItem?.label}
+                required={routeItem?.permission ? [routeItem.permission] : routeItem?.anyOf}
+                backHref={landingHref ?? '/'}
+                backLabel={landingHref ? 'Go to a page you can open' : 'Back to marketplace'}
+              />
+            )}
+          </div>
         </main>
       </div>
     </div>

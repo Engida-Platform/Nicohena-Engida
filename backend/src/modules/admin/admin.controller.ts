@@ -18,7 +18,10 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User, UserRole } from '../../users/entities/user.entity';
 import { PermissionsGuard } from './rbac/permissions.guard';
-import { RequirePermissions } from './rbac/permissions.decorator';
+import {
+  RequirePermissions,
+  RequireAnyPermissions,
+} from './rbac/permissions.decorator';
 import { Permission } from './rbac/permissions';
 import { ListingModerationService } from '../properties/listing-moderation.service';
 import { HostService } from '../host/host.service';
@@ -26,6 +29,7 @@ import {
   QueryReviewsDto,
   RejectReviewDto,
   HideListingDto,
+  RestoreListingDto,
 } from '../properties/dto/moderation-review.dto';
 import {
   QueryHostVerificationsDto,
@@ -133,6 +137,16 @@ export class AdminController {
   }
 
   /**
+   * GET /admin/listings/:id
+   * Admin inspection of any listing (regardless of whether it is draft, hidden, or published).
+   */
+  @Get('listings/:id')
+  @RequireAnyPermissions(Permission.LISTINGS_HIDE, Permission.LISTINGS_VIEW)
+  async getAdminListingDetail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.listingModerationService.getAdminListingDetail(id);
+  }
+
+  /**
    * POST /admin/listings/:id/restore
    * Restores a previously hidden listing to public discovery and bookings.
    */
@@ -141,14 +155,20 @@ export class AdminController {
   @RequirePermissions(Permission.LISTINGS_HIDE)
   async restoreListing(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RestoreListingDto,
     @GetUser() admin: User,
     @Ip() ipAddress: string,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.listingModerationService.restoreListing(id, admin, {
-      ipAddress,
-      userAgent,
-    });
+    return this.listingModerationService.restoreListing(
+      id,
+      admin,
+      {
+        ipAddress,
+        userAgent,
+      },
+      dto?.reason,
+    );
   }
 
   // ─────────────────────────────────────────
@@ -210,13 +230,20 @@ export class AdminController {
    * Revokes an active host verification with required explanation.
    */
   @Post('host-verifications/:id/revoke')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions(Permission.HOSTS_VERIFY)
   async revokeHostVerification(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectHostVerificationDto,
     @GetUser() admin: User,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent?: string,
   ) {
     const explanation = dto.explanation || dto.rejectionReason;
-    return this.hostService.revokeHostVerification(id, explanation!, admin);
+    return this.hostService.revokeHostVerification(id, explanation!, admin, {
+      ipAddress,
+      userAgent,
+    });
   }
 
   /**
@@ -224,8 +251,10 @@ export class AdminController {
    * Retrieves full audit records, masked document numbers, provider transaction IDs, and liveness/face-match scores for compliance inspection.
    */
   @Get('host-verifications/:id/audit-trail')
+  @RequirePermissions(Permission.HOSTS_VERIFY)
   async getHostVerificationAuditTrail(@Param('id', ParseUUIDPipe) id: string) {
     const profile = await this.hostService.getHostProfileById(id);
     return this.hostService.getVerificationAudit(profile.userId);
   }
 }
+

@@ -1,10 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import AdminDialog from '../../../components/admin/AdminDialog';
+import AdminNoAccess from '../../../components/admin/AdminNoAccess';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
 import { useDefaultCurrency } from '../../../hooks/useDefaultCurrency';
+import { useAuth } from '../../../context/AuthContext';
+import { can, ADMIN_PERMISSIONS } from '../../../types/admin';
 import type { HostProfile } from '../../../types/host';
 import type {
   ReviewQueueItem,
@@ -42,13 +47,41 @@ interface ReviewQueueStats {
   pendingEdits: number;
   approvedTotal: number;
   rejectedTotal: number;
+  pendingHosts?: number;
 }
 
 export default function AdminModerationPage() {
+  const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const propertyIdParam = searchParams.get('propertyId') || '';
+
+  const canReview = can(user?.permissions, ADMIN_PERMISSIONS.LISTINGS_REVIEW);
+  const canHide = can(user?.permissions, ADMIN_PERMISSIONS.LISTINGS_HIDE);
+  const canViewHosts = can(user?.permissions, ADMIN_PERMISSIONS.HOSTS_VIEW);
+  const canVerifyHosts = can(user?.permissions, ADMIN_PERMISSIONS.HOSTS_VERIFY);
+  const canViewListings = can(user?.permissions, ADMIN_PERMISSIONS.LISTINGS_VIEW);
+
+  const defaultTab: 'pending' | 'all' | 'takedowns' | 'host-verifications' =
+    tabParam === 'takedowns' && canHide
+      ? 'takedowns'
+      : tabParam === 'host-verifications' && canViewHosts
+      ? 'host-verifications'
+      : canReview
+      ? 'pending'
+      : canViewHosts
+      ? 'host-verifications'
+      : 'takedowns';
+
   const [activeTab, setActiveTab] = useState<
     'pending' | 'all' | 'takedowns' | 'host-verifications'
-  >('pending');
+  >(defaultTab);
+
   const [reviews, setReviews] = useState<ReviewQueueItem[]>([]);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewTotalPages, setReviewTotalPages] = useState(1);
+  const [reviewTotal, setReviewTotal] = useState(0);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exportingListings, setExportingListings] = useState(false);
@@ -75,37 +108,55 @@ export default function AdminModerationPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  // Decision states
+  // Decision states & dialogs
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [confirmApproveReviewId, setConfirmApproveReviewId] = useState<string | null>(null);
+  const [rejectTargetReview, setRejectTargetReview] = useState<{ id: string; title?: string } | null>(null);
   const [rejectionModalOpen, setRejectionModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionError, setRejectionError] = useState<string | null>(null);
 
   // Takedown Console State
-  const [takedownPropertyId, setTakedownPropertyId] = useState('');
+  const [takedownPropertyId, setTakedownPropertyId] = useState(propertyIdParam);
   const [takedownListing, setTakedownListing] = useState<AdminListingProperty | null>(null);
   const [takedownLoading, setTakedownLoading] = useState(false);
   const [takedownReason, setTakedownReason] = useState('');
   const [takedownMessage, setTakedownMessage] = useState<string | null>(null);
   const [takedownError, setTakedownError] = useState<string | null>(null);
+  const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false);
+  const [restoreReason, setRestoreReason] = useState('');
 
   // ── Host Verification Console State ──
   const [hostVerifications, setHostVerifications] = useState<HostProfile[]>([]);
+  const [hostVerifPage, setHostVerifPage] = useState(1);
+  const [hostVerifTotalPages, setHostVerifTotalPages] = useState(1);
+  const [hostVerifTotal, setHostVerifTotal] = useState(0);
   const [loadingHostVerif, setLoadingHostVerif] = useState(false);
   const [hostVerifError, setHostVerifError] = useState<string | null>(null);
   const [hostVerifSuccess, setHostVerifSuccess] = useState<string | null>(null);
   const [hostVerifStatusFilter, setHostVerifStatusFilter] = useState<string>('PENDING');
   const [hostVerifSearch, setHostVerifSearch] = useState('');
+  const [debouncedHostSearch, setDebouncedHostSearch] = useState('');
   const [pendingHostCount, setPendingHostCount] = useState(0);
 
-  // Host Verification Decision Modal
+  // Host Verification Decision Modals
+  const [confirmApproveHostProfile, setConfirmApproveHostProfile] = useState<HostProfile | null>(null);
   const [approvingHostId, setApprovingHostId] = useState<string | null>(null);
   const [rejectingHostProfile, setRejectingHostProfile] = useState<HostProfile | null>(null);
   const [hostRejectionExplanation, setHostRejectionExplanation] = useState('');
   const [hostRejectionModalError, setHostRejectionModalError] = useState<string | null>(null);
   const [submittingHostRejection, setSubmittingHostRejection] = useState(false);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedHostSearch(hostVerifSearch);
+      setHostVerifPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [hostVerifSearch]);
+
   const exportListings = async () => {
+    if (!canViewListings) return;
     setExportingListings(true);
     setExportNotice(null);
     try {
@@ -123,6 +174,7 @@ export default function AdminModerationPage() {
   // 1. Load Reviews Queue
   // ─────────────────────────────────────────────────────────────
   const fetchReviews = useCallback(async () => {
+    if (!canReview) return;
     try {
       setLoading(true);
       setError(null);
@@ -138,29 +190,39 @@ export default function AdminModerationPage() {
       if (typeFilter) {
         params.append('submissionType', typeFilter);
       }
-      params.append('limit', '50');
+      params.append('page', String(reviewPage));
+      params.append('limit', '25');
 
       const [data, queueStats] = await Promise.all([
         apiFetch<{
           data: ReviewQueueItem[];
           total: number;
+          totalPages?: number;
         }>(`/admin/reviews?${params.toString()}`),
         apiFetch<ReviewQueueStats>('/admin/reviews/stats').catch(() => null),
       ]);
 
       setReviews(data.data || []);
-      if (queueStats) setStats(queueStats);
+      setReviewTotal(data.total || 0);
+      setReviewTotalPages(data.totalPages || Math.ceil((data.total || 0) / 25) || 1);
+      if (queueStats) {
+        setStats(queueStats);
+        if (typeof queueStats.pendingHosts === 'number') {
+          setPendingHostCount(queueStats.pendingHosts);
+        }
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load review queue.');
     } finally {
       setLoading(false);
     }
-  }, [activeTab, statusFilter, typeFilter]);
+  }, [canReview, activeTab, statusFilter, typeFilter, reviewPage]);
 
   // ─────────────────────────────────────────────────────────────
   // 1B. Load Host Verifications
   // ─────────────────────────────────────────────────────────────
   const fetchHostVerifications = useCallback(async () => {
+    if (!canViewHosts) return;
     try {
       setLoadingHostVerif(true);
       setHostVerifError(null);
@@ -169,17 +231,21 @@ export default function AdminModerationPage() {
       if (hostVerifStatusFilter) {
         params.append('status', hostVerifStatusFilter);
       }
-      if (hostVerifSearch.trim()) {
-        params.append('search', hostVerifSearch.trim());
+      if (debouncedHostSearch.trim()) {
+        params.append('search', debouncedHostSearch.trim());
       }
-      params.append('limit', '50');
+      params.append('page', String(hostVerifPage));
+      params.append('limit', '25');
 
       const data = await apiFetch<{
         data: HostProfile[];
         total: number;
+        totalPages?: number;
       }>(`/admin/host-verifications?${params.toString()}`);
 
       setHostVerifications(data.data || []);
+      setHostVerifTotal(data.total || 0);
+      setHostVerifTotalPages(data.totalPages || Math.ceil((data.total || 0) / 25) || 1);
 
       if (hostVerifStatusFilter === 'PENDING') {
         setPendingHostCount(data.total || (data.data || []).length);
@@ -191,12 +257,9 @@ export default function AdminModerationPage() {
     } finally {
       setLoadingHostVerif(false);
     }
-  }, [hostVerifStatusFilter, hostVerifSearch]);
+  }, [canViewHosts, hostVerifStatusFilter, debouncedHostSearch, hostVerifPage]);
 
   const handleApproveHost = async (profileId: string) => {
-    if (!window.confirm('Are you sure you want to approve this host identity verification?')) {
-      return;
-    }
     try {
       setApprovingHostId(profileId);
       setHostVerifError(null);
@@ -207,6 +270,7 @@ export default function AdminModerationPage() {
       });
 
       setHostVerifSuccess('Host verification approved! The host has been notified.');
+      setConfirmApproveHostProfile(null);
       await fetchHostVerifications();
     } catch (err: unknown) {
       setHostVerifError(
@@ -217,8 +281,8 @@ export default function AdminModerationPage() {
     }
   };
 
-  const handleRejectHostSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRejectHostSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!rejectingHostProfile) return;
 
     const trimmed = hostRejectionExplanation.trim();
@@ -291,6 +355,7 @@ export default function AdminModerationPage() {
     setReviewDetail(null);
     setDetailError(null);
     setRejectionModalOpen(false);
+    setRejectTargetReview(null);
     setRejectionReason('');
     setRejectionError(null);
   };
@@ -299,10 +364,9 @@ export default function AdminModerationPage() {
   // 3. Approval Action
   // ─────────────────────────────────────────────────────────────
   const handleApprove = async (reviewId: string) => {
-    if (!window.confirm('Are you sure you want to approve this listing submission?')) {
-      return;
-    }
+    setConfirmApproveReviewId(null);
     setActionInProgress(reviewId);
+    setError(null);
     try {
       await apiFetch(`/admin/reviews/${reviewId}/approve`, {
         method: 'POST',
@@ -310,7 +374,7 @@ export default function AdminModerationPage() {
       closeReviewDetail();
       fetchReviews();
     } catch (err: unknown) {
-      alert(`Approval failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setError(`Approval failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setActionInProgress(null);
     }
@@ -320,19 +384,24 @@ export default function AdminModerationPage() {
   // 4. Rejection Action
   // ─────────────────────────────────────────────────────────────
   const handleRejectSubmit = async () => {
-    if (!selectedReviewId) return;
+    const targetId = rejectTargetReview?.id || selectedReviewId;
+    if (!targetId) return;
     if (!rejectionReason.trim() || rejectionReason.trim().length < 5) {
       setRejectionError('A clear rejection reason of at least 5 characters is mandatory.');
       return;
     }
 
-    setActionInProgress(selectedReviewId);
+    setActionInProgress(targetId);
     try {
-      await apiFetch(`/admin/reviews/${selectedReviewId}/reject`, {
+      await apiFetch(`/admin/reviews/${targetId}/reject`, {
         method: 'POST',
         body: JSON.stringify({ rejectionReason: rejectionReason.trim() }),
       });
-      closeReviewDetail();
+      setRejectionModalOpen(false);
+      setRejectTargetReview(null);
+      if (selectedReviewId === targetId) {
+        closeReviewDetail();
+      }
       fetchReviews();
     } catch (err: unknown) {
       setRejectionError(err instanceof Error ? err.message : 'Rejection failed.');
@@ -344,16 +413,16 @@ export default function AdminModerationPage() {
   // ─────────────────────────────────────────────────────────────
   // 5. Takedown Console Search & Actions
   // ─────────────────────────────────────────────────────────────
-  const handleLookupListing = async () => {
-    if (!takedownPropertyId.trim()) return;
+  const handleLookupListing = useCallback(async (overrideId?: string) => {
+    const id = (overrideId ?? takedownPropertyId).trim();
+    if (!id) return;
     setTakedownLoading(true);
     setTakedownError(null);
     setTakedownMessage(null);
     setTakedownListing(null);
 
     try {
-      // Find property by ID using reviews or general endpoint
-      const res = await apiFetch<AdminListingProperty>(`/properties/${takedownPropertyId.trim()}`);
+      const res = await apiFetch<AdminListingProperty>(`/admin/listings/${id}`);
       setTakedownListing(res);
     } catch (err: unknown) {
       setTakedownError(
@@ -362,7 +431,13 @@ export default function AdminModerationPage() {
     } finally {
       setTakedownLoading(false);
     }
-  };
+  }, [takedownPropertyId]);
+
+  useEffect(() => {
+    if (propertyIdParam && canHide) {
+      handleLookupListing(propertyIdParam);
+    }
+  }, [propertyIdParam, canHide, handleLookupListing]);
 
   const handleHideListing = async () => {
     if (!takedownListing || !takedownReason.trim()) {
@@ -391,9 +466,6 @@ export default function AdminModerationPage() {
 
   const handleRestoreListing = async () => {
     if (!takedownListing) return;
-    if (!window.confirm('Restore this listing back to public discovery and reservations?')) {
-      return;
-    }
     setTakedownLoading(true);
     setTakedownError(null);
     try {
@@ -401,10 +473,13 @@ export default function AdminModerationPage() {
         `/admin/listings/${takedownListing.id as string}/restore`,
         {
           method: 'POST',
+          body: JSON.stringify({ reason: restoreReason.trim() || undefined }),
         },
       );
       setTakedownMessage('Listing has been restored to active public status.');
       setTakedownListing(res.property);
+      setConfirmRestoreOpen(false);
+      setRestoreReason('');
     } catch (err: unknown) {
       setTakedownError(
         `Failed to restore listing: ${err instanceof Error ? err.message : 'Unknown error'}`,
@@ -414,16 +489,47 @@ export default function AdminModerationPage() {
     }
   };
 
+  const handleRefresh = () => {
+    if (activeTab === 'host-verifications') {
+      void fetchHostVerifications();
+    } else if (activeTab === 'takedowns') {
+      if (takedownPropertyId.trim()) void handleLookupListing();
+    } else {
+      void fetchReviews();
+    }
+  };
+
   // Filter reviews by search query (title, host, id)
   const filteredReviews = reviews.filter((r) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     const title = r.property?.title?.toLowerCase() || '';
-    const host = r.submittedByHost?.fullName?.toLowerCase() || '';
+    const host = (r.submittedByHost?.fullName || r.submittedByHost?.name)?.toLowerCase() || '';
     const hostEmail = r.submittedByHost?.email?.toLowerCase() || '';
     const propId = r.propertyId?.toLowerCase() || '';
     return title.includes(q) || host.includes(q) || hostEmail.includes(q) || propId.includes(q);
   });
+
+  if (!canReview && !canHide && !canViewHosts) {
+    return (
+      <ProtectedRoute requiredRole="ADMIN">
+        <div className="space-y-8">
+          <AdminPageHeader
+            title="Moderation"
+            description="Review new property publications, inspect live edit proposals, and enforce safety holds."
+          />
+          <AdminNoAccess
+            area="Listing & Host Moderation"
+            required={[
+              ADMIN_PERMISSIONS.LISTINGS_REVIEW,
+              ADMIN_PERMISSIONS.LISTINGS_HIDE,
+              ADMIN_PERMISSIONS.HOSTS_VIEW,
+            ]}
+          />
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute requiredRole="ADMIN">
@@ -433,23 +539,30 @@ export default function AdminModerationPage() {
           description="Review new property publications, inspect live edit proposals, and enforce safety holds."
           actions={
             <>
+              {canViewListings && (
+                <button
+                  type="button"
+                  onClick={() => void exportListings()}
+                  disabled={exportingListings}
+                  className="admin-btn admin-btn-secondary"
+                >
+                  <Download className="h-4 w-4" strokeWidth={1.8} />
+                  {exportingListings ? 'Preparing…' : 'Export listings'}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => void exportListings()}
-                disabled={exportingListings}
+                onClick={handleRefresh}
+                disabled={loading || loadingHostVerif || takedownLoading}
                 className="admin-btn admin-btn-secondary"
               >
-                <Download className="h-4 w-4" strokeWidth={1.8} />
-                {exportingListings ? 'Preparing…' : 'Export listings'}
-              </button>
-              <button
-                type="button"
-                onClick={() => fetchReviews()}
-                disabled={loading}
-                className="admin-btn admin-btn-secondary"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} strokeWidth={1.8} />
-                Refresh queue
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    loading || loadingHostVerif || takedownLoading ? 'animate-spin' : ''
+                  }`}
+                  strokeWidth={1.8}
+                />
+                Refresh
               </button>
             </>
           }
@@ -474,131 +587,141 @@ export default function AdminModerationPage() {
         )}
 
         {/* ── Moderation summary ── */}
-        <section className="admin-panel overflow-hidden" aria-label="Moderation summary">
-          <div className="grid grid-cols-2 gap-px bg-[#ece4d9] md:grid-cols-4">
-            <div className="bg-white px-5 py-5">
-              <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
-                <span>Pending reviews</span>
-                <Clock className="h-4 w-4 text-[#b37936]" strokeWidth={1.8} />
+        {canReview && (
+          <section className="admin-panel overflow-hidden" aria-label="Moderation summary">
+            <div className="grid grid-cols-2 gap-px bg-[#ece4d9] md:grid-cols-4">
+              <div className="bg-white px-5 py-5">
+                <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
+                  <span>Pending reviews</span>
+                  <Clock className="h-4 w-4 text-[#b37936]" strokeWidth={1.8} />
+                </div>
+                <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
+                  {stats.pendingTotal}
+                </p>
+                <p className="mt-2 text-xs font-semibold text-[#9a671f]">
+                  Requires admin decision
+                </p>
               </div>
-              <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
-                {stats.pendingTotal}
-              </p>
-              <p className="mt-2 text-xs font-semibold text-[#9a671f]">
-                Requires admin decision
-              </p>
-            </div>
 
-            <div className="bg-white px-5 py-5">
-              <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
-                <span>New publications</span>
-                <Building2 className="h-4 w-4 text-[#b3541e]" strokeWidth={1.8} />
+              <div className="bg-white px-5 py-5">
+                <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
+                  <span>New publications</span>
+                  <Building2 className="h-4 w-4 text-[#b3541e]" strokeWidth={1.8} />
+                </div>
+                <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
+                  {stats.pendingInitial}
+                </p>
+                <p className="mt-2 text-xs text-[#7a6b5f]">Initial property launches</p>
               </div>
-              <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
-                {stats.pendingInitial}
-              </p>
-              <p className="mt-2 text-xs text-[#7a6b5f]">Initial property launches</p>
-            </div>
 
-            <div className="bg-white px-5 py-5">
-              <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
-                <span>Important edits</span>
-                <Layers className="h-4 w-4 text-[#8b4b2c]" strokeWidth={1.8} />
+              <div className="bg-white px-5 py-5">
+                <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
+                  <span>Important edits</span>
+                  <Layers className="h-4 w-4 text-[#8b4b2c]" strokeWidth={1.8} />
+                </div>
+                <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
+                  {stats.pendingEdits}
+                </p>
+                <p className="mt-2 text-xs text-[#7a6b5f]">Live listings pending updates</p>
               </div>
-              <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
-                {stats.pendingEdits}
-              </p>
-              <p className="mt-2 text-xs text-[#7a6b5f]">Live listings pending updates</p>
-            </div>
 
-            <div className="bg-white px-5 py-5">
-              <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
-                <span>Action complete</span>
-                <CheckCircle2 className="h-4 w-4 text-[#4f6648]" strokeWidth={1.8} />
+              <div className="bg-white px-5 py-5">
+                <div className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7a6b5f]">
+                  <span>Action complete</span>
+                  <CheckCircle2 className="h-4 w-4 text-[#4f6648]" strokeWidth={1.8} />
+                </div>
+                <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
+                  {stats.approvedTotal + stats.rejectedTotal}
+                </p>
+                <p className="mt-2 text-xs font-semibold text-[#4f6648]">
+                  Processed submissions
+                </p>
               </div>
-              <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
-                {stats.approvedTotal + stats.rejectedTotal}
-              </p>
-              <p className="mt-2 text-xs font-semibold text-[#4f6648]">
-                Processed submissions
-              </p>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ── Main Console Tabs ── */}
         <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Moderation queues">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'pending'}
-            onClick={() => {
-              setActiveTab('pending');
-              setStatusFilter('PENDING');
-            }}
-            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
-              activeTab === 'pending'
-                ? 'border-[#e0c3ae] bg-[#f8ebe0] text-[#9f4a19]'
-                : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
-            }`}
-          >
-            <Clock className="h-4 w-4" strokeWidth={1.8} /> Pending queue
-            {stats.pendingTotal > 0 && (
-              <span className="rounded-full bg-[#f4e6d5] px-2 py-0.5 text-xs font-bold text-[#7a531c]">
-                {stats.pendingTotal}
-              </span>
-            )}
-          </button>
+          {canReview && (
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'pending'}
+                onClick={() => {
+                  setActiveTab('pending');
+                  setStatusFilter('PENDING');
+                }}
+                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
+                  activeTab === 'pending'
+                    ? 'border-[#e0c3ae] bg-[#f8ebe0] text-[#9f4a19]'
+                    : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
+                }`}
+              >
+                <Clock className="h-4 w-4" strokeWidth={1.8} /> Pending queue
+                {stats.pendingTotal > 0 && (
+                  <span className="rounded-full bg-[#f4e6d5] px-2 py-0.5 text-xs font-bold text-[#7a531c]">
+                    {stats.pendingTotal}
+                  </span>
+                )}
+              </button>
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'all'}
-            onClick={() => {
-              setActiveTab('all');
-              setStatusFilter('');
-            }}
-            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
-              activeTab === 'all'
-                ? 'border-[#e0c3ae] bg-[#f8ebe0] text-[#9f4a19]'
-                : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
-            }`}
-          >
-            <FileText className="h-4 w-4" strokeWidth={1.8} /> Moderation history
-          </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'all'}
+                onClick={() => {
+                  setActiveTab('all');
+                  setStatusFilter('');
+                }}
+                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
+                  activeTab === 'all'
+                    ? 'border-[#e0c3ae] bg-[#f8ebe0] text-[#9f4a19]'
+                    : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
+                }`}
+              >
+                <FileText className="h-4 w-4" strokeWidth={1.8} /> Moderation history
+              </button>
+            </>
+          )}
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'takedowns'}
-            onClick={() => setActiveTab('takedowns')}
-            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
-              activeTab === 'takedowns'
-                ? 'border-[#e4beb5] bg-[#f8e9e5] text-[#8f4035]'
-                : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
-            }`}
-          >
-            <ShieldAlert className="h-4 w-4" strokeWidth={1.8} /> Safety holds
-          </button>
+          {canHide && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'takedowns'}
+              onClick={() => setActiveTab('takedowns')}
+              className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
+                activeTab === 'takedowns'
+                  ? 'border-[#e4beb5] bg-[#f8e9e5] text-[#8f4035]'
+                  : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
+              }`}
+            >
+              <ShieldAlert className="h-4 w-4" strokeWidth={1.8} /> Safety holds
+            </button>
+          )}
 
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'host-verifications'}
-            onClick={() => setActiveTab('host-verifications')}
-            className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
-              activeTab === 'host-verifications'
-                ? 'border-[#e0c3ae] bg-[#f8ebe0] text-[#9f4a19]'
-                : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
-            }`}
-          >
-            <ShieldCheck className="h-4 w-4" strokeWidth={1.8} /> Host verifications
-            {pendingHostCount > 0 && (
-              <span className="rounded-full bg-[#efe2ce] px-2 py-0.5 text-xs font-bold text-[#8f3f13]">
-                {pendingHostCount}
-              </span>
-            )}
-          </button>
+          {canViewHosts && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'host-verifications'}
+              onClick={() => setActiveTab('host-verifications')}
+              className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[13px] font-semibold transition ${
+                activeTab === 'host-verifications'
+                  ? 'border-[#e0c3ae] bg-[#f8ebe0] text-[#9f4a19]'
+                  : 'border-[#d8d0c8] bg-white text-[#5a4c42] hover:border-[#c9bdb1] hover:bg-[#fbf7f1]'
+              }`}
+            >
+              <ShieldCheck className="h-4 w-4" strokeWidth={1.8} /> Host verifications
+              {pendingHostCount > 0 && (
+                <span className="rounded-full bg-[#efe2ce] px-2 py-0.5 text-xs font-bold text-[#8f3f13]">
+                  {pendingHostCount}
+                </span>
+              )}
+            </button>
+          )}
         </div>
 
         {/* ── TAB 1 & 2: Review Queue & History ── */}
@@ -784,10 +907,10 @@ export default function AdminModerationPage() {
                             <Eye className="w-3.5 h-3.5 text-[#b3541e]" /> Inspect & Decide
                           </button>
 
-                          {isPending && (
+                          {isPending && canReview && (
                             <>
                               <button
-                                onClick={() => handleApprove(rev.id)}
+                                onClick={() => setConfirmApproveReviewId(rev.id)}
                                 disabled={actionInProgress === rev.id}
                                 className="inline-flex items-center gap-1 px-3.5 py-2 rounded-xl bg-[#5d7554] hover:bg-[#4f6648] text-white text-xs font-bold transition shadow-sm disabled:opacity-50"
                               >
@@ -796,7 +919,12 @@ export default function AdminModerationPage() {
 
                               <button
                                 onClick={() => {
-                                  setSelectedReviewId(rev.id);
+                                  setRejectTargetReview({
+                                    id: rev.id,
+                                    title: rev.property?.title,
+                                  });
+                                  setRejectionReason('');
+                                  setRejectionError(null);
                                   setRejectionModalOpen(true);
                                 }}
                                 disabled={actionInProgress === rev.id}
@@ -810,6 +938,33 @@ export default function AdminModerationPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* Reviews Pagination */}
+            {reviewTotalPages > 1 && (
+              <div className="flex items-center justify-between pt-2 px-1">
+                <p className="text-xs text-[#7a6b5f]">
+                  Page <strong>{reviewPage}</strong> of <strong>{reviewTotalPages}</strong>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setReviewPage((p) => Math.max(1, p - 1))}
+                    disabled={reviewPage <= 1 || loading}
+                    className="px-3 py-1.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReviewPage((p) => Math.min(reviewTotalPages, p + 1))}
+                    disabled={reviewPage >= reviewTotalPages || loading}
+                    className="px-3 py-1.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
             )}
@@ -844,7 +999,7 @@ export default function AdminModerationPage() {
                 />
                 <button
                   type="button"
-                  onClick={handleLookupListing}
+                  onClick={() => void handleLookupListing()}
                   disabled={takedownLoading || !takedownPropertyId.trim()}
                   className="px-5 py-2.5 rounded-xl bg-[#b3541e] hover:bg-[#8f3f13] text-white text-xs font-bold transition disabled:opacity-50 flex items-center gap-1.5"
                 >
@@ -916,7 +1071,11 @@ export default function AdminModerationPage() {
                       </div>
 
                       <button
-                        onClick={handleRestoreListing}
+                        type="button"
+                        onClick={() => {
+                          setRestoreReason('');
+                          setConfirmRestoreOpen(true);
+                        }}
                         disabled={takedownLoading}
                         className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#5d7554] hover:bg-[#4f6648] text-white text-xs font-bold transition shadow-sm"
                       >
@@ -1000,13 +1159,16 @@ export default function AdminModerationPage() {
               <div className="flex flex-wrap items-center gap-2.5">
                 <select
                   value={hostVerifStatusFilter}
-                  onChange={(e) => setHostVerifStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setHostVerifStatusFilter(e.target.value);
+                    setHostVerifPage(1);
+                  }}
                   className="px-3 py-2 rounded-xl border border-[#d8d0c8] text-xs font-bold text-[#3a302a] bg-white focus:outline-none focus:border-[#b3541e]"
                 >
                   <option value="PENDING">Status: Pending Review</option>
                   <option value="VERIFIED">Status: Verified</option>
                   <option value="REJECTED">Status: Rejected</option>
-                  <option value="">Status: All Records</option>
+                  <option value="ALL">Status: All Records</option>
                 </select>
 
                 <button
@@ -1109,34 +1271,38 @@ export default function AdminModerationPage() {
                       {/* Decision Buttons */}
                       <div className="flex items-center gap-2 self-end md:self-center shrink-0">
                         {isPending ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setRejectingHostProfile(host);
-                                setHostRejectionExplanation('');
-                                setHostRejectionModalError(null);
-                              }}
-                              disabled={approvingHostId !== null}
-                              className="px-3.5 py-2 rounded-xl border border-[#ecd0c9] bg-[#f8e9e5] hover:bg-[#f3dcd6] text-[#8f4035] text-xs font-bold transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                            >
-                              <XCircle className="w-4 h-4" /> Reject…
-                            </button>
+                          canVerifyHosts ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRejectingHostProfile(host);
+                                  setHostRejectionExplanation('');
+                                  setHostRejectionModalError(null);
+                                }}
+                                disabled={approvingHostId !== null}
+                                className="px-3.5 py-2 rounded-xl border border-[#ecd0c9] bg-[#f8e9e5] hover:bg-[#f3dcd6] text-[#8f4035] text-xs font-bold transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                              >
+                                <XCircle className="w-4 h-4" /> Reject…
+                              </button>
 
-                            <button
-                              type="button"
-                              onClick={() => handleApproveHost(host.id)}
-                              disabled={approvingHostId !== null}
-                              className="px-4 py-2 rounded-xl bg-[#5d7554] hover:bg-[#4f6648] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                            >
-                              {approvingHostId === host.id ? (
-                                <RefreshCw className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <BadgeCheck className="w-4 h-4" />
-                              )}
-                              <span>Approve Host</span>
-                            </button>
-                          </>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmApproveHostProfile(host)}
+                                disabled={approvingHostId !== null}
+                                className="px-4 py-2 rounded-xl bg-[#5d7554] hover:bg-[#4f6648] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                              >
+                                {approvingHostId === host.id ? (
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <BadgeCheck className="w-4 h-4" />
+                                )}
+                                <span>Approve Host</span>
+                              </button>
+                            </>
+                          ) : (
+                            <span className="text-xs text-[#7a6b5f] font-semibold">Verification Pending</span>
+                          )
                         ) : isVerified ? (
                           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#edf1e8] text-[#4f6648] text-xs font-bold border border-[#d6dfcd]">
                             <BadgeCheck className="w-4 h-4" />
@@ -1152,6 +1318,33 @@ export default function AdminModerationPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Host Verifications Pagination */}
+            {hostVerifTotalPages > 1 && (
+              <div className="flex items-center justify-between pt-2 px-1">
+                <p className="text-xs text-[#7a6b5f]">
+                  Page <strong>{hostVerifPage}</strong> of <strong>{hostVerifTotalPages}</strong>
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHostVerifPage((p) => Math.max(1, p - 1))}
+                    disabled={hostVerifPage <= 1 || loadingHostVerif}
+                    className="px-3 py-1.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHostVerifPage((p) => Math.min(hostVerifTotalPages, p + 1))}
+                    disabled={hostVerifPage >= hostVerifTotalPages || loadingHostVerif}
+                    className="px-3 py-1.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1357,48 +1550,6 @@ export default function AdminModerationPage() {
                       </div>
                     )}
 
-                    {/* Rejection Reason Form (if rejection triggered) */}
-                    {rejectionModalOpen && (
-                      <div className="p-4 rounded-2xl bg-[#f8e9e5] border border-[#ecd0c9] space-y-3">
-                        <label className="block text-xs font-bold text-[#5e2a24]">
-                          Mandatory Rejection Explanation <span className="text-[#a24b3e]">*</span>
-                        </label>
-                        <p className="text-xs text-[#8f4035]">
-                          Explain clearly to the host what needs correction before resubmission
-                          (minimum 5 characters).
-                        </p>
-                        <textarea
-                          rows={3}
-                          value={rejectionReason}
-                          onChange={(e) => {
-                            setRejectionReason(e.target.value);
-                            setRejectionError(null);
-                          }}
-                          placeholder="e.g. Please provide clearer photos of the bathroom, or correct the night rate..."
-                          className="w-full px-3 py-2 rounded-xl border border-[#e3b9b0] text-xs font-medium text-[#3a302a] focus:outline-none focus:ring-2 focus:ring-[#b56a5d] bg-white"
-                        />
-                        {rejectionError && (
-                          <p className="text-xs font-bold text-[#a24b3e]">{rejectionError}</p>
-                        )}
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setRejectionModalOpen(false)}
-                            className="px-4 py-2 rounded-xl border border-[#d8d0c8] text-xs font-bold text-[#3a302a] bg-white hover:bg-[#efe7dc]"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleRejectSubmit}
-                            disabled={actionInProgress !== null}
-                            className="px-4 py-2 rounded-xl bg-[#a24b3e] hover:bg-[#8f4035] text-white text-xs font-bold transition shadow-sm disabled:opacity-50"
-                          >
-                            Confirm Rejection
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </>
                 ) : null}
               </div>
@@ -1413,11 +1564,19 @@ export default function AdminModerationPage() {
                   Close
                 </button>
 
-                {reviewDetail?.review?.status === 'PENDING' && !rejectionModalOpen && (
+                {reviewDetail?.review?.status === 'PENDING' && canReview && (
                   <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setRejectionModalOpen(true)}
+                      onClick={() => {
+                        setRejectTargetReview({
+                          id: selectedReviewId,
+                          title: reviewDetail.property?.title,
+                        });
+                        setRejectionReason('');
+                        setRejectionError(null);
+                        setRejectionModalOpen(true);
+                      }}
                       disabled={actionInProgress !== null}
                       className="px-4 py-2 rounded-xl bg-[#a24b3e] hover:bg-[#8f4035] text-white text-xs font-bold transition shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                     >
@@ -1426,7 +1585,7 @@ export default function AdminModerationPage() {
 
                     <button
                       type="button"
-                      onClick={() => handleApprove(selectedReviewId)}
+                      onClick={() => setConfirmApproveReviewId(selectedReviewId)}
                       disabled={actionInProgress !== null}
                       className="px-5 py-2 rounded-xl bg-[#5d7554] hover:bg-[#4f6648] text-white text-xs font-bold transition shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                     >
@@ -1439,103 +1598,289 @@ export default function AdminModerationPage() {
           </div>
         )}
 
-        {/* ── MODAL: Host Verification Rejection ── */}
-        {rejectingHostProfile && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2f2722]/55 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl max-w-lg w-full border border-[#d8d0c8] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-[#ece4d9] flex items-center justify-between bg-[#f8e9e5]/50">
-                <div className="flex items-center gap-2 text-[#8f4035]">
-                  <XCircle className="w-5 h-5 text-[#a24b3e]" />
-                  <h2 className="font-headline text-2xl font-semibold tracking-[-0.015em] text-[#5e2a24]">
-                    Reject host verification
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRejectingHostProfile(null);
-                    setHostRejectionExplanation('');
-                    setHostRejectionModalError(null);
-                  }}
-                  disabled={submittingHostRejection}
-                  className="p-1 rounded-lg text-[#7a6b5f] hover:text-[#6c5d52] hover:bg-[#efe7dc] transition"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        {/* ── DIALOG: Approve Listing Submission ── */}
+        <AdminDialog
+          open={confirmApproveReviewId !== null}
+          onClose={() => setConfirmApproveReviewId(null)}
+          title="Approve Listing Submission"
+          description="Publish this property submission or proposed edit live to ENGIDA guests."
+          footer={
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmApproveReviewId(null)}
+                disabled={actionInProgress !== null}
+                className="rounded-xl border border-[#d8d0c8] bg-white px-4 py-2 text-sm font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmApproveReviewId) {
+                    void handleApprove(confirmApproveReviewId);
+                  }
+                }}
+                disabled={actionInProgress !== null}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#5d7554] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4f6648] disabled:opacity-50 shadow-sm"
+              >
+                {actionInProgress ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                <span>Approve & Publish</span>
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-xs text-[#7a6b5f]">
+            <p>
+              Please confirm that photos, descriptions, and pricing have been verified against ENGIDA listing guidelines.
+            </p>
+          </div>
+        </AdminDialog>
+
+        {/* ── DIALOG: Reject Listing Submission ── */}
+        <AdminDialog
+          open={rejectionModalOpen}
+          onClose={() => {
+            setRejectionModalOpen(false);
+            setRejectTargetReview(null);
+            setRejectionReason('');
+            setRejectionError(null);
+          }}
+          title="Reject Listing Submission"
+          description={
+            rejectTargetReview?.title
+              ? `Provide constructive feedback for rejection of "${rejectTargetReview.title}".`
+              : 'Provide constructive feedback explaining what needs correction before resubmission.'
+          }
+          footer={
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectionModalOpen(false);
+                  setRejectTargetReview(null);
+                  setRejectionReason('');
+                  setRejectionError(null);
+                }}
+                disabled={actionInProgress !== null}
+                className="rounded-xl border border-[#d8d0c8] bg-white px-4 py-2 text-sm font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRejectSubmit()}
+                disabled={actionInProgress !== null || rejectionReason.trim().length < 5}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#a24b3e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#8f4035] disabled:opacity-50 shadow-sm"
+              >
+                {actionInProgress ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="h-4 w-4" />
+                )}
+                <span>Confirm Rejection</span>
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <label htmlFor="review-rejection-reason" className="block text-xs font-bold text-[#5e2a24]">
+              Mandatory Rejection Explanation <span className="text-[#a24b3e]">*</span>
+            </label>
+            <p className="text-xs text-[#8f4035]">
+              Explain clearly to the host what needs correction before resubmission (minimum 5 characters).
+            </p>
+            <textarea
+              id="review-rejection-reason"
+              rows={4}
+              value={rejectionReason}
+              onChange={(e) => {
+                setRejectionReason(e.target.value);
+                setRejectionError(null);
+              }}
+              placeholder="e.g. Please provide clearer photos of the bathroom, or correct the nightly rate..."
+              className="w-full px-3 py-2 rounded-xl border border-[#e3b9b0] text-xs font-medium text-[#3a302a] focus:outline-none focus:ring-2 focus:ring-[#b56a5d] bg-white"
+            />
+            {rejectionError && (
+              <p className="text-xs font-bold text-[#a24b3e]">{rejectionError}</p>
+            )}
+          </div>
+        </AdminDialog>
+
+        {/* ── DIALOG: Restore Listing ── */}
+        <AdminDialog
+          open={confirmRestoreOpen}
+          onClose={() => {
+            setConfirmRestoreOpen(false);
+            setRestoreReason('');
+          }}
+          title="Restore Listing to Public"
+          description="Lift administrative hold and restore this property to public search discovery and bookings."
+          footer={
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmRestoreOpen(false);
+                  setRestoreReason('');
+                }}
+                disabled={takedownLoading}
+                className="rounded-xl border border-[#d8d0c8] bg-white px-4 py-2 text-sm font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRestoreListing()}
+                disabled={takedownLoading}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#5d7554] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4f6648] disabled:opacity-50 shadow-sm"
+              >
+                {takedownLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4" />
+                )}
+                <span>Restore Listing</span>
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <label htmlFor="restore-reason" className="block text-xs font-bold text-[#3a302a]">
+              Reason for Restoration (Optional, logged in audit trail)
+            </label>
+            <textarea
+              id="restore-reason"
+              rows={3}
+              value={restoreReason}
+              onChange={(e) => setRestoreReason(e.target.value)}
+              placeholder="e.g. Investigation completed, dispute resolved, or compliance verified..."
+              className="w-full px-3 py-2 rounded-xl border border-[#d8d0c8] text-xs font-medium text-[#3a302a] focus:outline-none focus:ring-2 focus:ring-[#5d7554] bg-white"
+            />
+          </div>
+        </AdminDialog>
+
+        {/* ── DIALOG: Approve Host Verification ── */}
+        <AdminDialog
+          open={confirmApproveHostProfile !== null}
+          onClose={() => setConfirmApproveHostProfile(null)}
+          title="Approve Host Verification"
+          description={`Are you sure you want to approve identity verification for host "${
+            confirmApproveHostProfile?.displayName || confirmApproveHostProfile?.user?.name || 'Host'
+          }"?`}
+          footer={
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setConfirmApproveHostProfile(null)}
+                disabled={approvingHostId !== null}
+                className="rounded-xl border border-[#d8d0c8] bg-white px-4 py-2 text-sm font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirmApproveHostProfile) {
+                    void handleApproveHost(confirmApproveHostProfile.id);
+                  }
+                }}
+                disabled={approvingHostId !== null}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#5d7554] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4f6648] disabled:opacity-50 shadow-sm"
+              >
+                {approvingHostId !== null ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <BadgeCheck className="h-4 w-4" />
+                )}
+                <span>Approve Host</span>
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-2 text-xs text-[#7a6b5f]">
+            <p>
+              This grants the host full publication privileges and displays the verified badge on their listings and host profile.
+            </p>
+          </div>
+        </AdminDialog>
+
+        {/* ── DIALOG: Reject Host Verification ── */}
+        <AdminDialog
+          open={rejectingHostProfile !== null}
+          onClose={() => {
+            setRejectingHostProfile(null);
+            setHostRejectionExplanation('');
+            setHostRejectionModalError(null);
+          }}
+          title="Reject Host Verification"
+          description="Provide clear, constructive feedback detailing what identity documentation or profile information requires correction before resubmission."
+          footer={
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectingHostProfile(null);
+                  setHostRejectionExplanation('');
+                  setHostRejectionModalError(null);
+                }}
+                disabled={submittingHostRejection}
+                className="rounded-xl border border-[#c9bdb1] px-4 py-2 text-sm font-semibold text-[#5a4c42] hover:bg-[#f6f0e8] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleRejectHostSubmit()}
+                disabled={submittingHostRejection || hostRejectionExplanation.trim().length < 5}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#a24b3e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#8f4035] disabled:opacity-50 shadow-sm"
+              >
+                {submittingHostRejection ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                <span>Confirm Rejection</span>
+              </button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-2xl bg-[#f6f0e8] border border-[#d8d0c8] space-y-1">
+              <div className="text-xs font-black text-[#3a302a]">
+                Host: {rejectingHostProfile?.displayName || rejectingHostProfile?.user?.name || 'Unnamed Host'}
               </div>
+              <div className="text-xs text-[#7a6b5f]">
+                Email: {rejectingHostProfile?.user?.email || 'N/A'} • Phone: {rejectingHostProfile?.phone || 'N/A'}
+              </div>
+            </div>
 
-              {/* Modal Body */}
-              <form onSubmit={handleRejectHostSubmit} className="p-6 space-y-4">
-                <div className="p-3.5 rounded-2xl bg-[#f6f0e8] border border-[#d8d0c8] space-y-1">
-                  <div className="text-xs font-black text-[#3a302a]">
-                    Host: {rejectingHostProfile.displayName || rejectingHostProfile.user?.name || 'Unnamed Host'}
-                  </div>
-                  <div className="text-xs text-[#7a6b5f]">
-                    Email: {rejectingHostProfile.user?.email || 'N/A'} • Phone: {rejectingHostProfile.phone || 'N/A'}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label htmlFor="host-rejection-explanation" className="block text-xs font-bold text-[#3a302a]">
-                    Required Explanation for Host <span className="text-[#a24b3e]">*</span>
-                  </label>
-                  <p className="text-xs text-[#7a6b5f]">
-                    Provide clear, constructive feedback detailing what identity documentation or profile information requires correction before resubmission (minimum 5 characters).
-                  </p>
-                  <textarea
-                    id="host-rejection-explanation"
-                    rows={4}
-                    value={hostRejectionExplanation}
-                    onChange={(e) => {
-                      setHostRejectionExplanation(e.target.value);
-                      if (hostRejectionModalError) setHostRejectionModalError(null);
-                    }}
-                    placeholder="e.g. The government ID image is blurry or expired. Please upload a clear photo of your unexpired Ethiopian passport or National ID."
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-[#c9bdb1] text-xs font-medium text-[#3a302a] focus:outline-none focus:ring-2 focus:ring-[#a24b3e] focus:border-[#a24b3e] bg-white shadow-xs"
-                    disabled={submittingHostRejection}
-                  />
-                  {hostRejectionModalError && (
-                    <p className="text-xs font-bold text-[#a24b3e]">{hostRejectionModalError}</p>
-                  )}
-                </div>
-
-                {/* Modal Actions */}
-                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#ece4d9]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRejectingHostProfile(null);
-                      setHostRejectionExplanation('');
-                      setHostRejectionModalError(null);
-                    }}
-                    disabled={submittingHostRejection}
-                    className="px-4 py-2 rounded-xl border border-[#c9bdb1] text-xs font-bold text-[#5a4c42] hover:bg-[#f6f0e8] transition cursor-pointer disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submittingHostRejection || hostRejectionExplanation.trim().length < 5}
-                    className="px-4 py-2 rounded-xl bg-[#a24b3e] hover:bg-[#8f4035] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {submittingHostRejection ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Rejecting…</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle className="w-4 h-4" />
-                        <span>Confirm Rejection</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
+            <div className="space-y-1.5">
+              <label htmlFor="host-rejection-explanation" className="block text-xs font-bold text-[#3a302a]">
+                Required Explanation for Host <span className="text-[#a24b3e]">*</span>
+              </label>
+              <textarea
+                id="host-rejection-explanation"
+                rows={4}
+                value={hostRejectionExplanation}
+                onChange={(e) => {
+                  setHostRejectionExplanation(e.target.value);
+                  if (hostRejectionModalError) setHostRejectionModalError(null);
+                }}
+                placeholder="e.g. The government ID image is blurry or expired. Please upload a clear photo of your unexpired Ethiopian passport or National ID."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#c9bdb1] text-xs font-medium text-[#3a302a] focus:outline-none focus:ring-2 focus:ring-[#a24b3e] focus:border-[#a24b3e] bg-white shadow-xs"
+                disabled={submittingHostRejection}
+              />
+              {hostRejectionModalError && (
+                <p className="text-xs font-bold text-[#a24b3e]">{hostRejectionModalError}</p>
+              )}
             </div>
           </div>
-        )}
+        </AdminDialog>
       </div>
     </ProtectedRoute>
   );
