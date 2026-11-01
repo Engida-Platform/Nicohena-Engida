@@ -52,6 +52,23 @@ export default function AdminFinancePage() {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  const [visitedTabs, setVisitedTabs] = useState<Record<FinanceTabKey, boolean>>({
+    overview: true,
+    payments: false,
+    escrow: false,
+    refunds: false,
+    payouts: false,
+    accounts: false,
+    ledger: false,
+    reconciliation: false,
+    settings: false,
+  });
+
+  const handleSelectTab = (tab: FinanceTabKey) => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => (prev[tab] ? prev : { ...prev, [tab]: true }));
+  };
+
   const fetchSummary = useCallback(async () => {
     setSummaryLoading(true);
     setSummaryError(null);
@@ -207,7 +224,7 @@ export default function AdminFinancePage() {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleSelectTab(tab.id)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isActive
                     ? 'bg-[#b3541e] text-white shadow-xs'
@@ -233,40 +250,56 @@ export default function AdminFinancePage() {
         </nav>
       </div>
 
-      {/* Active Tab Panel with tab state retention */}
+      {/* Active Tab Panel with lazy tab mounting and retention */}
       <div>
         <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
           <OverviewTab
             summary={summary}
             loading={summaryLoading}
             onRefresh={fetchSummary}
-            onNavigateTab={(tab) => setActiveTab(tab as FinanceTabKey)}
+            onNavigateTab={handleSelectTab}
           />
         </div>
-        <div className={activeTab === 'payments' ? 'block' : 'hidden'}>
-          <PaymentsTab />
-        </div>
-        <div className={activeTab === 'escrow' ? 'block' : 'hidden'}>
-          <EscrowTab />
-        </div>
-        <div className={activeTab === 'refunds' ? 'block' : 'hidden'}>
-          <RefundsTab />
-        </div>
-        <div className={activeTab === 'payouts' ? 'block' : 'hidden'}>
-          <PayoutsTab />
-        </div>
-        <div className={activeTab === 'accounts' ? 'block' : 'hidden'}>
-          <AccountsTab />
-        </div>
-        <div className={activeTab === 'ledger' ? 'block' : 'hidden'}>
-          <LedgerTab />
-        </div>
-        <div className={activeTab === 'reconciliation' ? 'block' : 'hidden'}>
-          <ReconciliationTab />
-        </div>
-        <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
-          <SettingsTab onRefreshSummary={fetchSummary} />
-        </div>
+        {visitedTabs.payments && (
+          <div className={activeTab === 'payments' ? 'block' : 'hidden'}>
+            <PaymentsTab />
+          </div>
+        )}
+        {visitedTabs.escrow && (
+          <div className={activeTab === 'escrow' ? 'block' : 'hidden'}>
+            <EscrowTab />
+          </div>
+        )}
+        {visitedTabs.refunds && (
+          <div className={activeTab === 'refunds' ? 'block' : 'hidden'}>
+            <RefundsTab />
+          </div>
+        )}
+        {visitedTabs.payouts && (
+          <div className={activeTab === 'payouts' ? 'block' : 'hidden'}>
+            <PayoutsTab />
+          </div>
+        )}
+        {visitedTabs.accounts && (
+          <div className={activeTab === 'accounts' ? 'block' : 'hidden'}>
+            <AccountsTab />
+          </div>
+        )}
+        {visitedTabs.ledger && (
+          <div className={activeTab === 'ledger' ? 'block' : 'hidden'}>
+            <LedgerTab />
+          </div>
+        )}
+        {visitedTabs.reconciliation && (
+          <div className={activeTab === 'reconciliation' ? 'block' : 'hidden'}>
+            <ReconciliationTab />
+          </div>
+        )}
+        {visitedTabs.settings && (
+          <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
+            <SettingsTab onRefreshSummary={fetchSummary} />
+          </div>
+        )}
       </div>
     </div>
   );

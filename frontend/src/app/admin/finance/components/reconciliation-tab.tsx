@@ -9,17 +9,26 @@ import {
   AlertTriangle,
   FileSpreadsheet,
   Check,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
 import type { ReconciliationIssueItem } from '../../../../types/admin-finance';
 import { formatMinor, formatDateTime } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
 import AdminDialog from '../../../../components/admin/AdminDialog';
+import { useAuth } from '../../../../context/auth-context';
+import { can, ADMIN_PERMISSIONS } from '../../../../lib/permissions';
 
 export default function ReconciliationTab() {
+  const { user } = useAuth();
   const [issues, setIssues] = useState<ReconciliationIssueItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // Settlement import state
   const [showImportModal, setShowImportModal] = useState(false);
@@ -36,15 +45,21 @@ export default function ReconciliationTab() {
 
   const fetchIssues = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
-      const res = await apiFetch<{ data: ReconciliationIssueItem[] }>(
+      params.set('page', page.toString());
+      params.set('limit', '20');
+      const res = await apiFetch<{ data: ReconciliationIssueItem[]; total?: number; totalPages?: number }>(
         `/admin/finance/reconciliation/issues?${params.toString()}`,
       );
       setIssues(res.data || []);
-    } catch {
+      setTotal(res.total ?? (res.data ? res.data.length : 0));
+      setTotalPages(res.totalPages ?? 1);
+    } catch (err: any) {
       setIssues([]);
+      setError(err.message || 'Failed to load reconciliation issues');
     } finally {
       setLoading(false);
     }
@@ -52,7 +67,7 @@ export default function ReconciliationTab() {
 
   useEffect(() => {
     fetchIssues();
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   const handleImportSettlement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,32 +167,56 @@ export default function ReconciliationTab() {
     }
   };
 
+  const canReconcile = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_RECONCILE);
+
   return (
     <div className="space-y-4">
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 bg-[#fdf2f2] border border-[#f5c6cb] rounded-2xl flex items-center justify-between text-xs text-[#a83232]">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={fetchIssues}
+            className="px-3 py-1 bg-white border border-[#f5c6cb] rounded-xl font-bold hover:bg-[#fbf0f0] cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Top Bar */}
       <div className="bg-white border border-[#d8d0c8] rounded-2xl p-4 shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-2">
           <label className="text-xs font-bold text-[#605850]">Status:</label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-1.5 text-xs font-medium text-[#3a302a]"
           >
             <option value="ALL">All Issues</option>
-            <option value="DETECTED">Detected (Unresolved)</option>
+            <option value="DETECTED">Detected / Open</option>
             <option value="RESOLVED">Resolved</option>
+            <option value="IGNORED">Ignored</option>
             <option value="INVESTIGATING">Investigating</option>
           </select>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#234b36] hover:bg-[#1a3828] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Import Settlement</span>
-          </button>
+          {canReconcile && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#234b36] hover:bg-[#1a3828] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Import Settlement</span>
+            </button>
+          )}
           <button
             onClick={fetchIssues}
             className="p-2 border border-[#d8d0c8] bg-white rounded-xl hover:bg-[#faf5ee] text-[#3a302a] cursor-pointer"
@@ -196,73 +235,100 @@ export default function ReconciliationTab() {
             ))}
           </div>
         ) : issues.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
-                  <th className="py-3 px-4">Detected</th>
-                  <th className="py-3 px-4">Type & Severity</th>
-                  <th className="py-3 px-4">Description</th>
-                  <th className="py-3 px-4">Reference</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Discrepancy</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
-                {issues.map((issue) => (
-                  <tr key={issue.id} className="hover:bg-[#faf5ee]/60 transition">
-                    <td className="py-3 px-4 whitespace-nowrap text-[#73776f]">
-                      {formatDateTime(issue.detectedAt)}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="font-bold text-[#3a302a]">{issue.type}</div>
-                      <div className="mt-0.5">
-                        <AdminStatusBadge
-                          label={issue.severity}
-                          tone={getSeverityTone(issue.severity)}
-                          dot
-                        />
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 max-w-sm">
-                      <p className="font-medium text-[#3a302a] leading-tight">
-                        {issue.description}
-                      </p>
-                      {issue.resolutionNotes && (
-                        <p className="text-[10px] text-[#536b4a] mt-0.5 font-mono">
-                          Notes: {issue.resolutionNotes}
-                        </p>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-[#73776f]">
-                      {issue.externalReference || '—'}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <AdminStatusBadge
-                        label={issue.status}
-                        tone={issue.status === 'RESOLVED' ? 'success' : 'danger'}
-                      />
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
-                      {issue.discrepancyMinor ? formatMinor(issue.discrepancyMinor) : '—'}
-                    </td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap">
-                      {issue.status !== 'RESOLVED' && (
-                        <button
-                          onClick={() => setSelectedIssue(issue)}
-                          className="px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#b3541e] cursor-pointer"
-                        >
-                          Resolve
-                        </button>
-                      )}
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
+                    <th className="py-3 px-4">Detected</th>
+                    <th className="py-3 px-4">Type & Severity</th>
+                    <th className="py-3 px-4">Description</th>
+                    <th className="py-3 px-4">Reference</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Discrepancy</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
+                </thead>
+                <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
+                  {issues.map((issue) => (
+                    <tr key={issue.id} className="hover:bg-[#faf5ee]/60 transition">
+                      <td className="py-3 px-4 whitespace-nowrap text-[#73776f]">
+                        {formatDateTime(issue.detectedAt)}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-bold text-[#3a302a]">{issue.type}</div>
+                        <div className="mt-0.5">
+                          <AdminStatusBadge
+                            label={issue.severity}
+                            tone={getSeverityTone(issue.severity)}
+                            dot
+                          />
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 max-w-sm">
+                        <p className="font-medium text-[#3a302a] leading-tight">
+                          {issue.description}
+                        </p>
+                        {issue.resolutionNotes && (
+                          <p className="text-[10px] text-[#536b4a] mt-0.5 font-mono">
+                            Notes: {issue.resolutionNotes}
+                          </p>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono text-[#73776f]">
+                        {issue.externalReference || '—'}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <AdminStatusBadge
+                          label={issue.status}
+                          tone={issue.status === 'RESOLVED' ? 'success' : issue.status === 'IGNORED' ? 'neutral' : 'danger'}
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
+                        {issue.discrepancyMinor ? formatMinor(issue.discrepancyMinor) : '—'}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        {issue.status !== 'RESOLVED' && issue.status !== 'IGNORED' && canReconcile && (
+                          <button
+                            onClick={() => setSelectedIssue(issue)}
+                            className="px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#b3541e] cursor-pointer"
+                          >
+                            Resolve
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="p-4 border-t border-[#d8d0c8] flex items-center justify-between text-xs text-[#73776f]">
+                <span>
+                  Showing page {page} of {totalPages} ({total} total issues)
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="p-1.5 border border-[#d8d0c8] rounded-lg disabled:opacity-40 hover:bg-[#faf5ee] cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => p + 1))}
+                    className="p-1.5 border border-[#d8d0c8] rounded-lg disabled:opacity-40 hover:bg-[#faf5ee] cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : !error ? (
           <div className="py-12 text-center text-[#73776f]">
             <CheckCircle2 className="w-8 h-8 mx-auto mb-2 opacity-40 text-[#536b4a]" />
             <p className="text-xs font-bold text-[#3a302a]">All payments fully reconciled</p>
@@ -270,7 +336,7 @@ export default function ReconciliationTab() {
               Zero mismatched amounts or unmapped gateway captures detected.
             </p>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Import Settlement Modal */}

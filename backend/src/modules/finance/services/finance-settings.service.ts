@@ -170,19 +170,65 @@ export class FinanceSettingsService {
     key: string,
     value: string,
     actor: User,
-    context?: { ipAddress?: string | null; userAgent?: string | null },
+    context?: { ipAddress?: string | null; userAgent?: string | null; reason?: string },
   ): Promise<FinanceSetting> {
+    const ALLOWED_SETTING_KEYS = new Set([
+      'finance.commission_rate_bps',
+      'finance.platform_commission_bps',
+      'finance.commission_rounding',
+      'finance.vat_rate_bps',
+      'finance.vat_jurisdiction',
+      'finance.withholding_rate_bps',
+      'finance.refund_dual_approval_threshold_minor',
+      'finance.payout_dual_approval_threshold_minor',
+      'finance.escrow_release_trigger',
+      'finance.escrow_release_delay_hours',
+      'finance.payout_schedule',
+      'finance.payout_cutoff_time',
+      'finance.live_capture_enabled',
+      'finance.live_refunds_enabled',
+      'finance.live_payouts_enabled',
+      'finance.auto_release_enabled',
+    ]);
+
+    if (!ALLOWED_SETTING_KEYS.has(key)) {
+      throw new BadRequestException(`Setting key "${key}" is not permitted`);
+    }
+
+    if (value === undefined || value === null || value.trim() === '') {
+      throw new BadRequestException(`Value for setting "${key}" cannot be empty`);
+    }
+
+    const trimmedValue = value.trim();
+
+    // Specific validation based on setting type
+    if (key.endsWith('_bps')) {
+      const num = Number(trimmedValue);
+      if (!Number.isInteger(num) || num < 0 || num > 10000) {
+        throw new BadRequestException(`${key} must be an integer between 0 and 10000 basis points`);
+      }
+    } else if (key.endsWith('_enabled')) {
+      if (trimmedValue !== 'true' && trimmedValue !== 'false') {
+        throw new BadRequestException(`${key} must be 'true' or 'false'`);
+      }
+    } else if (key.endsWith('_minor') || key.endsWith('_hours')) {
+      const num = Number(trimmedValue);
+      if (!Number.isFinite(num) || num < 0) {
+        throw new BadRequestException(`${key} must be a non-negative number`);
+      }
+    }
+
     let setting = await this.settingsRepo.findOne({ where: { key } });
     const beforeValue = setting?.value ?? null;
     if (!setting) {
       setting = this.settingsRepo.create({
         key,
-        value,
-        type: value === 'true' || value === 'false' ? 'boolean' : 'string',
+        value: trimmedValue,
+        type: trimmedValue === 'true' || trimmedValue === 'false' ? 'boolean' : 'string',
         updatedById: actor.id,
       });
     } else {
-      setting.value = value;
+      setting.value = trimmedValue;
       setting.updatedById = actor.id;
     }
     const saved = await this.settingsRepo.save(setting);
@@ -194,12 +240,21 @@ export class FinanceSettingsService {
           ? 'finance.commission_rate_bps'
           : 'finance.platform_commission_bps';
       let aliasSetting = await this.settingsRepo.findOne({ where: { key: aliasKey } });
-      if (aliasSetting) {
-        aliasSetting.value = value;
+      if (!aliasSetting) {
+        aliasSetting = this.settingsRepo.create({
+          key: aliasKey,
+          value: trimmedValue,
+          type: 'string',
+          updatedById: actor.id,
+        });
+      } else {
+        aliasSetting.value = trimmedValue;
         aliasSetting.updatedById = actor.id;
-        await this.settingsRepo.save(aliasSetting);
       }
+      await this.settingsRepo.save(aliasSetting);
     }
+
+    const reason = context?.reason || 'Finance setting updated by administrator';
 
     await this.auditService.record({
       actor,
@@ -207,8 +262,8 @@ export class FinanceSettingsService {
       entityType: 'finance_settings',
       entityId: key,
       before: { key, value: beforeValue },
-      after: { key, value },
-      metadata: { key, value },
+      after: { key, value: trimmedValue },
+      metadata: { key, value: trimmedValue, reason },
       ipAddress: context?.ipAddress ?? null,
       userAgent: context?.userAgent ?? null,
     });

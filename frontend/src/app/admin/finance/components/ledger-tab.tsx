@@ -19,10 +19,12 @@ export default function LedgerTab() {
   const [accounts, setAccounts] = useState<LedgerAccountItem[]>([]);
   const [transactions, setTransactions] = useState<LedgerTransactionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<'ACCOUNTS' | 'TRANSACTIONS'>('ACCOUNTS');
 
   const fetchLedgerData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const [accRes, txRes] = await Promise.all([
         apiFetch<LedgerAccountItem[]>('/admin/finance/ledger/accounts'),
@@ -30,7 +32,8 @@ export default function LedgerTab() {
       ]);
       setAccounts(accRes || []);
       setTransactions(txRes.data || []);
-    } catch {
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load ledger chart of accounts or transactions.');
       setAccounts([]);
       setTransactions([]);
     } finally {
@@ -91,6 +94,28 @@ export default function LedgerTab() {
           <RotateCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[#ecd0c9] bg-[#f8e9e5] px-4 py-3 text-xs text-[#8f4035] shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#a24b3e]" strokeWidth={1.8} />
+            <p className="truncate font-medium">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchLedgerData()}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#ecd0c9] bg-white px-2.5 py-1 text-xs font-bold text-[#8f4035] hover:bg-[#f3dcd6] cursor-pointer shrink-0"
+          >
+            <RotateCcw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      )}
 
       {activeSubTab === 'ACCOUNTS' ? (
         /* Chart of Accounts */

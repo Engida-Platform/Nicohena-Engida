@@ -10,8 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../users/entities/user.entity';
 import { PermissionsGuard } from '../admin/rbac/permissions.guard';
-import { SuperAdminBypassGuard } from '../admin/rbac/super-admin-bypass.guard';
 import { RequirePermissions } from '../admin/rbac/permissions.decorator';
 import { Permission } from '../admin/rbac/permissions';
 import { AdminCouponsService } from './admin-coupons.service';
@@ -22,7 +24,8 @@ import {
 } from './dto/admin-coupons.dto';
 
 @Controller('admin/coupons')
-@UseGuards(JwtAuthGuard, SuperAdminBypassGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles(UserRole.ADMIN)
 export class AdminCouponsController {
   constructor(private readonly couponsService: AdminCouponsService) {}
 
@@ -66,6 +69,7 @@ export class AdminCouponsController {
   }
 
   @Post('validate')
+  @RequirePermissions(Permission.COUPONS_MANAGE)
   async validateCoupon(
     @Body() dto: ValidateCouponDto,
     @Req() req: any,

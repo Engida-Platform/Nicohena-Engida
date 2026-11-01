@@ -11,8 +11,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../users/entities/user.entity';
 import { PermissionsGuard } from '../admin/rbac/permissions.guard';
-import { SuperAdminBypassGuard } from '../admin/rbac/super-admin-bypass.guard';
 import { RequirePermissions } from '../admin/rbac/permissions.decorator';
 import { Permission } from '../admin/rbac/permissions';
 import { AdminContentService } from './admin-content.service';
@@ -25,7 +27,8 @@ import {
 } from './dto/admin-content.dto';
 
 @Controller('admin/content')
-@UseGuards(JwtAuthGuard, SuperAdminBypassGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles(UserRole.ADMIN)
 export class AdminContentController {
   constructor(private readonly contentService: AdminContentService) {}
 

@@ -6,6 +6,7 @@ import {
   Zap,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Clock,
   Send,
   Eye,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
 import { useAuth } from '../../../../context/AuthContext';
+import { ADMIN_PERMISSIONS, can } from '../../../../types/admin';
 import type { PayoutListItem } from '../../../../types/admin-finance';
 import { formatMinor, formatDateTime, formatDateOnly } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
@@ -21,26 +23,38 @@ import AdminDialog from '../../../../components/admin/AdminDialog';
 export default function PayoutsTab() {
   const { user } = useAuth();
   const [payouts, setPayouts] = useState<PayoutListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [selectedPayout, setSelectedPayout] = useState<any | null>(null);
   const [actionPayout, setActionPayout] = useState<PayoutListItem | null>(null);
-  const [actionType, setActionType] = useState<'APPROVE' | 'RETRY' | null>(null);
+  const [actionType, setActionType] = useState<'APPROVE' | 'RETRY' | 'EXECUTE' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [batching, setBatching] = useState(false);
   const [batchMessage, setBatchMessage] = useState<string | null>(null);
 
+  const limit = 20;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   const fetchPayouts = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(limit));
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
-      const res = await apiFetch<{ data: PayoutListItem[] }>(
+      const res = await apiFetch<{ data: PayoutListItem[]; total: number }>(
         `/admin/finance/payouts?${params.toString()}`,
       );
       setPayouts(res.data || []);
-    } catch {
+      setTotal(res.total || 0);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load payouts list.');
       setPayouts([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -48,7 +62,7 @@ export default function PayoutsTab() {
 
   useEffect(() => {
     fetchPayouts();
-  }, [statusFilter]);
+  }, [page, statusFilter]);
 
   const handleRunBatch = async () => {
     setBatching(true);
@@ -74,6 +88,11 @@ export default function PayoutsTab() {
         await apiFetch(`/admin/finance/payouts/${actionPayout.id}/approve`, {
           method: 'POST',
           body: JSON.stringify({ reason: 'Approved by second administrator' }),
+        });
+      } else if (actionType === 'EXECUTE') {
+        await apiFetch(`/admin/finance/payouts/${actionPayout.id}/execute`, {
+          method: 'POST',
+          body: JSON.stringify({}),
         });
       } else if (actionType === 'RETRY') {
         await apiFetch(`/admin/finance/payouts/${actionPayout.id}/retry`, {
@@ -116,11 +135,15 @@ export default function PayoutsTab() {
           <label className="text-xs font-bold text-[#605850]">Filter:</label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-1.5 text-xs font-medium text-[#3a302a]"
           >
             <option value="ALL">All Payouts</option>
             <option value="PENDING_APPROVAL">Pending Approval</option>
+            <option value="APPROVED">Approved (Ready to Disburse)</option>
             <option value="PROCESSING">Processing</option>
             <option value="PAID">Disbursed (Paid)</option>
             <option value="FAILED">Failed Transfers</option>
@@ -128,14 +151,16 @@ export default function PayoutsTab() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleRunBatch}
-            disabled={batching}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#234b36] hover:bg-[#1a3828] disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-          >
-            <Zap className={`w-3.5 h-3.5 ${batching ? 'animate-spin' : ''}`} />
-            <span>{batching ? 'Running 02:00 Batch…' : 'Trigger Payout Batch'}</span>
-          </button>
+          {can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_PAYOUTS) && (
+            <button
+              onClick={handleRunBatch}
+              disabled={batching}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#234b36] hover:bg-[#1a3828] disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <Zap className={`w-3.5 h-3.5 ${batching ? 'animate-spin' : ''}`} />
+              <span>{batching ? 'Running 02:00 Batch…' : 'Trigger Payout Batch'}</span>
+            </button>
+          )}
           <button
             onClick={fetchPayouts}
             className="p-2 border border-[#d8d0c8] bg-white rounded-xl hover:bg-[#faf5ee] text-[#3a302a] cursor-pointer"
@@ -144,6 +169,28 @@ export default function PayoutsTab() {
           </button>
         </div>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[#ecd0c9] bg-[#f8e9e5] px-4 py-3 text-xs text-[#8f4035] shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#a24b3e]" strokeWidth={1.8} />
+            <p className="truncate font-medium">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchPayouts()}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#ecd0c9] bg-white px-2.5 py-1 text-xs font-bold text-[#8f4035] hover:bg-[#f3dcd6] cursor-pointer shrink-0"
+          >
+            <RotateCcw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      )}
 
       {batchMessage && (
         <div className="p-3 bg-[#edf1e8] border border-[#d6dfcd] text-[#536b4a] rounded-xl text-xs font-bold flex items-center gap-2">
@@ -161,84 +208,124 @@ export default function PayoutsTab() {
             ))}
           </div>
         ) : payouts.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Host</th>
-                  <th className="py-3 px-4">Period</th>
-                  <th className="py-3 px-4">Destination</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Amount</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
-                {payouts.map((p) => {
-                  const isProposer = user?.id === p.proposedById;
-                  const canApprove = !isProposer;
-                  return (
-                    <tr key={p.id} className="hover:bg-[#faf5ee]/60 transition">
-                      <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
-                        {formatDateTime(p.createdAt)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-bold text-[#3a302a]">{p.hostName || 'Host'}</div>
-                        <div className="font-mono text-[10px] text-[#73776f]">ID: {p.hostId.slice(0, 8)}…</div>
-                      </td>
-                      <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
-                        {formatDateOnly(p.periodStart)} → {formatDateOnly(p.periodEnd)}
-                      </td>
-                      <td className="py-3 px-4 font-mono font-medium">
-                        •••• {p.accountLast4 || 'N/A'}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <AdminStatusBadge label={p.status} tone={getTone(p.status)} dot />
-                        {p.requiresDualApproval && (
-                          <span className="text-[10px] bg-[#f7ebda] text-[#95631f] border border-[#ecd9c2] px-2 py-0.5 rounded-full font-bold ml-1.5">
-                            Dual Approval
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
-                        {formatMinor(p.amountMinor, p.currency)}
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
-                        {p.status === 'PENDING_APPROVAL' && (
-                          <button
-                            onClick={() => {
-                              setActionPayout(p);
-                              setActionType('APPROVE');
-                            }}
-                            disabled={!canApprove}
-                            title={!canApprove ? 'You proposed this batch.' : undefined}
-                            className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition ${
-                              canApprove
-                                ? 'border-[#d6dfcd] bg-[#edf1e8] text-[#536b4a] hover:bg-emerald-100 cursor-pointer'
-                                : 'border-[#d8d0c8] bg-slate-100 text-slate-400 cursor-not-allowed'
-                            }`}
-                          >
-                            Approve
-                          </button>
-                        )}
-                        {p.status === 'FAILED' && (
-                          <button
-                            onClick={() => {
-                              setActionPayout(p);
-                              setActionType('RETRY');
-                            }}
-                            className="px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#b3541e] cursor-pointer"
-                          >
-                            Retry
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Host</th>
+                    <th className="py-3 px-4">Period</th>
+                    <th className="py-3 px-4">Destination</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Amount</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
+                  {payouts.map((p) => {
+                    const isProposer = user?.id === p.proposedById;
+                    const canPayouts = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_PAYOUTS);
+                    const canApprove = canPayouts && !isProposer;
+                    return (
+                      <tr key={p.id} className="hover:bg-[#faf5ee]/60 transition">
+                        <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
+                          {formatDateTime(p.createdAt)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[#3a302a]">{p.hostName || 'Host'}</div>
+                          <div className="font-mono text-[10px] text-[#73776f]">ID: {p.hostId.slice(0, 8)}…</div>
+                        </td>
+                        <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
+                          {formatDateOnly(p.periodStart)} → {formatDateOnly(p.periodEnd)}
+                        </td>
+                        <td className="py-3 px-4 font-mono font-medium">
+                          •••• {p.accountLast4 || 'N/A'}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <AdminStatusBadge label={p.status} tone={getTone(p.status)} dot />
+                          {p.requiresDualApproval && (
+                            <span className="text-[10px] bg-[#f7ebda] text-[#95631f] border border-[#ecd9c2] px-2 py-0.5 rounded-full font-bold ml-1.5">
+                              Dual Approval
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
+                          {formatMinor(p.amountMinor, p.currency)}
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
+                          {p.status === 'PENDING_APPROVAL' && canPayouts && (
+                            <button
+                              onClick={() => {
+                                setActionPayout(p);
+                                setActionType('APPROVE');
+                              }}
+                              disabled={!canApprove}
+                              title={!canApprove ? 'You proposed this batch.' : undefined}
+                              className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition ${
+                                canApprove
+                                  ? 'border-[#d6dfcd] bg-[#edf1e8] text-[#536b4a] hover:bg-emerald-100 cursor-pointer'
+                                  : 'border-[#d8d0c8] bg-slate-100 text-slate-400 cursor-not-allowed'
+                              }`}
+                            >
+                              Approve
+                            </button>
+                          )}
+                          {p.status === 'APPROVED' && canPayouts && (
+                            <button
+                              onClick={() => {
+                                setActionPayout(p);
+                                setActionType('EXECUTE');
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-[#234b36] hover:bg-[#1a3828] text-white text-xs font-bold shadow-xs cursor-pointer"
+                            >
+                              Execute Payout
+                            </button>
+                          )}
+                          {p.status === 'FAILED' && canPayouts && (
+                            <button
+                              onClick={() => {
+                                setActionPayout(p);
+                                setActionType('RETRY');
+                              }}
+                              className="px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#b3541e] cursor-pointer"
+                            >
+                              Retry
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-[#d8d0c8] bg-[#faf5ee] px-4 py-3 text-xs text-[#73776f]">
+                <div>
+                  Page <span className="font-bold text-[#3a302a]">{page}</span> of{' '}
+                  <span className="font-bold text-[#3a302a]">{totalPages}</span> ({total} total payouts)
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-12 text-center text-[#73776f]">
@@ -248,7 +335,7 @@ export default function PayoutsTab() {
         )}
       </div>
 
-      {/* Approve / Retry Modal */}
+      {/* Approve / Retry / Execute Modal */}
       {actionPayout && actionType && (
         <AdminDialog
           open={!!actionPayout}
@@ -259,6 +346,8 @@ export default function PayoutsTab() {
           title={
             actionType === 'APPROVE'
               ? 'Authorize Host Payout Batch'
+              : actionType === 'EXECUTE'
+              ? 'Execute Approved Host Payout'
               : 'Retry Failed Payout Transfer'
           }
           description={`Payout ID: ${actionPayout.id.slice(0, 8)} · Host: ${actionPayout.hostName || actionPayout.hostId.slice(0, 8)} · Amount: ${formatMinor(actionPayout.amountMinor, actionPayout.currency)}`}
@@ -266,7 +355,9 @@ export default function PayoutsTab() {
           <div className="space-y-4 text-xs">
             <p className="leading-relaxed text-[#605850]">
               {actionType === 'APPROVE'
-                ? 'Authorizing this payout certifies that all escrow holds have cleared the configured release policy and will trigger automated provider transfer to destination •••• ' + actionPayout.accountLast4 + '.'
+                ? 'Authorizing this payout certifies that all escrow holds have cleared the configured release policy and will mark the payout ready for automated or manual execution to destination •••• ' + actionPayout.accountLast4 + '.'
+                : actionType === 'EXECUTE'
+                ? 'Executing this payout will trigger live or simulated provider transfer to destination •••• ' + actionPayout.accountLast4 + ' and balance host escrow liability accounts.'
                 : 'Retrying will re-query the provider transfer API or attempt a new transfer instruction.'}
             </p>
 
@@ -287,7 +378,7 @@ export default function PayoutsTab() {
                 disabled={submitting}
                 className="px-4 py-2 bg-[#234b36] hover:bg-[#1a3828] text-white font-bold rounded-xl shadow-xs cursor-pointer"
               >
-                {submitting ? 'Executing…' : 'Confirm'}
+                {submitting ? 'Executing…' : actionType === 'EXECUTE' ? 'Disburse Payout' : 'Confirm'}
               </button>
             </div>
           </div>

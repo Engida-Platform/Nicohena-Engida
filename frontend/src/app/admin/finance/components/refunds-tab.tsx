@@ -5,6 +5,7 @@ import {
   RotateCcw,
   Plus,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   XCircle,
   ShieldAlert,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
 import { useAuth } from '../../../../context/AuthContext';
+import { ADMIN_PERMISSIONS, can } from '../../../../types/admin';
 import type { FinanceSettingItem, RefundListItem } from '../../../../types/admin-finance';
 import { formatMinor, formatDateTime } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
@@ -23,7 +25,10 @@ import AdminDialog from '../../../../components/admin/AdminDialog';
 export default function RefundsTab() {
   const { user } = useAuth();
   const [refunds, setRefunds] = useState<RefundListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [refundThresholdMinor, setRefundThresholdMinor] = useState<string | null>(null);
 
@@ -35,6 +40,9 @@ export default function RefundsTab() {
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
 
+  const limit = 20;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   // Propose form state
   const [proposeForm, setProposeForm] = useState({
     bookingId: '',
@@ -44,15 +52,21 @@ export default function RefundsTab() {
 
   const fetchRefunds = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(limit));
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
-      const res = await apiFetch<{ data: RefundListItem[] }>(
+      const res = await apiFetch<{ data: RefundListItem[]; total: number }>(
         `/admin/finance/refunds?${params.toString()}`,
       );
       setRefunds(res.data || []);
-    } catch {
+      setTotal(res.total || 0);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load refunds list.');
       setRefunds([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -60,7 +74,7 @@ export default function RefundsTab() {
 
   useEffect(() => {
     fetchRefunds();
-  }, [statusFilter]);
+  }, [page, statusFilter]);
 
   useEffect(() => {
     let active = true;
@@ -89,9 +103,11 @@ export default function RefundsTab() {
       await apiFetch('/admin/finance/refunds', {
         method: 'POST',
         body: JSON.stringify({
-          bookingId: proposeForm.bookingId,
-          amountMinor: proposeForm.amountMinor ? String(Number(proposeForm.amountMinor) * 100) : undefined,
-          reason: proposeForm.reason,
+          bookingId: proposeForm.bookingId.trim(),
+          amountMinor: proposeForm.amountMinor
+            ? String(Math.round(Number(proposeForm.amountMinor) * 100))
+            : undefined,
+          reason: proposeForm.reason.trim(),
         }),
       });
 
@@ -102,6 +118,15 @@ export default function RefundsTab() {
       setModalError(err.message || 'Failed to propose refund');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleRetryRefund = async (refundId: string) => {
+    try {
+      await apiFetch(`/admin/finance/refunds/${refundId}/retry`, { method: 'POST' });
+      fetchRefunds();
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to retry refund');
     }
   };
 
@@ -165,7 +190,10 @@ export default function RefundsTab() {
           <label className="text-xs font-bold text-[#605850]">Filter:</label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-1.5 text-xs font-medium text-[#3a302a]"
           >
             <option value="ALL">All Refunds</option>
@@ -177,13 +205,15 @@ export default function RefundsTab() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowProposeModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#b3541e] hover:bg-[#934313] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Propose Refund</span>
-          </button>
+          {can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_REFUNDS) && (
+            <button
+              onClick={() => setShowProposeModal(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#b3541e] hover:bg-[#934313] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Propose Refund</span>
+            </button>
+          )}
           <button
             onClick={fetchRefunds}
             className="p-2 border border-[#d8d0c8] bg-white rounded-xl hover:bg-[#faf5ee] text-[#3a302a] cursor-pointer"
@@ -192,6 +222,28 @@ export default function RefundsTab() {
           </button>
         </div>
       </div>
+
+      {/* Error Alert */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[#ecd0c9] bg-[#f8e9e5] px-4 py-3 text-xs text-[#8f4035] shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#a24b3e]" strokeWidth={1.8} />
+            <p className="truncate font-medium">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchRefunds()}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#ecd0c9] bg-white px-2.5 py-1 text-xs font-bold text-[#8f4035] hover:bg-[#f3dcd6] cursor-pointer shrink-0"
+          >
+            <RotateCcw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Refunds Table */}
       <div className="bg-white border border-[#d8d0c8] rounded-2xl shadow-xs overflow-hidden">
@@ -202,103 +254,140 @@ export default function RefundsTab() {
             ))}
           </div>
         ) : refunds.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Booking Ref</th>
-                  <th className="py-3 px-4">Reason / Policy</th>
-                  <th className="py-3 px-4">Status & Approval</th>
-                  <th className="py-3 px-4 text-right">Amount</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
-                {refunds.map((r) => {
-                  const isProposer = user?.id === r.proposedById;
-                  const canApprove = !isProposer;
-                  return (
-                    <tr key={r.id} className="hover:bg-[#faf5ee]/60 transition">
-                      <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
-                        {formatDateTime(r.createdAt)}
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold">
-                        {r.bookingReference || r.bookingId.slice(0, 8)}
-                      </td>
-                      <td className="py-3 px-4 max-w-xs">
-                        <div className="font-semibold text-[#3a302a] truncate">{r.reason}</div>
-                        {r.policyTier && (
-                          <span className="text-[10px] text-[#73776f]">Policy: {r.policyTier}</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <AdminStatusBadge label={r.status} tone={getTone(r.status)} dot />
-                          {r.requiresDualApproval && (
-                            <span className="text-[10px] bg-[#f7ebda] text-[#95631f] border border-[#ecd9c2] px-2 py-0.5 rounded-full font-bold">
-                              Dual Approval Required
-                            </span>
+          <div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Booking Ref</th>
+                    <th className="py-3 px-4">Reason / Policy</th>
+                    <th className="py-3 px-4">Status & Approval</th>
+                    <th className="py-3 px-4 text-right">Amount</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
+                  {refunds.map((r) => {
+                    const isProposer = user?.id === r.proposedById;
+                    const canRefunds = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_REFUNDS);
+                    const canApprove = canRefunds && !isProposer;
+                    return (
+                      <tr key={r.id} className="hover:bg-[#faf5ee]/60 transition">
+                        <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
+                          {formatDateTime(r.createdAt)}
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold">
+                          {r.bookingReference || r.bookingId.slice(0, 8)}
+                        </td>
+                        <td className="py-3 px-4 max-w-xs">
+                          <div className="font-semibold text-[#3a302a] truncate">{r.reason}</div>
+                          {r.policyTier && (
+                            <span className="text-[10px] text-[#73776f]">Policy: {r.policyTier}</span>
                           )}
-                        </div>
-                        <div className="text-[10px] text-[#73776f] mt-0.5">
-                          Proposed by: {r.proposedByName || r.proposedById.slice(0, 8)}
-                          {isProposer && ' (You)'}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
-                        {formatMinor(r.amountMinor, r.currency)}
-                      </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
-                        {r.status === 'PENDING_APPROVAL' && (
-                          <>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <AdminStatusBadge label={r.status} tone={getTone(r.status)} dot />
+                            {r.requiresDualApproval && (
+                              <span className="text-[10px] bg-[#f7ebda] text-[#95631f] border border-[#ecd9c2] px-2 py-0.5 rounded-full font-bold">
+                                Dual Approval Required
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-[#73776f] mt-0.5">
+                            Proposed by: {r.proposedByName || r.proposedById.slice(0, 8)}
+                            {isProposer && ' (You)'}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
+                          {formatMinor(r.amountMinor, r.currency)}
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
+                          {r.status === 'PENDING_APPROVAL' && canRefunds && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedRefund(r);
+                                  setActionType('APPROVE');
+                                }}
+                                disabled={!canApprove}
+                                title={
+                                  !canApprove
+                                    ? 'Dual approval violation: You proposed this refund and cannot approve it yourself.'
+                                    : undefined
+                                }
+                                className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition ${
+                                  canApprove
+                                    ? 'border-[#d6dfcd] bg-[#edf1e8] text-[#536b4a] hover:bg-emerald-100 cursor-pointer'
+                                    : 'border-[#d8d0c8] bg-slate-100 text-slate-400 cursor-not-allowed'
+                                }`}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedRefund(r);
+                                  setActionType('REJECT');
+                                }}
+                                className="px-2 py-1 rounded-lg border border-[#ebd0c9] bg-[#f8e9e5] text-[#9a3f33] hover:bg-rose-100 text-xs font-bold cursor-pointer"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {r.status === 'APPROVED' && canRefunds && (
                             <button
                               onClick={() => {
                                 setSelectedRefund(r);
-                                setActionType('APPROVE');
+                                setActionType('EXECUTE');
                               }}
-                              disabled={!canApprove}
-                              title={
-                                !canApprove
-                                  ? 'Dual approval violation: You proposed this refund and cannot approve it yourself.'
-                                  : undefined
-                              }
-                              className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition ${
-                                canApprove
-                                  ? 'border-[#d6dfcd] bg-[#edf1e8] text-[#536b4a] hover:bg-emerald-100 cursor-pointer'
-                                  : 'border-[#d8d0c8] bg-slate-100 text-slate-400 cursor-not-allowed'
-                              }`}
+                              className="px-3 py-1 rounded-lg bg-[#b3541e] text-white hover:bg-[#934313] text-xs font-bold shadow-xs cursor-pointer"
                             >
-                              Approve
+                              Execute Refund
                             </button>
+                          )}
+                          {r.status === 'FAILED' && canRefunds && (
                             <button
-                              onClick={() => {
-                                setSelectedRefund(r);
-                                setActionType('REJECT');
-                              }}
-                              className="px-2 py-1 rounded-lg border border-[#ebd0c9] bg-[#f8e9e5] text-[#9a3f33] hover:bg-rose-100 text-xs font-bold cursor-pointer"
+                              onClick={() => handleRetryRefund(r.id)}
+                              className="px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#b3541e] cursor-pointer"
                             >
-                              Reject
+                              Retry
                             </button>
-                          </>
-                        )}
-                        {r.status === 'APPROVED' && (
-                          <button
-                            onClick={() => {
-                              setSelectedRefund(r);
-                              setActionType('EXECUTE');
-                            }}
-                            className="px-3 py-1 rounded-lg bg-[#b3541e] text-white hover:bg-[#934313] text-xs font-bold shadow-xs cursor-pointer"
-                          >
-                            Execute Refund
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Bar */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-[#d8d0c8] bg-[#faf5ee] px-4 py-3 text-xs text-[#73776f]">
+                <div>
+                  Page <span className="font-bold text-[#3a302a]">{page}</span> of{' '}
+                  <span className="font-bold text-[#3a302a]">{totalPages}</span> ({total} total refunds)
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-12 text-center text-[#73776f]">

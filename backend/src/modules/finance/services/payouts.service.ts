@@ -325,10 +325,20 @@ export class PayoutsService {
     context?: { ipAddress?: string | null; userAgent?: string | null },
   ) {
     const payout = await this.payoutRepo.findOne({ where: { id: payoutId } });
-    if (!payout) throw new NotFoundException('Payout not found');
-
+    if (!payout) {
+      throw new NotFoundException(`Payout not found: ${payoutId}`);
+    }
     if (payout.status !== PayoutStatus.PENDING_APPROVAL && payout.status !== PayoutStatus.DRAFT) {
       throw new BadRequestException(`Payout is not pending approval (${payout.status})`);
+    }
+
+    // Four-eyes principle: cannot approve payout you drafted or proposed
+    const draftEvent = await this.payoutEventRepo.findOne({
+      where: { payoutId: payout.id, eventType: 'PAYOUT_DRAFTED' },
+      order: { createdAt: 'ASC' },
+    });
+    if (draftEvent?.actorId && draftEvent.actorId === approver.id) {
+      throw new ForbiddenException('Dual authorization required: cannot approve a payout you drafted or proposed');
     }
 
     payout.status = PayoutStatus.APPROVED;
