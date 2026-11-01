@@ -42,7 +42,12 @@ export class PropertiesController {
    */
   @Get()
   async findAll(@Query() query: QueryPropertyDto) {
-    return this.propertiesService.findAll(query);
+    try {
+      return await this.propertiesService.findAll(query);
+    } catch (err) {
+      console.error('PROPERTIES FINDALL ERROR:', err);
+      throw new BadRequestException(err?.message || 'Failed to fetch properties');
+    }
   }
 
   /**
