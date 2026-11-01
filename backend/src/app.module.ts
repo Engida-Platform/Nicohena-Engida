@@ -76,6 +76,7 @@ import { SystemSetting } from './modules/admin/settings/entities/system-setting.
 import { MessagesModule } from './modules/messages/messages.module';
 import { Conversation } from './modules/messages/entities/conversation.entity';
 import { Message } from './modules/messages/entities/message.entity';
+import { DisputesModule } from './modules/disputes/disputes.module';
 import { validate } from './config/env.validation';
 
 @Module({
@@ -204,6 +205,7 @@ import { validate } from './config/env.validation';
     CouponsModule,
     ContentModule,
     MessagesModule,
+    DisputesModule,
   ],
   controllers: [AppController],
   providers: [

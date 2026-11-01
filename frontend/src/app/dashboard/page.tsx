@@ -18,12 +18,14 @@ import {
   ChevronRight,
   ArrowRight,
   Loader2,
+  ShieldAlert,
 } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import type { Booking, BookingStatus } from '../../types';
 import ChatModal from '../../components/messaging/ChatModal';
+import DisputeModal from '../../components/disputes/DisputeModal';
 
 interface GuestBooking extends Booking {
   property: {
@@ -111,6 +113,10 @@ export default function DashboardPage() {
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
 
+  // Dispute states
+  const [disputeBooking, setDisputeBooking] = useState<GuestBooking | null>(null);
+  const [disputesByBookingId, setDisputesByBookingId] = useState<Record<string, { id: string; number: string; status: string }>>({});
+
   useEffect(() => {
     if (typeof window !== 'undefined' && user) {
       const params = new URLSearchParams(window.location.search);
@@ -145,6 +151,20 @@ export default function DashboardPage() {
         }
       }));
       setReviewStatusByProperty(Object.fromEntries(reviewStatuses));
+
+      // Load active disputes
+      try {
+        const myDisputes = await apiFetch<Array<{ id: string; number: string; status: string; bookingId: string }>>('/disputes/mine');
+        const mapping: Record<string, { id: string; number: string; status: string }> = {};
+        if (Array.isArray(myDisputes)) {
+          for (const d of myDisputes) {
+            if (d.bookingId) mapping[d.bookingId] = d;
+          }
+        }
+        setDisputesByBookingId(mapping);
+      } catch {
+        // Non-blocking dispute status check
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load your reservations.');
     } finally {
@@ -370,6 +390,12 @@ export default function DashboardPage() {
                           <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[booking.status]}`}>
                             {booking.status.charAt(0) + booking.status.slice(1).toLowerCase()}
                           </span>
+                          {disputesByBookingId[booking.id] && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800">
+                              <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
+                              Dispute {disputesByBookingId[booking.id].number} · Escrow Protected
+                            </span>
+                          )}
                         </div>
                         <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
                           <MapPin className="h-4 w-4 shrink-0 text-slate-400" />
@@ -420,6 +446,29 @@ export default function DashboardPage() {
                           >
                             View listing
                           </Link>
+                        )}
+
+                        {disputesByBookingId[booking.id] ? (
+                          <button
+                            type="button"
+                            onClick={() => setDisputeBooking(booking)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 transition cursor-pointer shadow-2xs"
+                          >
+                            <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
+                            Dispute Case
+                          </button>
+                        ) : (
+                          (booking.status === 'CONFIRMED' || booking.status === 'COMPLETED') && (
+                            <button
+                              type="button"
+                              onClick={() => setDisputeBooking(booking)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                              title="Report an issue or claim with escrow protection"
+                            >
+                              <ShieldAlert className="h-3.5 w-3.5 text-slate-500" />
+                              Report Issue
+                            </button>
+                          )
                         )}
 
                         {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
@@ -673,6 +722,22 @@ export default function DashboardPage() {
             propertyId={chatBooking?.propertyId || chatConversation?.propertyId || undefined}
             recipientName={chatBooking?.property?.title ? 'Host' : chatConversation?.host?.name || 'User'}
             propertyTitle={chatBooking?.property?.title || chatConversation?.propertyName}
+          />
+        )}
+
+        {/* Dispute & Escrow Modal */}
+        {disputeBooking && (
+          <DisputeModal
+            isOpen={Boolean(disputeBooking)}
+            onClose={() => setDisputeBooking(null)}
+            bookingId={disputeBooking.id}
+            bookingTitle={disputeBooking.property?.title}
+            bookingDates={`${formatDate(disputeBooking.checkInDate)} – ${formatDate(disputeBooking.checkOutDate)}`}
+            bookingTotal={disputeBooking.totalPrice}
+            userRole="GUEST"
+            onDisputeStatusChanged={() => {
+              void loadBookings();
+            }}
           />
         )}
       </main>

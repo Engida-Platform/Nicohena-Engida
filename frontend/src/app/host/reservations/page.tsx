@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
@@ -11,11 +11,13 @@ import {
   CircleX,
   MessageSquare,
   RotateCcw,
+  ShieldAlert,
   UserRound,
   X,
 } from 'lucide-react';
 import { apiFetch } from '../../../lib/api';
 import ChatModal from '../../../components/messaging/ChatModal';
+import DisputeModal from '../../../components/disputes/DisputeModal';
 import type {
   BookingStatus,
   HostReservationRow,
@@ -148,13 +150,17 @@ function ReservationDetails({
 function ReservationActions({
   reservation,
   processing,
+  dispute,
   onAction,
   onMessageGuest,
+  onOpenDispute,
 }: {
   reservation: HostReservationRow;
   processing: boolean;
+  dispute?: { id: string; number: string; status: string };
   onAction: (action: Action) => void;
   onMessageGuest: () => void;
+  onOpenDispute: () => void;
 }) {
   const actions: { action: Action; label: string; icon: typeof Check; className: string }[] = [];
 
@@ -196,6 +202,29 @@ function ReservationActions({
         <MessageSquare className="h-3.5 w-3.5" />
         Message
       </button>
+
+      {dispute ? (
+        <button
+          type="button"
+          onClick={onOpenDispute}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100 transition cursor-pointer shadow-2xs"
+        >
+          <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
+          Dispute Case
+        </button>
+      ) : (
+        (reservation.status === 'CONFIRMED' || reservation.status === 'COMPLETED') && (
+          <button
+            type="button"
+            onClick={onOpenDispute}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#d8d0c8] bg-white px-3 py-2 text-xs font-bold text-[#73776F] hover:text-[#252923] hover:bg-[#EEF3EF] transition cursor-pointer shadow-2xs"
+            title="File an issue or damage claim with escrow protection"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 text-[#73776F]" />
+            Report Issue
+          </button>
+        )
+      )}
       {reservation.status === 'CONFIRMED' && !stayHasEnded && (
         <span className="text-xs text-[#73776F]">Completion is available after check-out.</span>
       )}
@@ -231,6 +260,8 @@ export default function HostReservationsPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [chatReservation, setChatReservation] = useState<HostReservationRow | null>(null);
+  const [disputeReservation, setDisputeReservation] = useState<HostReservationRow | null>(null);
+  const [disputesByBookingId, setDisputesByBookingId] = useState<Record<string, { id: string; number: string; status: string }>>({});
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -253,6 +284,19 @@ export default function HostReservationsPage() {
         setReservations(response.data || []);
         setTotal(response.total || 0);
         setTotalPages(response.totalPages || 0);
+
+        try {
+          const myDisputes = await apiFetch<Array<{ id: string; number: string; status: string; bookingId: string }>>('/disputes/mine');
+          const mapping: Record<string, { id: string; number: string; status: string }> = {};
+          if (Array.isArray(myDisputes)) {
+            for (const d of myDisputes) {
+              if (d.bookingId) mapping[d.bookingId] = d;
+            }
+          }
+          if (active) setDisputesByBookingId(mapping);
+        } catch {
+          // Non-blocking dispute load
+        }
       } catch (err: unknown) {
         if (!active) return;
         setError(err instanceof Error ? err.message : 'Failed to load reservations.');
@@ -463,15 +507,25 @@ export default function HostReservationsPage() {
                         {formatAmount(reservation.totalPrice)}
                       </td>
                       <td className="px-5 py-4">
-                        <StatusBadge status={reservation.status} />
+                        <div className="flex flex-col gap-1 items-start">
+                          <StatusBadge status={reservation.status} />
+                          {disputesByBookingId[reservation.id] && (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-50 text-amber-800 border border-amber-200">
+                              <ShieldAlert className="h-3 w-3 text-amber-600" />
+                              Escrow Frozen
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end">
                           <ReservationActions
                             reservation={reservation}
                             processing={processingId === reservation.id}
+                            dispute={disputesByBookingId[reservation.id]}
                             onAction={(action) => handleAction(reservation, action)}
                             onMessageGuest={() => setChatReservation(reservation)}
+                            onOpenDispute={() => setDisputeReservation(reservation)}
                           />
                         </div>
                       </td>
@@ -510,15 +564,25 @@ export default function HostReservationsPage() {
                       </p>
                     </div>
                   </div>
-                  <StatusBadge status={reservation.status} />
+                  <div className="flex flex-col items-end gap-1">
+                    <StatusBadge status={reservation.status} />
+                    {disputesByBookingId[reservation.id] && (
+                      <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-50 text-amber-800 border border-amber-200">
+                        <ShieldAlert className="h-3 w-3 text-amber-600" />
+                        Escrow Frozen
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <ReservationDetails reservation={reservation} compact />
                 <div className="mt-5 border-t border-[#EEF3EF] pt-4">
                   <ReservationActions
                     reservation={reservation}
                     processing={processingId === reservation.id}
+                    dispute={disputesByBookingId[reservation.id]}
                     onAction={(action) => handleAction(reservation, action)}
                     onMessageGuest={() => setChatReservation(reservation)}
+                    onOpenDispute={() => setDisputeReservation(reservation)}
                   />
                 </div>
               </article>
@@ -562,6 +626,21 @@ export default function HostReservationsPage() {
           bookingId={chatReservation.id}
           recipientName={chatReservation.guest?.name}
           propertyTitle={chatReservation.property?.title}
+        />
+      )}
+
+      {disputeReservation && (
+        <DisputeModal
+          isOpen={Boolean(disputeReservation)}
+          onClose={() => setDisputeReservation(null)}
+          bookingId={disputeReservation.id}
+          bookingTitle={disputeReservation.property?.title}
+          bookingDates={`${formatDate(disputeReservation.checkInDate)} – ${formatDate(disputeReservation.checkOutDate)}`}
+          bookingTotal={disputeReservation.totalPrice}
+          userRole="HOST"
+          onDisputeStatusChanged={() => {
+            setRefreshVersion((v) => v + 1);
+          }}
         />
       )}
     </div>
