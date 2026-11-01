@@ -8,7 +8,13 @@ export type NotificationType =
   | 'BOOKING_CANCELLED'
   | 'BOOKING_COMPLETED'
   | 'LISTING_APPROVED'
-  | 'LISTING_REJECTED';
+  | 'LISTING_REJECTED'
+  | 'REVIEW_HIDDEN'
+  | 'REVIEW_RESTORED'
+  | 'CASE_ASSIGNED'
+  | 'CASE_REPLY'
+  | 'CASE_ESCALATED'
+  | 'MESSAGE_RECEIVED';
 
 export interface HostNotification {
   id: string;
@@ -23,6 +29,8 @@ export interface HostNotification {
   createdAt: string;
   updatedAt: string;
 }
+
+export type AppNotification = HostNotification;
 
 export interface NotificationsResponse {
   data: HostNotification[];

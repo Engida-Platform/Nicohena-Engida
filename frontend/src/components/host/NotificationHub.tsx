@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Bell,
   CheckCheck,
@@ -17,6 +18,9 @@ import {
   ExternalLink,
   Inbox,
   Check,
+  MessageSquare,
+  ShieldAlert,
+  Star,
 } from 'lucide-react';
 import {
   HostNotification,
@@ -101,14 +105,38 @@ function getNotificationVisuals(type: NotificationType) {
         icon: AlertCircle,
         bgColor: 'bg-amber-50 text-amber-700 border-amber-200',
         badgeColor: 'bg-amber-100 text-amber-800',
-        label: 'Review Update',
+        label: 'Listing Review',
+      };
+    case 'MESSAGE_RECEIVED':
+      return {
+        icon: MessageSquare,
+        bgColor: 'bg-blue-50 text-blue-700 border-blue-200',
+        badgeColor: 'bg-blue-100 text-blue-800',
+        label: 'Message',
+      };
+    case 'CASE_ASSIGNED':
+    case 'CASE_REPLY':
+    case 'CASE_ESCALATED':
+      return {
+        icon: ShieldAlert,
+        bgColor: 'bg-purple-50 text-purple-700 border-purple-200',
+        badgeColor: 'bg-purple-100 text-purple-800',
+        label: 'Dispute & Trust',
+      };
+    case 'REVIEW_HIDDEN':
+    case 'REVIEW_RESTORED':
+      return {
+        icon: Star,
+        bgColor: 'bg-amber-50 text-amber-700 border-amber-200',
+        badgeColor: 'bg-amber-100 text-amber-800',
+        label: 'Stay Review',
       };
     default:
       return {
         icon: Building2,
         bgColor: 'bg-[#EEF3EF] text-[#73776F] border-[#E5E0D5]',
         badgeColor: 'bg-[#EEF3EF] text-[#73776F]',
-        label: 'Host Alert',
+        label: 'Platform Alert',
       };
   }
 }
@@ -544,7 +572,14 @@ export default function NotificationHub({
 
             {/* Footer */}
             <div className="px-5 py-3 border-t border-[#E5E0D5] bg-[#EEF3EF]/40 flex items-center justify-between text-xs text-[#73776F]">
-              <span className="text-[11px] font-medium">ENGIDA Host Hub</span>
+              <Link
+                href="/notifications"
+                onClick={() => setIsOpen(false)}
+                className="text-[11px] font-bold text-[#234B36] hover:underline inline-flex items-center gap-1"
+              >
+                <span>View Full Activity Hub</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
               <span className="text-[11px] text-[#73776F]">Auto-refreshed</span>
             </div>
           </div>

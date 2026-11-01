@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import NotificationHub from '../host/NotificationHub';
 
 export default function AppHeader() {
   const { user, logout } = useAuth();
@@ -52,6 +53,9 @@ export default function AppHeader() {
             {currency}
           </button>
 
+          {/* Notification Center */}
+          {user && <NotificationHub variant="icon" />}
+
           {/* User Menu */}
           <div className="relative" ref={menuRef}>
             <button
@@ -98,6 +102,13 @@ export default function AppHeader() {
                       className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
                     >
                       Dashboard
+                    </Link>
+                    <Link
+                      href="/notifications"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                    >
+                      Notifications
                     </Link>
                     {user.hostProfile ? (
                       <Link

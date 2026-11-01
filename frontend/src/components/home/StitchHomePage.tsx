@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
+import NotificationHub from '../host/NotificationHub';
 import { apiFetch } from '@/lib/api';
 
 export interface PropertyListing {
@@ -487,6 +488,9 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                 <span className="hidden sm:inline font-mono">{currency}</span>
               </button>
 
+              {/* Notification Center */}
+              {user && <NotificationHub variant="icon" />}
+
               {/* User Menu Trigger */}
               <div className="relative" ref={userMenuRef}>
                 <button
@@ -559,6 +563,13 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                           className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
                         >
                           Guest Trips & Dashboard
+                        </Link>
+                        <Link
+                          href="/notifications"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                        >
+                          Notifications
                         </Link>
                         <button
                           type="button"

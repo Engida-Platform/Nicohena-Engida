@@ -4,7 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { Building2, Menu, X, LogOut, User, Sparkles, Luggage, ChevronDown, ShieldCheck } from 'lucide-react';
+import NotificationHub from './host/NotificationHub';
+import { Building2, Menu, X, LogOut, User, Sparkles, Luggage, ChevronDown, ShieldCheck, Bell } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout, loading } = useAuth();
@@ -73,6 +74,9 @@ export default function Navbar() {
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 <span>{user.hostProfile ? 'Host Portal' : 'Become a Host'}</span>
               </Link>
+
+              {/* Notification Center */}
+              <NotificationHub variant="icon" />
 
               {/* User Profile Dropdown Pill */}
               <div className="relative" ref={userMenuRef}>
@@ -178,6 +182,25 @@ export default function Navbar() {
                           </p>
                           <p className="text-[10px] font-medium text-slate-500 mt-1">
                             Reservations you booked as a guest
+                          </p>
+                        </div>
+                      </Link>
+
+                      {/* 3. Notifications */}
+                      <Link
+                        href="/notifications"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-start gap-3 px-4 py-2.5 text-xs text-slate-800 hover:bg-slate-50 hover:text-[#1e40af] transition"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 mt-0.5">
+                          <Bell className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="font-extrabold text-slate-900 leading-none">
+                            Notifications
+                          </p>
+                          <p className="text-[10px] font-medium text-slate-500 mt-1">
+                            Activity alerts, bookings & messages
                           </p>
                         </div>
                       </Link>
