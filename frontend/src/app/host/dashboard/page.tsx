@@ -38,6 +38,10 @@ import {
   ChevronRight,
   BedDouble,
   Bath,
+  Star,
+  Award,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 
 function formatETB(value: number): string {
@@ -463,6 +467,169 @@ export default function HostDashboardPage() {
           </p>
         </div>
 
+      </section>
+
+      {/* ── 2.5 HOST PERFORMANCE & SUPERHOST DIAGNOSTICS (PHASE 8) ── */}
+      <section className="bg-gradient-to-br from-[#F8F5ED] to-white border border-[#E5E0D5] rounded-2xl p-5 sm:p-7 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E0D5]/60">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#234B36]" />
+              <h2 className="text-lg font-bold text-[#252923] tracking-tight font-headline flex items-center gap-2">
+                Host Performance & Superhost Diagnostics
+                <span className="text-[10px] uppercase font-black tracking-widest px-2.5 py-0.5 rounded-full bg-[#EEF3EF] text-[#234B36] border border-[#234B36]/15">
+                  Platform Metrics
+                </span>
+              </h2>
+            </div>
+            <p className="text-xs text-[#73776F] mt-1 max-w-2xl">
+              Real-time service quality indicators, guest review satisfaction ratings, and tier eligibility benchmarked against ENGIDA platform standards.
+            </p>
+          </div>
+
+          <div>
+            {summary?.superhostEligible ? (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#234B36] text-white shadow-xs">
+                <Award className="w-4 h-4 text-amber-300 fill-amber-300" />
+                <span className="text-xs font-black tracking-wide uppercase">Superhost Partner Tier Active</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#E5E0D5] text-[#252923] shadow-2xs">
+                <Sparkles className="w-4 h-4 text-[#234B36]" />
+                <span className="text-xs font-bold text-[#73776F]">
+                  Tier Status: <strong className="text-[#252923]">Standard Partner</strong>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Diagnostic Metrics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+          {/* Diagnostic 1: Acceptance Rate */}
+          <div className="bg-white border border-[#E5E0D5] rounded-xl p-5 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[#73776F] uppercase tracking-wider">
+                Booking Acceptance Rate
+              </span>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                (summary?.acceptanceRatePercent ?? 100) >= 90
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200'
+              }`}>
+                {(summary?.acceptanceRatePercent ?? 100) >= 90 ? 'Optimal' : 'Needs Attention'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-black text-[#252923] tracking-tight">
+                {summary?.acceptanceRatePercent ?? 100}%
+              </span>
+              <span className="text-xs text-[#73776F] font-medium">
+                (Target: ≥ 90%)
+              </span>
+            </div>
+            <div className="w-full bg-[#EEF3EF] rounded-full h-1.5 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  (summary?.acceptanceRatePercent ?? 100) >= 90 ? 'bg-[#234B36]' : 'bg-amber-500'
+                }`}
+                style={{ width: `${Math.min(100, summary?.acceptanceRatePercent ?? 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-[#73776F] leading-relaxed">
+              Calculated across all guest booking inquiries and instant confirmations. Prompt responses improve discovery search ranking.
+            </p>
+          </div>
+
+          {/* Diagnostic 2: Verified Guest Rating */}
+          <div className="bg-white border border-[#E5E0D5] rounded-xl p-5 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[#73776F] uppercase tracking-wider">
+                Verified Guest Rating
+              </span>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                (summary?.averageRating ?? 5.0) >= 4.7
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200'
+              }`}>
+                {(summary?.averageRating ?? 5.0) >= 4.7 ? 'Superhost Benchmark' : 'Developing'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-black text-[#252923] tracking-tight flex items-center gap-1">
+                <Star className="w-6 h-6 text-amber-400 fill-amber-400 inline" />
+                {summary?.averageRating !== undefined ? summary.averageRating.toFixed(1) : '5.0'}
+              </span>
+              <span className="text-xs text-[#73776F] font-medium">
+                ({summary?.reviewCount ?? 0} {summary?.reviewCount === 1 ? 'review' : 'reviews'})
+              </span>
+            </div>
+            <div className="w-full bg-[#EEF3EF] rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                style={{ width: `${Math.min(100, ((summary?.averageRating ?? 5.0) / 5) * 100)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-[#73776F]">Target: ≥ 4.7 / 5.0</span>
+              <Link href="/host/reviews" className="text-[#234B36] font-bold hover:underline inline-flex items-center gap-0.5">
+                Reviews Hub <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </div>
+
+          {/* Diagnostic 3: Completed Stays & Superhost Qualification */}
+          <div className="bg-white border border-[#E5E0D5] rounded-xl p-5 shadow-2xs space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-[#73776F] uppercase tracking-wider">
+                Reliability & Stay History
+              </span>
+              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                (summary?.completedReservations ?? 0) >= 2
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                  : 'bg-zinc-100 text-zinc-700 border border-zinc-200'
+              }`}>
+                {(summary?.completedReservations ?? 0) >= 2 ? 'Threshold Met' : 'In Progress'}
+              </span>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-black text-[#252923] tracking-tight">
+                {summary?.completedReservations ?? 0}
+              </span>
+              <span className="text-xs text-[#73776F] font-medium">
+                Completed Stays (Target: ≥ 2)
+              </span>
+            </div>
+            <div className="w-full bg-[#EEF3EF] rounded-full h-1.5 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#234B36] transition-all duration-500"
+                style={{ width: `${Math.min(100, ((summary?.completedReservations ?? 0) / 2) * 100)}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-[#73776F] leading-relaxed">
+              Zero unexcused host cancellations maintain verified traveler trust across Ethiopian listings.
+            </p>
+          </div>
+        </div>
+
+        {/* Superhost Tier Benefit Bar */}
+        <div className="p-4 rounded-xl bg-white border border-[#E5E0D5]/70 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-[#252923]">
+            <CheckCircle2 className="w-4 h-4 text-[#234B36] shrink-0" />
+            <span className="font-semibold">
+              Superhost Qualification Checklist:
+            </span>
+            <span className="text-[#73776F]">
+              Acceptance ≥90% ({summary?.acceptanceRatePercent ?? 100}%), Rating ≥4.7 ({summary?.averageRating?.toFixed(1) ?? '5.0'}★), Completed Stays ≥2 ({summary?.completedReservations ?? 0}).
+            </span>
+          </div>
+          <Link
+            href="/admin/analytics"
+            className="text-xs font-bold text-[#234B36] hover:text-[#2D5E43] inline-flex items-center gap-1 shrink-0"
+          >
+            Platform Benchmarks <ChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
       </section>
 
       {/* ── 3. LIVE PROPERTY PORTFOLIO SHOWCASE (CLEANED HIERARCHY) ── */}

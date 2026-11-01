@@ -203,6 +203,11 @@ export interface HostDashboardSummary {
   upcomingReservations: number;
   // Booking totals — NOT actual paid/settled revenue
   totalBookingValue: number;
+  // Performance diagnostics & Superhost tier eligibility
+  acceptanceRatePercent?: number;
+  averageRating?: number;
+  reviewCount?: number;
+  superhostEligible?: boolean;
 }
 
 // ──────────────────────────────────────

@@ -1368,7 +1368,7 @@ export class HostService {
   async getDashboardSummary(
     hostId: string,
     userRole: UserRole = UserRole.USER,
-  ): Promise<Record<string, number>> {
+  ): Promise<Record<string, any>> {
     await this.assertHostProfile(hostId, userRole);
     // Listing counts
     const listingCounts = await this.propertyRepository
@@ -1441,6 +1441,32 @@ export class HostService {
 
     const totalBookingValue = parseFloat(revenueResult?.total ?? '0');
 
+    // Performance diagnostics & Superhost tier eligibility
+    const totalReservations = pendingReservations + confirmedReservations + completedReservations;
+    const acceptanceRatePercent = totalReservations > 0
+      ? Math.round(((confirmedReservations + completedReservations) / totalReservations) * 100)
+      : 100;
+
+    let averageRating = 5.0;
+    let reviewCount = 0;
+    if (this.guestReviewRepository) {
+      const reviewStats = await this.guestReviewRepository
+        .createQueryBuilder('review')
+        .innerJoin('review.property', 'property')
+        .select('AVG(review.rating)', 'avgRating')
+        .addSelect('COUNT(*)', 'count')
+        .where('property.hostId = :hostId', { hostId })
+        .andWhere('review.moderationStatus = :status', { status: ReviewModerationStatus.VISIBLE })
+        .getRawOne<{ avgRating: string; count: string }>();
+
+      if (reviewStats?.count && parseInt(reviewStats.count, 10) > 0) {
+        averageRating = parseFloat(parseFloat(reviewStats.avgRating).toFixed(1));
+        reviewCount = parseInt(reviewStats.count, 10);
+      }
+    }
+
+    const superhostEligible = completedReservations >= 2 && averageRating >= 4.7 && acceptanceRatePercent >= 90;
+
     return {
       totalListings,
       publishedListings,
@@ -1452,8 +1478,11 @@ export class HostService {
       confirmedReservations,
       completedReservations,
       upcomingReservations,
-      // Clearly labeled as booking totals, NOT actual paid/settled revenue
       totalBookingValue,
+      acceptanceRatePercent,
+      averageRating,
+      reviewCount,
+      superhostEligible: Boolean(superhostEligible),
     };
   }
 
