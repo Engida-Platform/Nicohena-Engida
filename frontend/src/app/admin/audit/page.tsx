@@ -12,11 +12,11 @@ import {
   RefreshCw,
   ScrollText,
   ShieldCheck,
-  X,
 } from 'lucide-react';
 import { apiFetch } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import AdminDialog from '../../../components/admin/AdminDialog';
 import {
   ADMIN_PERMISSIONS,
   can,
@@ -50,6 +50,7 @@ function entityTypeLabel(value: string): string {
 }
 
 interface Filters {
+  actorId: string;
   action: string;
   entityType: string;
   entityId: string;
@@ -58,6 +59,7 @@ interface Filters {
 }
 
 const EMPTY_FILTERS: Filters = {
+  actorId: '',
   action: '',
   entityType: '',
   entityId: '',
@@ -76,11 +78,17 @@ function formatDateTime(value: string): string {
 }
 
 function toIsoStart(value: string): string | undefined {
-  return value ? new Date(`${value}T00:00:00.000Z`).toISOString() : undefined;
+  if (!value) return undefined;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
 }
 
 function toIsoEnd(value: string): string | undefined {
-  return value ? new Date(`${value}T23:59:59.999Z`).toISOString() : undefined;
+  if (!value) return undefined;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
 }
 
 function metadataReason(entry: AuditLogEntry): string | null {
@@ -155,6 +163,7 @@ export default function AdminAuditPage() {
         const params = new URLSearchParams();
         params.set('page', String(page));
         params.set('limit', String(PAGE_SIZE));
+        if (applied.actorId.trim()) params.set('actorId', applied.actorId.trim());
         if (applied.action.trim()) params.set('action', applied.action.trim());
         if (applied.entityType) params.set('entityType', applied.entityType);
         if (applied.entityId.trim()) params.set('entityId', applied.entityId.trim());
@@ -215,8 +224,14 @@ export default function AdminAuditPage() {
     setPage(1);
   };
 
-  const hasFilters =
-    Boolean(applied.action || applied.entityType || applied.entityId || applied.from || applied.to);
+  const hasFilters = Boolean(
+    applied.actorId ||
+      applied.action ||
+      applied.entityType ||
+      applied.entityId ||
+      applied.from ||
+      applied.to,
+  );
 
   return (
     <div className="space-y-8">
@@ -246,7 +261,7 @@ export default function AdminAuditPage() {
             onSubmit={applyFilters}
             className="rounded-2xl border border-[#d8d0c8] bg-white p-4 shadow-sm sm:p-5"
           >
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(170px,1fr)_145px_minmax(160px,1fr)_minmax(220px,auto)_auto]">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(160px,1fr)_140px_minmax(140px,1fr)_minmax(140px,1fr)_minmax(220px,auto)_auto]">
               <div>
                 <label htmlFor="audit-action" className="text-xs font-bold text-[#6c5d52]">
                   Action
@@ -309,7 +324,22 @@ export default function AdminAuditPage() {
                 />
               </div>
 
-              <div className="md:col-span-2 xl:col-span-1">
+              <div>
+                <label htmlFor="audit-actor-id" className="text-xs font-bold text-[#6c5d52]">
+                  Actor ID
+                </label>
+                <input
+                  id="audit-actor-id"
+                  value={draft.actorId}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, actorId: event.target.value }))
+                  }
+                  placeholder="User UUID"
+                  className="mt-1 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                />
+              </div>
+
+              <div>
                 <div className="flex items-center justify-between">
                   <label htmlFor="audit-from" className="flex items-center gap-1.5 text-xs font-bold text-[#6c5d52]">
                     <CalendarRange className="h-3.5 w-3.5 text-[#b3541e]" />
@@ -361,7 +391,7 @@ export default function AdminAuditPage() {
                 </div>
               </div>
 
-              <div className="flex items-end gap-2 md:col-span-2 xl:col-span-1">
+              <div className="flex items-end gap-2 md:col-span-2 lg:col-span-1">
                 <button
                   type="submit"
                   className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#b3541e] px-3 text-sm font-semibold text-white hover:bg-[#934313]"
@@ -372,7 +402,15 @@ export default function AdminAuditPage() {
                 <button
                   type="button"
                   onClick={clearFilters}
-                  disabled={!hasFilters && !draft.action && !draft.entityType && !draft.entityId && !draft.from && !draft.to}
+                  disabled={
+                    !hasFilters &&
+                    !draft.actorId &&
+                    !draft.action &&
+                    !draft.entityType &&
+                    !draft.entityId &&
+                    !draft.from &&
+                    !draft.to
+                  }
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-[#d8d0c8] bg-white px-3 text-sm font-semibold text-[#6c5d52] hover:bg-[#f6f0e8] disabled:opacity-40"
                 >
                   Clear
@@ -560,112 +598,90 @@ export default function AdminAuditPage() {
         </>
       )}
 
-      {selected && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4">
-          <button
-            type="button"
-            aria-label="Close audit details"
-            className="absolute inset-0 bg-[#2f2722]/55"
-            onClick={() => setSelected(null)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="audit-detail-title"
-            className="relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-w-3xl sm:rounded-2xl"
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-[#d8d0c8] px-5 py-4">
+      <AdminDialog
+        open={Boolean(selected)}
+        onClose={() => setSelected(null)}
+        title="Audit entry"
+        description={
+          selected
+            ? `${formatDateTime(selected.createdAt)} · ${selected.action}`
+            : undefined
+        }
+        width="lg"
+      >
+        {selected && (
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#7a6b5f]">
+                  Actor
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#4a3e35]">
+                  {selected.actorEmail || 'System'}
+                </p>
+                <p className="text-xs text-[#7a6b5f]">{selected.actorRole || 'automated'}</p>
+                {selected.actorId && (
+                  <p className="mt-1 truncate font-mono text-[11px] text-[#7a6b5f]">
+                    {selected.actorId}
+                  </p>
+                )}
+              </div>
+              <div className="rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] p-3">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#7a6b5f]">
+                  Entity
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[#4a3e35]">
+                  {selected.entityType}
+                </p>
+                {selected.entityId && (
+                  <p className="mt-1 truncate font-mono text-[11px] text-[#7a6b5f]">
+                    {selected.entityId}
+                  </p>
+                )}
+                {selected.ipAddress && (
+                  <p className="mt-1 font-mono text-[11px] text-[#7a6b5f]">
+                    IP {selected.ipAddress}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {metadataReason(selected) && (
               <div>
-                <h2 id="audit-detail-title" className="text-base font-bold text-[#3a302a]">
-                  Audit entry
-                </h2>
-                <p className="mt-0.5 text-xs text-[#7a6b5f]">
-                  {formatDateTime(selected.createdAt)} · {selected.action}
+                <p className="text-xs font-bold text-[#5a4c42]">Reason</p>
+                <p className="mt-1.5 rounded-xl border border-[#d8d0c8] bg-white p-3 text-sm text-[#5a4c42]">
+                  {metadataReason(selected)}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="rounded-lg p-1.5 text-[#7a6b5f] hover:bg-[#efe7dc] hover:text-[#6c5d52]"
-                aria-label="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+            )}
 
-            <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] p-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#7a6b5f]">
-                    Actor
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-[#4a3e35]">
-                    {selected.actorEmail || 'System'}
-                  </p>
-                  <p className="text-xs text-[#7a6b5f]">{selected.actorRole || 'automated'}</p>
-                  {selected.actorId && (
-                    <p className="mt-1 truncate font-mono text-[11px] text-[#7a6b5f]">
-                      {selected.actorId}
-                    </p>
-                  )}
-                </div>
-                <div className="rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] p-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#7a6b5f]">
-                    Entity
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-[#4a3e35]">
-                    {selected.entityType}
-                  </p>
-                  {selected.entityId && (
-                    <p className="mt-1 truncate font-mono text-[11px] text-[#7a6b5f]">
-                      {selected.entityId}
-                    </p>
-                  )}
-                  {selected.ipAddress && (
-                    <p className="mt-1 font-mono text-[11px] text-[#7a6b5f]">
-                      IP {selected.ipAddress}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {metadataReason(selected) && (
-                <div>
-                  <p className="text-xs font-bold text-[#5a4c42]">Reason</p>
-                  <p className="mt-1.5 rounded-xl border border-[#d8d0c8] bg-white p-3 text-sm text-[#5a4c42]">
-                    {metadataReason(selected)}
-                  </p>
-                </div>
-              )}
-
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div>
-                  <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">Before</p>
-                  <JsonBlock value={selected.beforeState} />
-                </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">After</p>
-                  <JsonBlock value={selected.afterState} />
-                </div>
-              </div>
-
+            <div className="grid gap-4 lg:grid-cols-2">
               <div>
-                <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">Metadata</p>
-                <JsonBlock value={selected.metadata} />
+                <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">Before</p>
+                <JsonBlock value={selected.beforeState} />
               </div>
-
-              {selected.userAgent && (
-                <div>
-                  <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">User agent</p>
-                  <p className="break-all rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] p-3 font-mono text-[11px] text-[#7a6b5f]">
-                    {selected.userAgent}
-                  </p>
-                </div>
-              )}
+              <div>
+                <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">After</p>
+                <JsonBlock value={selected.afterState} />
+              </div>
             </div>
+
+            <div>
+              <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">Metadata</p>
+              <JsonBlock value={selected.metadata} />
+            </div>
+
+            {selected.userAgent && (
+              <div>
+                <p className="mb-1.5 text-xs font-bold text-[#5a4c42]">User agent</p>
+                <p className="break-all rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] p-3 font-mono text-[11px] text-[#7a6b5f]">
+                  {selected.userAgent}
+                </p>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </AdminDialog>
     </div>
   );
 }

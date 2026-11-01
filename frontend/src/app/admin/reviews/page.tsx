@@ -1,6 +1,7 @@
 'use client';
 
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   AlertTriangle,
   CheckCircle2,
@@ -73,6 +74,9 @@ function Rating({ value }: { value: number }) {
 
 export default function AdminGuestReviewsPage() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const initialPropertyId = searchParams.get('propertyId') || '';
+
   const canView = can(user?.permissions, ADMIN_PERMISSIONS.REVIEWS_VIEW);
   const canModerate = can(user?.permissions, ADMIN_PERMISSIONS.REVIEWS_MODERATE);
 
@@ -83,8 +87,18 @@ export default function AdminGuestReviewsPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
-  const [draft, setDraft] = useState({ q: '', status: 'all', reported: false });
-  const [applied, setApplied] = useState({ q: '', status: 'all', reported: false });
+  const [draft, setDraft] = useState({
+    q: '',
+    propertyId: initialPropertyId,
+    status: 'all',
+    reported: false,
+  });
+  const [applied, setApplied] = useState({
+    q: '',
+    propertyId: initialPropertyId,
+    status: 'all',
+    reported: false,
+  });
   const [page, setPage] = useState(1);
 
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -115,6 +129,7 @@ export default function AdminGuestReviewsPage() {
         params.set('page', String(page));
         params.set('limit', String(PAGE_SIZE));
         if (applied.q.trim()) params.set('q', applied.q.trim());
+        if (applied.propertyId.trim()) params.set('propertyId', applied.propertyId.trim());
         if (applied.status !== 'all') params.set('status', applied.status);
         if (applied.reported) params.set('reported', 'true');
 
@@ -154,8 +169,8 @@ export default function AdminGuestReviewsPage() {
   };
 
   const clearFilters = () => {
-    setDraft({ q: '', status: 'all', reported: false });
-    setApplied({ q: '', status: 'all', reported: false });
+    setDraft({ q: '', propertyId: '', status: 'all', reported: false });
+    setApplied({ q: '', propertyId: '', status: 'all', reported: false });
     setPage(1);
   };
 
@@ -213,7 +228,10 @@ export default function AdminGuestReviewsPage() {
   };
 
   const hasFilters =
-    Boolean(applied.q) || applied.status !== 'all' || applied.reported;
+    Boolean(applied.q) ||
+    Boolean(applied.propertyId) ||
+    applied.status !== 'all' ||
+    applied.reported;
 
   return (
     <div className="space-y-8">
@@ -243,7 +261,7 @@ export default function AdminGuestReviewsPage() {
             onSubmit={applyFilters}
             className="rounded-2xl border border-[#d8d0c8] bg-white p-4 shadow-sm sm:p-5"
           >
-            <div className="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_180px_auto_auto]">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(220px,1fr)_minmax(140px,1fr)_160px_auto_auto]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7a6b5f]" />
                 <input
@@ -254,6 +272,18 @@ export default function AdminGuestReviewsPage() {
                   }
                   placeholder="Search comment, author or listing"
                   className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] pl-9 pr-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                />
+              </div>
+
+              <div>
+                <input
+                  type="text"
+                  value={draft.propertyId}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, propertyId: event.target.value }))
+                  }
+                  placeholder="Listing ID (UUID)"
+                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
                 />
               </div>
 
@@ -292,7 +322,13 @@ export default function AdminGuestReviewsPage() {
                 <button
                   type="button"
                   onClick={clearFilters}
-                  disabled={!hasFilters && !draft.q && draft.status === 'all' && !draft.reported}
+                  disabled={
+                    !hasFilters &&
+                    !draft.q &&
+                    !draft.propertyId &&
+                    draft.status === 'all' &&
+                    !draft.reported
+                  }
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-[#d8d0c8] bg-white px-3 text-sm font-semibold text-[#6c5d52] hover:bg-[#f6f0e8] disabled:opacity-40"
                 >
                   Clear

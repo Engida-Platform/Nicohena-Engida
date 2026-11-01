@@ -1,6 +1,6 @@
 import {
   IsOptional,
-  IsEnum,
+  IsIn,
   IsString,
   IsInt,
   Min,
@@ -13,8 +13,10 @@ import { HostVerificationStatus } from '../../../users/entities/host-profile.ent
 
 export class QueryHostVerificationsDto {
   @IsOptional()
-  @IsEnum(HostVerificationStatus)
-  status?: HostVerificationStatus = HostVerificationStatus.PENDING;
+  @IsIn([...Object.values(HostVerificationStatus), 'ALL', ''], {
+    message: `status must be one of: ${Object.values(HostVerificationStatus).join(', ')}, ALL`,
+  })
+  status?: string = HostVerificationStatus.PENDING;
 
   @IsOptional()
   @IsString()

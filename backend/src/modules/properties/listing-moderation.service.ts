@@ -448,7 +448,8 @@ export class ListingModerationService {
       .leftJoinAndSelect('review.property', 'property')
       .leftJoinAndSelect('review.submittedByHost', 'host')
       .leftJoinAndSelect('review.reviewedByAdmin', 'admin')
-      .orderBy('review.submittedAt', 'ASC');
+    const sortOrder = query.status === ReviewStatus.PENDING ? 'ASC' : 'DESC';
+    qb.orderBy('review.submittedAt', sortOrder);
 
     if (query.status) {
       qb.andWhere('review.status = :status', { status: query.status });
@@ -462,12 +463,22 @@ export class ListingModerationService {
 
     const [data, total] = await qb.skip(skip).take(limit).getManyAndCount();
 
+    const mappedData = data.map((review) => {
+      if (review.submittedByHost) {
+        (review.submittedByHost as any).fullName = review.submittedByHost.name;
+      }
+      if (review.reviewedByAdmin) {
+        (review.reviewedByAdmin as any).fullName = review.reviewedByAdmin.name;
+      }
+      return review;
+    });
+
     return {
-      data,
+      data: mappedData,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 1,
     };
   }
 
@@ -481,6 +492,7 @@ export class ListingModerationService {
     pendingEdits: number;
     approvedTotal: number;
     rejectedTotal: number;
+    pendingHosts: number;
   }> {
     const rows = await this.reviewRepository
       .createQueryBuilder('review')
@@ -495,12 +507,17 @@ export class ListingModerationService {
         count: string;
       }>();
 
+    const pendingHosts = await this.hostProfileRepository.count({
+      where: { verificationStatus: HostVerificationStatus.PENDING },
+    });
+
     const stats = {
       pendingTotal: 0,
       pendingInitial: 0,
       pendingEdits: 0,
       approvedTotal: 0,
       rejectedTotal: 0,
+      pendingHosts,
     };
 
     for (const row of rows) {
@@ -537,6 +554,13 @@ export class ListingModerationService {
 
     if (!review) {
       throw new NotFoundException(`Review with ID "${reviewId}" not found`);
+    }
+
+    if (review.submittedByHost) {
+      (review.submittedByHost as any).fullName = review.submittedByHost.name;
+    }
+    if (review.reviewedByAdmin) {
+      (review.reviewedByAdmin as any).fullName = review.reviewedByAdmin.name;
     }
 
     const diff: Record<string, { current: any; proposed: any }> = {};
@@ -883,6 +907,7 @@ export class ListingModerationService {
     propertyId: string,
     adminUser: User,
     auditContext?: AuditRequestContext,
+    reason?: string,
   ): Promise<{ message: string; property: Property }> {
     const property = await this.propertyRepository.findOne({ where: { id: propertyId } });
     if (!property) {
@@ -927,6 +952,7 @@ export class ListingModerationService {
       entityId: property.id,
       before,
       after: { adminHidden: saved.adminHidden },
+      metadata: reason?.trim() ? { reason: reason.trim() } : undefined,
       ipAddress: auditContext?.ipAddress ?? null,
       userAgent: auditContext?.userAgent ?? null,
     });
@@ -936,4 +962,26 @@ export class ListingModerationService {
       property: saved,
     };
   }
+
+  /**
+   * Retrieves any listing for admin inspection/takedown management,
+   * regardless of whether it is draft, hidden, archived, or published.
+   */
+  async getAdminListingDetail(propertyId: string): Promise<Property> {
+    const property = await this.propertyRepository.findOne({
+      where: { id: propertyId },
+      relations: ['host', 'rooms', 'amenities'],
+    });
+
+    if (!property) {
+      throw new NotFoundException(`Listing with ID "${propertyId}" not found`);
+    }
+
+    if (property.host) {
+      (property.host as any).fullName = property.host.name;
+    }
+
+    return property;
+  }
 }
+

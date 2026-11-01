@@ -22,6 +22,7 @@ import {
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
+import AdminNoAccess from '../../components/admin/AdminNoAccess';
 import {
   ADMIN_PERMISSIONS,
   can,
@@ -66,7 +67,13 @@ export default function AdminOverviewPage() {
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
+  const canViewDashboard = can(user?.permissions, ADMIN_PERMISSIONS.DASHBOARD_VIEW);
+
   useEffect(() => {
+    if (!canViewDashboard) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     apiFetch<AdminDashboardSummary>('/admin/dashboard/summary')
       .then((data) => {
@@ -84,7 +91,7 @@ export default function AdminOverviewPage() {
     return () => {
       cancelled = true;
     };
-  }, [refreshTick]);
+  }, [refreshTick, canViewDashboard]);
 
   const refresh = () => {
     setLoading(true);
@@ -275,6 +282,20 @@ export default function AdminOverviewPage() {
     return value.toLocaleString();
   };
 
+  if (!canViewDashboard) {
+    return (
+      <AdminNoAccess
+        area="Overview"
+        required={[ADMIN_PERMISSIONS.DASHBOARD_VIEW]}
+        backHref="/"
+        backLabel="Back to marketplace"
+      />
+    );
+  }
+
+  const canBookings = can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_VIEW);
+  const canCases = can(user?.permissions, ADMIN_PERMISSIONS.CASES_VIEW);
+
   return (
     <div className="space-y-8">
       <AdminPageHeader
@@ -293,8 +314,7 @@ export default function AdminOverviewPage() {
         }
       />
 
-      {can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_VIEW) ||
-      can(user?.permissions, ADMIN_PERMISSIONS.CASES_VIEW) ? (
+      {canBookings || canCases ? (
         <section className="border-y border-[#d8d0c8]" aria-labelledby="live-operations-title">
           <div className="flex flex-wrap items-end justify-between gap-3 py-4">
             <div>
@@ -309,7 +329,7 @@ export default function AdminOverviewPage() {
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_VIEW) ? (
+              {canBookings ? (
                 <Link
                   href="/admin/bookings"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-[#b3541e] hover:text-[#934313]"
@@ -318,7 +338,7 @@ export default function AdminOverviewPage() {
                   <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.8} />
                 </Link>
               ) : null}
-              {can(user?.permissions, ADMIN_PERMISSIONS.CASES_VIEW) ? (
+              {canCases ? (
                 <Link
                   href="/admin/cases"
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-[#b3541e] hover:text-[#934313]"
@@ -330,38 +350,77 @@ export default function AdminOverviewPage() {
             </div>
           </div>
           <div className="admin-stats-strip border-t-0">
-            <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
-              <p className="admin-stat-label">Awaiting host</p>
-              <p className="admin-stat-value">{displayValue(counts?.pendingBookings ?? 0)}</p>
-              <p className="admin-stat-note">Booking requests to watch</p>
-            </Link>
-            <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
-              <p className="admin-stat-label">Confirmed stays</p>
-              <p className="admin-stat-value">{displayValue(counts?.confirmedBookings ?? 0)}</p>
-              <p className="admin-stat-note">Reservations on the books</p>
-            </Link>
-            <Link href="/admin/cases" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
-              <p className="admin-stat-label">Open cases</p>
-              <p className="admin-stat-value">{displayValue(counts?.openCases ?? 0)}</p>
-              <p className="admin-stat-note">Support work in the desk</p>
-            </Link>
-            <Link
-              href="/admin/cases"
-              className="admin-stat group transition-colors hover:bg-[#f6f0e8]"
-            >
-              <p className="admin-stat-label">Overdue cases</p>
-              <p className="admin-stat-value text-[#9a3f33]">
-                {displayValue(counts?.overdueCases ?? 0)}
-              </p>
-              <p className="admin-stat-note">
-                {counts?.unassignedCases
-                  ? `${counts.unassignedCases} unassigned`
-                  : 'Past the resolution SLA'}
-              </p>
-            </Link>
+            {canBookings ? (
+              <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
+                <p className="admin-stat-label">Awaiting host</p>
+                <p className="admin-stat-value">{displayValue(counts?.pendingBookings ?? 0)}</p>
+                <p className="admin-stat-note">Booking requests to watch</p>
+              </Link>
+            ) : (
+              <div className="admin-stat opacity-80">
+                <p className="admin-stat-label">Awaiting host</p>
+                <p className="admin-stat-value">{displayValue(counts?.pendingBookings ?? 0)}</p>
+                <p className="admin-stat-note">Booking requests</p>
+              </div>
+            )}
+            {canBookings ? (
+              <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
+                <p className="admin-stat-label">Confirmed stays</p>
+                <p className="admin-stat-value">{displayValue(counts?.confirmedBookings ?? 0)}</p>
+                <p className="admin-stat-note">Reservations on the books</p>
+              </Link>
+            ) : (
+              <div className="admin-stat opacity-80">
+                <p className="admin-stat-label">Confirmed stays</p>
+                <p className="admin-stat-value">{displayValue(counts?.confirmedBookings ?? 0)}</p>
+                <p className="admin-stat-note">Reservations</p>
+              </div>
+            )}
+            {canCases ? (
+              <Link href="/admin/cases" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
+                <p className="admin-stat-label">Open cases</p>
+                <p className="admin-stat-value">{displayValue(counts?.openCases ?? 0)}</p>
+                <p className="admin-stat-note">Support work in the desk</p>
+              </Link>
+            ) : (
+              <div className="admin-stat opacity-80">
+                <p className="admin-stat-label">Open cases</p>
+                <p className="admin-stat-value">{displayValue(counts?.openCases ?? 0)}</p>
+                <p className="admin-stat-note">Support work</p>
+              </div>
+            )}
+            {canCases ? (
+              <Link
+                href="/admin/cases"
+                className="admin-stat group transition-colors hover:bg-[#f6f0e8]"
+              >
+                <p className="admin-stat-label">Overdue cases</p>
+                <p className="admin-stat-value text-[#9a3f33]">
+                  {displayValue(counts?.overdueCases ?? 0)}
+                </p>
+                <p className="admin-stat-note">
+                  {counts?.unassignedCases
+                    ? `${counts.unassignedCases} unassigned`
+                    : 'Past the resolution SLA'}
+                </p>
+              </Link>
+            ) : (
+              <div className="admin-stat opacity-80">
+                <p className="admin-stat-label">Overdue cases</p>
+                <p className="admin-stat-value text-[#9a3f33]">
+                  {displayValue(counts?.overdueCases ?? 0)}
+                </p>
+                <p className="admin-stat-note">
+                  {counts?.unassignedCases
+                    ? `${counts.unassignedCases} unassigned`
+                    : 'Past the resolution SLA'}
+                </p>
+              </div>
+            )}
           </div>
         </section>
       ) : null}
+
 
       {error && (
         <div
