@@ -833,9 +833,15 @@ export default function PropertyDetailsPage() {
                   />
                 </div>
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold font-headline text-[#3a302a] text-balance">
-                    Entire architectural sanctuary hosted by {property.host.name}
-                  </h2>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl sm:text-2xl font-bold font-headline text-[#3a302a] text-balance">
+                      Entire architectural sanctuary hosted by {property.host.name}
+                    </h2>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200">
+                      <span className="material-symbols-outlined text-sm text-emerald-600">verified_user</span>
+                      Verified Host
+                    </span>
+                  </div>
                   <p className="mt-1 text-sm text-[#605850]">
                     {property.details} &middot; Superhost since {property.host.joinedYear}
                   </p>

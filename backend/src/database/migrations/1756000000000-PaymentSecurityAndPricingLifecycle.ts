@@ -80,3 +80,4 @@ export class PaymentSecurityAndPricingLifecycle1756000000000 implements Migratio
     await queryRunner.query(`ALTER TABLE "payments" DROP COLUMN IF EXISTS "expires_at";`);
   }
 }
+

@@ -3,12 +3,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { apiFetch } from '@/lib/api';
 
 export default function AppHeader() {
   const { user, logout } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [currency, setCurrency] = useState<'USD' | 'ETB'>('ETB');
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (user) {
+      apiFetch<{ count: number }>('/notifications/unread-count')
+        .then((res) => setUnreadNotifications(res?.count || 0))
+        .catch(() => {});
+    }
+  }, [user]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -51,6 +61,21 @@ export default function AppHeader() {
           >
             {currency}
           </button>
+
+          {user && (
+            <Link
+              href="/notifications"
+              className="relative p-2 rounded-full hover:bg-[#EEF3EF] text-[#73776F] hover:text-[#234B36] transition"
+              title="Notifications"
+            >
+              <span className="material-symbols-outlined text-xl">notifications</span>
+              {unreadNotifications > 0 && (
+                <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
+              )}
+            </Link>
+          )}
 
           {/* User Menu */}
           <div className="relative" ref={menuRef}>
@@ -106,6 +131,25 @@ export default function AppHeader() {
                     >
                       Messages
                     </Link>
+                    <Link
+                      href="/notifications"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center justify-between px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                    >
+                      <span>Notifications</span>
+                      {unreadNotifications > 0 && (
+                        <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                          {unreadNotifications}
+                        </span>
+                      )}
+                    </Link>
+                    <Link
+                      href="/support"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                    >
+                      Help &amp; Support
+                    </Link>
                     {user.hostProfile ? (
                       <Link
                         href="/host/dashboard"
@@ -158,6 +202,13 @@ export default function AppHeader() {
                       className="block px-4 py-2.5 text-sm text-[#73776F] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
                     >
                       Engida your home
+                    </Link>
+                    <Link
+                      href="/support"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-[#73776F] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                    >
+                      Help &amp; Support
                     </Link>
                   </>
                 )}

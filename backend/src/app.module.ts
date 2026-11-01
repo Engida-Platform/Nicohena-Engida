@@ -71,6 +71,7 @@ import { Coupon } from './modules/coupons/entities/coupon.entity';
 import { CouponRedemption } from './modules/coupons/entities/coupon-redemption.entity';
 import { ContentModule } from './modules/content/content.module';
 import { MessagesModule } from './modules/messages/messages.module';
+import { CasesModule } from './modules/cases/cases.module';
 import { Conversation } from './modules/messages/entities/conversation.entity';
 import { Message } from './modules/messages/entities/message.entity';
 import { FaqItem } from './modules/content/entities/faq-item.entity';
@@ -204,6 +205,7 @@ import { validate } from './config/env.validation';
     CouponsModule,
     ContentModule,
     MessagesModule,
+    CasesModule,
   ],
   controllers: [AppController],
   providers: [

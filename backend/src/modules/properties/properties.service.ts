@@ -163,7 +163,7 @@ export class PropertiesService {
         'review.createdAt',
       ])
       .addSelect(['reviewUser.id', 'reviewUser.name'])
-      .addSelect(['host.id', 'host.name', 'hostProfile.id', 'hostProfile.displayName', 'hostProfile.bio', 'hostProfile.phone'])
+      .addSelect(['host.id', 'host.name', 'hostProfile.id', 'hostProfile.displayName', 'hostProfile.bio', 'hostProfile.phone', 'hostProfile.verificationStatus', 'hostProfile.verifiedAt'])
       .where('property.id = :id', { id });
 
     if (publicOnly) {

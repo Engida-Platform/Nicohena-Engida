@@ -137,3 +137,4 @@ describe('PricingService', () => {
     ).rejects.toThrow(NotFoundException);
   });
 });
+

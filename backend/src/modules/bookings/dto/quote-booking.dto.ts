@@ -36,3 +36,4 @@ export class QuoteBookingDto {
   @IsOptional()
   couponCode?: string;
 }
+

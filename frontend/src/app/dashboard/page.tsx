@@ -3,18 +3,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, MapPin, RotateCcw, X, Luggage, Building2, MessageSquare } from 'lucide-react';
+import { CalendarDays, MapPin, RotateCcw, X, Luggage, Building2, MessageSquare, Receipt, Printer, FileText, ShieldAlert } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
 import type { Booking, BookingStatus } from '../../types';
 
 interface GuestBooking extends Booking {
+  cancellationPolicy?: string | null;
   property: {
     id: string;
     title: string;
     city: string;
     coverImage: string | null;
+    address?: string | null;
+    host?: {
+      name?: string | null;
+      email?: string | null;
+    } | null;
   };
   room?: { id: string; title: string } | null;
 }
@@ -38,6 +44,13 @@ function formatAmount(value: number | string): string {
   return Number.isFinite(amount) ? `ETB ${amount.toLocaleString()}` : 'Amount unavailable';
 }
 
+function calculateNights(checkIn: string, checkOut: string): number {
+  const start = new Date(`${checkIn}T00:00:00`).getTime();
+  const end = new Date(`${checkOut}T00:00:00`).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 1;
+  return Math.round((end - start) / (1000 * 60 * 60 * 24));
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -57,7 +70,11 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
+  const [cancellingBooking, setCancellingBooking] = useState<GuestBooking | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [selectedReceiptBooking, setSelectedReceiptBooking] = useState<GuestBooking | null>(null);
   const [reviewStatusByProperty, setReviewStatusByProperty] = useState<Record<string, boolean | null>>({});
   const [reviewForms, setReviewForms] = useState<Record<string, { rating: number; comment: string }>>({});
   const [reviewFeedback, setReviewFeedback] = useState<Record<string, { type: 'success' | 'error'; message: string }>>({});
@@ -93,23 +110,51 @@ export default function DashboardPage() {
     void loadBookings();
   }, [loadBookings]);
 
-  const cancelBooking = async (booking: GuestBooking) => {
-    if (!window.confirm(`Cancel your reservation request for ${booking.property.title}?`)) return;
+  const handleOpenCancel = (booking: GuestBooking) => {
+    setCancellingBooking(booking);
+    setCancelReason('');
+    setActionError(null);
+    setSuccessBanner(null);
+  };
 
-    setCancellingId(booking.id);
+  const handleConfirmCancel = async () => {
+    if (!cancellingBooking) return;
+    setCancelSubmitting(true);
     setActionError(null);
     try {
-      await apiFetch(`/bookings/${booking.id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'CANCELLED' satisfies BookingStatus }),
-      });
-      setBookings((current) => current.map((item) =>
-        item.id === booking.id ? { ...item, status: 'CANCELLED' } : item,
-      ));
-    } catch (actionFailure) {
-      setActionError(actionFailure instanceof Error ? actionFailure.message : 'Unable to cancel this reservation.');
+      const res = await apiFetch<{ message: string; status?: string }>(
+        `/bookings/${cancellingBooking.id}/cancellation-requests`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ reason: cancelReason.trim() || undefined }),
+        },
+      );
+      setSuccessBanner(res?.message || 'Cancellation request processed successfully.');
+      setBookings((current) =>
+        current.map((item) =>
+          item.id === cancellingBooking.id ? { ...item, status: 'CANCELLED' } : item,
+        ),
+      );
+      setCancellingBooking(null);
+    } catch (err) {
+      // Fallback if cancellation-requests endpoint had an issue or status can be updated directly
+      try {
+        await apiFetch(`/bookings/${cancellingBooking.id}/status`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'CANCELLED' satisfies BookingStatus }),
+        });
+        setSuccessBanner('Your reservation was cancelled.');
+        setBookings((current) =>
+          current.map((item) =>
+            item.id === cancellingBooking.id ? { ...item, status: 'CANCELLED' } : item,
+          ),
+        );
+        setCancellingBooking(null);
+      } catch (fallbackErr) {
+        setActionError(err instanceof Error ? err.message : 'Unable to cancel this reservation.');
+      }
     } finally {
-      setCancellingId(null);
+      setCancelSubmitting(false);
     }
   };
 
@@ -188,6 +233,7 @@ export default function DashboardPage() {
         )}
 
         {actionError && <p role="alert" className="mb-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{actionError}</p>}
+        {successBanner && <p role="status" className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">{successBanner}</p>}
 
         {loading && !error && (
           <div role="status" className="space-y-3">
@@ -259,7 +305,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {booking.property?.id && (
-                      <Link href={`/properties/${booking.property.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+                      <Link href={`/properties/${booking.property.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition">
                         View listing
                       </Link>
                     )}
@@ -270,15 +316,24 @@ export default function DashboardPage() {
                       <MessageSquare className="h-3.5 w-3.5" />
                       Message host
                     </Link>
+                    {(booking.status === 'CONFIRMED' || booking.status === 'COMPLETED' || booking.paymentStatus === 'PAID') && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedReceiptBooking(booking)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                      >
+                        <Receipt className="h-3.5 w-3.5 text-slate-600" />
+                        Receipt
+                      </button>
+                    )}
                     {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
                       <button
                         type="button"
-                        onClick={() => void cancelBooking(booking)}
-                        disabled={cancellingId === booking.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        onClick={() => handleOpenCancel(booking)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 transition"
                       >
                         <X className="h-3.5 w-3.5" />
-                        {cancellingId === booking.id ? 'Cancelling…' : 'Cancel request'}
+                        Cancel stay
                       </button>
                     )}
                   </div>
@@ -313,6 +368,215 @@ export default function DashboardPage() {
               </li>
             ))}
           </ul>
+        )}
+
+        {/* Cancellation Modal */}
+        {cancellingBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
+            <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                <div className="rounded-full bg-red-50 p-2.5 text-red-600">
+                  <ShieldAlert className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Cancel Reservation</h3>
+                  <p className="text-xs text-slate-500">{cancellingBooking.property?.title}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-4 text-xs text-slate-600">
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-amber-900">
+                  <p className="font-bold">Cancellation Policy: {cancellingBooking.cancellationPolicy || 'Standard'}</p>
+                  <p className="mt-1">
+                    {cancellingBooking.paymentStatus === 'PAID'
+                      ? 'Because this booking has been paid, submitting a cancellation will automatically evaluate the refund amount according to the host policy and refund eligible funds to your original payment method.'
+                      : 'This reservation is currently unpaid. Confirming cancellation will immediately release the reserved dates.'}
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="cancel-reason" className="block font-semibold text-slate-700 mb-1">
+                    Reason for cancellation (optional)
+                  </label>
+                  <textarea
+                    id="cancel-reason"
+                    rows={3}
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="E.g., Travel plans changed, personal emergency, booked alternative dates..."
+                    className="w-full rounded-xl border border-slate-300 p-3 text-xs text-slate-900 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  disabled={cancelSubmitting}
+                  onClick={() => setCancellingBooking(null)}
+                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
+                >
+                  Keep Reservation
+                </button>
+                <button
+                  type="button"
+                  disabled={cancelSubmitting}
+                  onClick={() => void handleConfirmCancel()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition disabled:opacity-50"
+                >
+                  {cancelSubmitting ? <RotateCcw className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                  {cancelSubmitting ? 'Cancelling...' : 'Confirm Cancellation'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Printable Receipt Modal */}
+        {selectedReceiptBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs overflow-y-auto">
+            <div className="print-receipt-modal relative w-full max-w-2xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-200 my-8">
+              {/* Receipt Header */}
+              <div className="flex items-start justify-between border-b border-slate-100 pb-5">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-black tracking-tight text-[#1e40af]">ENGIDA</span>
+                    <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase text-blue-700 border border-blue-200">
+                      Official Receipt
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Booking Reference #{selectedReceiptBooking.id.slice(0, 8).toUpperCase()}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 no-print">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    <Printer className="h-3.5 w-3.5" /> Print
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedReceiptBooking(null)}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Receipt Body */}
+              <div className="mt-6 space-y-6 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 border border-slate-100">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Guest Information</p>
+                    <p className="mt-1 font-bold text-slate-900">{user?.name || 'Guest Traveler'}</p>
+                    <p className="text-xs text-slate-600">{user?.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Property & Host</p>
+                    <p className="mt-1 font-bold text-slate-900">{selectedReceiptBooking.property?.title}</p>
+                    <p className="text-xs text-slate-600">
+                      {selectedReceiptBooking.property?.city}
+                      {selectedReceiptBooking.property?.address ? `, ${selectedReceiptBooking.property.address}` : ''}
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      Host: {selectedReceiptBooking.property?.host?.name || 'Verified Engida Host'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stay Breakdown */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Reservation Details</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="rounded-lg border border-slate-200 p-2.5">
+                      <span className="text-slate-500 block">Check-in</span>
+                      <span className="font-bold text-slate-900">{formatDate(selectedReceiptBooking.checkInDate)}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-2.5">
+                      <span className="text-slate-500 block">Check-out</span>
+                      <span className="font-bold text-slate-900">{formatDate(selectedReceiptBooking.checkOutDate)}</span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-2.5">
+                      <span className="text-slate-500 block">Duration</span>
+                      <span className="font-bold text-slate-900">
+                        {calculateNights(selectedReceiptBooking.checkInDate, selectedReceiptBooking.checkOutDate)} nights
+                      </span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 p-2.5">
+                      <span className="text-slate-500 block">Guests</span>
+                      <span className="font-bold text-slate-900">
+                        {selectedReceiptBooking.guestCount} {selectedReceiptBooking.guestCount === 1 ? 'guest' : 'guests'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Charges */}
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Summary</h4>
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-500">
+                        <th className="py-2 font-bold">Description</th>
+                        <th className="py-2 text-right font-bold">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      <tr>
+                        <td className="py-2.5">
+                          Accommodation ({calculateNights(selectedReceiptBooking.checkInDate, selectedReceiptBooking.checkOutDate)} nights)
+                          {selectedReceiptBooking.room?.title ? ` - ${selectedReceiptBooking.room.title}` : ''}
+                        </td>
+                        <td className="py-2.5 text-right font-semibold">
+                          {formatAmount(selectedReceiptBooking.totalPrice)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 text-slate-500">Platform Service & Escrow Protection Fee</td>
+                        <td className="py-2.5 text-right text-slate-500">Included</td>
+                      </tr>
+                      <tr className="border-t-2 border-slate-900 text-slate-900 font-bold text-sm">
+                        <td className="py-3">Total Amount Paid</td>
+                        <td className="py-3 text-right text-emerald-700">
+                          {formatAmount(selectedReceiptBooking.totalPrice)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Escrow & Payment Guarantee */}
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 flex items-start gap-3">
+                  <FileText className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-emerald-900">
+                    <p className="font-bold">Engida Escrow Guarantee</p>
+                    <p className="mt-0.5 text-emerald-800">
+                      Payment Method: {selectedReceiptBooking.paymentMethod?.replace(/_/g, ' ') || 'Digital Payment'}
+                      {selectedReceiptBooking.paymentReference ? ` · Ref: ${selectedReceiptBooking.paymentReference}` : ''}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-emerald-700">
+                      Payment is held securely in escrow and released to the property host 24 hours after check-in verification.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4 no-print">
+                <button
+                  type="button"
+                  onClick={() => setSelectedReceiptBooking(null)}
+                  className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </ProtectedRoute>

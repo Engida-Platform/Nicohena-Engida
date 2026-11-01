@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ExternalLink,
   MessageSquare,
+  HelpCircle,
 } from 'lucide-react';
 import NotificationHub from '../../components/host/NotificationHub';
 
@@ -60,6 +61,11 @@ const NAV_ITEMS = [
     href: '/host/availability',
     label: 'Availability',
     icon: CalendarRange,
+  },
+  {
+    href: '/support',
+    label: 'Support & Help',
+    icon: HelpCircle,
   },
 ];
 

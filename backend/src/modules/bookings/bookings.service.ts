@@ -335,7 +335,7 @@ export class BookingsService {
   async findMyBookings(guestId: string): Promise<Booking[]> {
     return this.bookingRepository.find({
       where: { guestId },
-      relations: ['property', 'room'],
+      relations: ['property', 'property.host', 'room'],
       order: { createdAt: 'DESC' },
     });
   }
