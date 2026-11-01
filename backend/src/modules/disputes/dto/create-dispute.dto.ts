@@ -39,3 +39,4 @@ export class AddDisputeMessageDto {
   @MaxLength(3000)
   message: string;
 }
+

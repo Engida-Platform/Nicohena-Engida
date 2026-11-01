@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -31,7 +33,10 @@ import { CaseNote } from './entities/case-note.entity';
 import { CaseAttachment } from './entities/case-attachment.entity';
 import { CaseEvent } from './entities/case-event.entity';
 import { CannedResponse } from './entities/canned-response.entity';
-import { Booking } from '../../bookings/entities/booking.entity';
+import { EscrowHold, EscrowHoldStatus } from '../../finance/entities/escrow-hold.entity';
+import { EscrowService } from '../../finance/services/escrow.service';
+import { Booking, BookingStatus, PaymentStatus } from '../../bookings/entities/booking.entity';
+import { DisputeSettlementOutcome, SettleDisputeDto } from './dto/admin-cases.dto';
 import { Property } from '../../properties/entities/property.entity';
 import { Report } from '../../reports/entities/report.entity';
 import { User, UserRole } from '../../../users/entities/user.entity';
@@ -119,6 +124,10 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
     private readonly reportRepository: Repository<Report>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(EscrowHold)
+    private readonly escrowRepo: Repository<EscrowHold>,
+    @Inject(forwardRef(() => EscrowService))
+    private readonly escrowService: EscrowService,
     private readonly notificationsService: NotificationsService,
     private readonly auditService: AuditService,
   ) {}
@@ -186,6 +195,9 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
 
   async detail(id: string) {
     const supportCase = await this.requireCase(id);
+    const hold = supportCase.bookingId
+      ? await this.escrowRepo.findOne({ where: { bookingId: supportCase.bookingId } })
+      : null;
     const [messages, notes, attachments, events] = await Promise.all([
       this.messageRepository.find({
         where: { caseId: id },
@@ -266,6 +278,18 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
       })),
       allowedTransitions: STATUS_TRANSITIONS[supportCase.status],
       notifyInApp: Boolean(this.getRequesterUserId(supportCase)),
+      escrow: hold
+        ? {
+            id: hold.id,
+            status: hold.status,
+            amountMinor: hold.amountMinor,
+            refundedMinor: hold.refundedMinor,
+            frozenAt: hold.frozenAt,
+            freezeReason: hold.freezeReason,
+            releaseEligibleAt: hold.releaseEligibleAt,
+            releasedAt: hold.releasedAt,
+          }
+        : null,
     };
   }
 
@@ -1495,6 +1519,191 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
         : null,
       createdAt: attachment.createdAt,
     };
+  }
+
+
+  /**
+   * Admin dispute settlement and escrow execution engine
+   */
+  async settleDispute(
+    id: string,
+    dto: SettleDisputeDto,
+    actor: User,
+    context: AuditRequestContext,
+  ) {
+    const supportCase = await this.requireCase(id);
+    if (!supportCase.bookingId) {
+      throw new BadRequestException('Case has no associated booking for escrow settlement');
+    }
+
+    const booking = await this.bookingRepository.findOne({
+      where: { id: supportCase.bookingId },
+      relations: ['property'],
+    });
+    if (!booking) {
+      throw new NotFoundException('Associated booking not found');
+    }
+
+    const hold = await this.escrowRepo.findOne({
+      where: { bookingId: booking.id },
+    });
+
+    if (dto.outcome === DisputeSettlementOutcome.UPHOLD_HOST) {
+      supportCase.status = CaseStatus.RESOLVED;
+      supportCase.resolvedAt = new Date();
+      supportCase.compensationStatus = CompensationStatus.REJECTED;
+      supportCase.compensationNote = dto.decisionNote;
+      supportCase.compensationDecidedById = actor.id;
+      supportCase.compensationDecidedAt = new Date();
+      await this.caseRepository.save(supportCase);
+
+      if (hold && hold.status === EscrowHoldStatus.FROZEN) {
+        hold.status = EscrowHoldStatus.HELD;
+        hold.frozenAt = null;
+        hold.freezeReason = null;
+        await this.escrowRepo.save(hold);
+
+        if (booking.status === BookingStatus.COMPLETED) {
+          try {
+            await this.escrowService.releaseHold(
+              hold.id,
+              actor,
+              'Dispute ' + supportCase.number + ' resolved: ' + dto.decisionNote,
+            );
+          } catch (e: any) {
+            this.logger.warn('Could not auto-release hold ' + hold.id + ': ' + e.message);
+          }
+        }
+      }
+
+      await this.recordEvent(
+        id,
+        'DISPUTE_SETTLED_HOST_UPHELD',
+        actor.id,
+        supportCase.status,
+        CaseStatus.RESOLVED,
+        dto.decisionNote,
+        { outcome: 'UPHOLD_HOST' },
+      );
+    } else if (dto.outcome === DisputeSettlementOutcome.REFUND_GUEST) {
+      const totalAmount = booking.totalPrice ? Number(booking.totalPrice).toFixed(2) : '0.00';
+      supportCase.status = CaseStatus.RESOLVED;
+      supportCase.resolvedAt = new Date();
+      supportCase.compensationStatus = CompensationStatus.APPROVED;
+      supportCase.compensationAmount = totalAmount;
+      supportCase.compensationNote = dto.decisionNote;
+      supportCase.compensationDecidedById = actor.id;
+      supportCase.compensationDecidedAt = new Date();
+      await this.caseRepository.save(supportCase);
+
+      if (hold) {
+        hold.refundedMinor = hold.amountMinor;
+        hold.status = EscrowHoldStatus.REFUNDED;
+        hold.frozenAt = null;
+        hold.freezeReason = null;
+        await this.escrowRepo.save(hold);
+      }
+
+      await this.bookingRepository.update(booking.id, {
+        paymentStatus: PaymentStatus.REFUNDED,
+      });
+
+      await this.recordEvent(
+        id,
+        'DISPUTE_SETTLED_FULL_REFUND',
+        actor.id,
+        supportCase.status,
+        CaseStatus.RESOLVED,
+        dto.decisionNote,
+        { outcome: 'REFUND_GUEST', amount: totalAmount },
+      );
+    } else if (dto.outcome === DisputeSettlementOutcome.SPLIT) {
+      const refundAmount = dto.refundAmountETB ? Number(dto.refundAmountETB) : 0;
+      if (refundAmount <= 0) {
+        throw new BadRequestException('Split settlement requires a positive refundAmountETB');
+      }
+
+      const totalNum = Number(booking.totalPrice || 0);
+      if (refundAmount > totalNum) {
+        throw new BadRequestException('Refund amount cannot exceed total booking price of ETB ' + totalNum);
+      }
+
+      supportCase.status = CaseStatus.RESOLVED;
+      supportCase.resolvedAt = new Date();
+      supportCase.compensationStatus = CompensationStatus.APPROVED;
+      supportCase.compensationAmount = refundAmount.toFixed(2);
+      supportCase.compensationNote = dto.decisionNote;
+      supportCase.compensationDecidedById = actor.id;
+      supportCase.compensationDecidedAt = new Date();
+      await this.caseRepository.save(supportCase);
+
+      if (hold) {
+        const refundMinor = BigInt(Math.round(refundAmount * 100));
+        hold.refundedMinor = (BigInt(hold.refundedMinor || '0') + refundMinor).toString();
+        hold.status = EscrowHoldStatus.HELD;
+        hold.frozenAt = null;
+        hold.freezeReason = null;
+        await this.escrowRepo.save(hold);
+
+        if (booking.status === BookingStatus.COMPLETED) {
+          try {
+            await this.escrowService.releaseHold(
+              hold.id,
+              actor,
+              'Dispute ' + supportCase.number + ' split settled: ' + dto.decisionNote,
+            );
+          } catch (e: any) {
+            this.logger.warn('Could not auto-release split hold ' + hold.id + ': ' + e.message);
+          }
+        }
+      }
+
+      await this.recordEvent(
+        id,
+        'DISPUTE_SETTLED_SPLIT',
+        actor.id,
+        supportCase.status,
+        CaseStatus.RESOLVED,
+        dto.decisionNote,
+        { outcome: 'SPLIT', refundAmount: refundAmount.toFixed(2) },
+      );
+    }
+
+    if (booking.guestId) {
+      void this.notificationsService.createNotification({
+        userId: booking.guestId,
+        type: NotificationType.CASE_REPLY,
+        title: 'Dispute ' + supportCase.number + ' Settled',
+        message: 'Admin mediation completed: ' + dto.decisionNote,
+        metadata: { caseId: supportCase.id, outcome: dto.outcome },
+      }).catch(() => null);
+    }
+
+    if (booking.property?.hostId) {
+      void this.notificationsService.createNotification({
+        userId: booking.property.hostId,
+        type: NotificationType.CASE_REPLY,
+        title: 'Dispute ' + supportCase.number + ' Settled',
+        message: 'Admin mediation completed: ' + dto.decisionNote,
+        metadata: { caseId: supportCase.id, outcome: dto.outcome },
+      }).catch(() => null);
+    }
+
+    await this.auditService.record({
+      actor,
+      action: 'case.dispute_settled',
+      entityType: 'case',
+      entityId: id,
+      after: {
+        outcome: dto.outcome,
+        status: supportCase.status,
+        decisionNote: dto.decisionNote,
+        refundAmount: dto.refundAmountETB,
+      },
+      ...context,
+    });
+
+    return this.detail(id);
   }
 
   private safeFilters(dto: QueryAdminCasesDto) {

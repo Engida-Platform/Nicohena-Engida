@@ -660,6 +660,7 @@ interface CaseContextProps {
   onEdit: () => void;
   onProposeCompensation: () => void;
   onDecideCompensation: (action: 'approve' | 'reject') => void;
+  onSettleDispute?: () => void;
 }
 
 export function CaseContext({
@@ -673,6 +674,7 @@ export function CaseContext({
   onEdit,
   onProposeCompensation,
   onDecideCompensation,
+  onSettleDispute,
 }: CaseContextProps) {
   const resolutionDue = new Date(detail.resolutionDueAt);
   const createdAt = new Date(detail.createdAt);
@@ -828,6 +830,61 @@ export function CaseContext({
           {detail.assignee?.adminRole?.replaceAll('_', ' ').toLowerCase() || 'No owner yet'}
         </p>
       </div>
+
+      {detail.booking && (
+        <div className="admin-context-section border-t border-[#d8d0c8] pt-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="admin-context-title flex items-center gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5 text-[#234B36]" />
+              Escrow vault
+            </p>
+            {detail.escrow ? (
+              <AdminStatusBadge
+                label={detail.escrow.status}
+                tone={
+                  detail.escrow.status === 'FROZEN'
+                    ? 'danger'
+                    : detail.escrow.status === 'RELEASED'
+                      ? 'success'
+                      : detail.escrow.status === 'REFUNDED'
+                        ? 'neutral'
+                        : 'warning'
+                }
+              />
+            ) : (
+              <span className="text-[10px] text-[#78706a]">No hold</span>
+            )}
+          </div>
+
+          {detail.escrow ? (
+            <div className="mt-2 text-xs">
+              <p className="font-headline text-lg font-bold text-[#3a302a]">
+                ETB {(Number(detail.escrow.amountMinor) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              {detail.escrow.freezeReason && (
+                <p className="mt-1.5 text-[10px] text-[#95631f] leading-4 bg-[#fdf5eb] p-2 rounded-lg border border-[#fae4c4]">
+                  <strong>Freeze reason:</strong> {detail.escrow.freezeReason}
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="mt-1 text-[10px] text-[#78706a]">
+              Booking #{detail.booking.reference || detail.booking.id?.slice(0, 8)}
+            </p>
+          )}
+
+          {canCompensate && (!terminal || detail.escrow?.status === 'FROZEN') && onSettleDispute ? (
+            <button
+              type="button"
+              className="mt-3 w-full admin-btn admin-btn-primary h-8 min-h-8 text-[10px] font-bold shadow-xs cursor-pointer"
+              onClick={onSettleDispute}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 mr-1" />
+              Settle Dispute & Execute Escrow
+            </button>
+          ) : null}
+        </div>
+      )}
 
       <div className="admin-context-section">
         <div className="flex items-center justify-between gap-2">

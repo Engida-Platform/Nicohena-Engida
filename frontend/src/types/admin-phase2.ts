@@ -338,7 +338,21 @@ export interface CaseEvent {
   createdAt: string;
 }
 
+export type DisputeSettlementOutcome = 'UPHOLD_HOST' | 'REFUND_GUEST' | 'SPLIT';
+
+export interface CaseEscrowHoldInfo {
+  id: string;
+  status: string;
+  amountMinor: string;
+  refundedMinor: string;
+  frozenAt: string | null;
+  freezeReason: string | null;
+  releaseEligibleAt: string;
+  releasedAt: string | null;
+}
+
 export interface AdminCaseDetail extends AdminCaseSummary {
+  escrow?: CaseEscrowHoldInfo | null;
   description: string;
   context: Record<string, unknown> | null;
   firstRespondedAt: string | null;

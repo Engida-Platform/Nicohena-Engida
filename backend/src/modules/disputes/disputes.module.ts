@@ -31,3 +31,4 @@ import { NotificationsModule } from '../notifications/notifications.module';
   exports: [DisputesService],
 })
 export class DisputesModule {}
+

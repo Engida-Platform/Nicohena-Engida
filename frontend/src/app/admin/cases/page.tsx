@@ -41,6 +41,7 @@ import {
   type CaseSeverity,
   type CaseStatus,
   type CaseType,
+  type DisputeSettlementOutcome,
 } from '../../../types/admin-phase2';
 import {
   CASE_PRIORITY_TONES,
@@ -157,6 +158,11 @@ export default function AdminCasesPage() {
   const [compensationCurrency, setCompensationCurrency] = useState('');
   const [compensationDecision, setCompensationDecision] = useState<'approve' | 'reject' | null>(null);
   const [compensationDecisionNote, setCompensationDecisionNote] = useState('');
+  const [settleOpen, setSettleOpen] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const [settleOutcome, setSettleOutcome] = useState<DisputeSettlementOutcome>('UPHOLD_HOST');
+  const [settleRefundETB, setSettleRefundETB] = useState('');
+  const [settleNote, setSettleNote] = useState('');
 
   const [cannedOpen, setCannedOpen] = useState(false);
   const [cannedEditingId, setCannedEditingId] = useState<string | null>(null);
@@ -688,6 +694,45 @@ export default function AdminCasesPage() {
     }
   };
 
+
+  const submitSettleDispute = async () => {
+    if (!selectedId || settling) return;
+    if (!settleNote.trim()) {
+      setToast({ message: 'A decision rationale is required for the audit trail', tone: 'danger' });
+      return;
+    }
+    if (settleOutcome === 'SPLIT' && (!settleRefundETB || parseFloat(settleRefundETB) <= 0)) {
+      setToast({ message: 'Split settlement requires a positive refund amount in ETB', tone: 'danger' });
+      return;
+    }
+
+    setSettling(true);
+    try {
+      const updated = await apiFetch<AdminCaseDetail>(`/admin/cases/${selectedId}/settle-dispute`, {
+        method: 'POST',
+        body: JSON.stringify({
+          outcome: settleOutcome,
+          refundAmountETB: settleOutcome === 'SPLIT' ? settleRefundETB : undefined,
+          decisionNote: settleNote.trim(),
+        }),
+      });
+      setDetail(updated);
+      setSettleOpen(false);
+      setToast({
+        message: `Dispute case settled: ${settleOutcome.replace('_', ' ')} executed successfully`,
+        tone: 'success',
+      });
+      void loadList();
+    } catch (err: unknown) {
+      setToast({
+        message: errorMessage(err, 'Failed to execute dispute settlement'),
+        tone: 'danger',
+      });
+    } finally {
+      setSettling(false);
+    }
+  };
+
   const openCompensation = () => {
     setCompensationAmount('');
     setCompensationNote('');
@@ -1117,6 +1162,12 @@ export default function AdminCasesPage() {
             onDecideCompensation={(action) => {
               setCompensationDecision(action);
               setCompensationDecisionNote('');
+            }}
+            onSettleDispute={() => {
+              setSettleOutcome('UPHOLD_HOST');
+              setSettleRefundETB('');
+              setSettleNote('');
+              setSettleOpen(true);
             }}
           />
         ) : null}
@@ -1806,6 +1857,118 @@ export default function AdminCasesPage() {
           {toast.message}
         </div>
       ) : null}
+
+      <AdminDialog
+        open={settleOpen}
+        onClose={() => {
+          if (settling) return;
+          setSettleOpen(false);
+        }}
+        title="Dispute & Escrow Settlement Desk"
+        description="Mediate this dispute, authorize escrow unfreeze or refund, and disburse balances."
+        width="lg"
+        footer={
+          <>
+            <button
+              type="button"
+              className="admin-btn admin-btn-secondary"
+              onClick={() => setSettleOpen(false)}
+              disabled={settling}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="admin-btn admin-btn-primary"
+              onClick={() => void submitSettleDispute()}
+              disabled={settling || !settleNote.trim()}
+            >
+              {settling ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <ShieldAlert className="h-3.5 w-3.5 mr-1" />}
+              Authorize & Execute Settlement
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          <div>
+            <label className="admin-field-label font-bold text-[#3a302a] mb-1.5 block">Settlement Determination</label>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setSettleOutcome('UPHOLD_HOST')}
+                className={`p-3 text-left rounded-xl border transition cursor-pointer ${
+                  settleOutcome === 'UPHOLD_HOST'
+                    ? 'border-[#234B36] bg-[#234B36]/5 ring-1 ring-[#234B36]'
+                    : 'border-[#d8d0c8] bg-white hover:border-[#234B36]/50'
+                }`}
+              >
+                <p className="font-bold text-[#234B36]">Uphold Host</p>
+                <p className="text-[10px] text-[#78706a] mt-0.5">Dismiss claim, unfreeze & release escrow to host.</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSettleOutcome('REFUND_GUEST')}
+                className={`p-3 text-left rounded-xl border transition cursor-pointer ${
+                  settleOutcome === 'REFUND_GUEST'
+                    ? 'border-[#234B36] bg-[#234B36]/5 ring-1 ring-[#234B36]'
+                    : 'border-[#d8d0c8] bg-white hover:border-[#234B36]/50'
+                }`}
+              >
+                <p className="font-bold text-amber-800">Refund Guest</p>
+                <p className="text-[10px] text-[#78706a] mt-0.5">Full refund to guest, cancel host payout.</p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSettleOutcome('SPLIT')}
+                className={`p-3 text-left rounded-xl border transition cursor-pointer ${
+                  settleOutcome === 'SPLIT'
+                    ? 'border-[#234B36] bg-[#234B36]/5 ring-1 ring-[#234B36]'
+                    : 'border-[#d8d0c8] bg-white hover:border-[#234B36]/50'
+                }`}
+              >
+                <p className="font-bold text-[#3a302a]">Split Resolution</p>
+                <p className="text-[10px] text-[#78706a] mt-0.5">Award partial refund, disburse rest to host.</p>
+              </button>
+            </div>
+          </div>
+
+          {settleOutcome === 'SPLIT' && (
+            <div>
+              <label className="admin-field-label" htmlFor="settle-refund-amt">
+                Guest Compensation Amount (ETB)
+              </label>
+              <input
+                id="settle-refund-amt"
+                type="number"
+                min="1"
+                step="0.01"
+                placeholder="e.g. 500.00"
+                value={settleRefundETB}
+                onChange={(e) => setSettleRefundETB(e.target.value)}
+                className="admin-input mt-1 w-full"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="admin-field-label" htmlFor="settle-note">
+              Mediation & Determination Rationale (Audit Trail)
+            </label>
+            <textarea
+              id="settle-note"
+              rows={3}
+              required
+              placeholder="Explain the basis for this resolution, citing submitted evidence or policy guidelines..."
+              value={settleNote}
+              onChange={(e) => setSettleNote(e.target.value)}
+              className="admin-textarea mt-1 w-full"
+            />
+          </div>
+        </div>
+      </AdminDialog>
+
     </div>
   );
 }

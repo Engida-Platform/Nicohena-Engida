@@ -84,3 +84,4 @@ export class DisputesController {
     return this.disputesService.acceptCompensation(id, user);
   }
 }
+

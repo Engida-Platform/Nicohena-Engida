@@ -318,3 +318,27 @@ export class UpdateCannedResponseDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+
+export enum DisputeSettlementOutcome {
+  UPHOLD_HOST = 'UPHOLD_HOST',
+  REFUND_GUEST = 'REFUND_GUEST',
+  SPLIT = 'SPLIT',
+}
+
+export class SettleDisputeDto {
+  @IsEnum(DisputeSettlementOutcome)
+  outcome: DisputeSettlementOutcome;
+
+  @IsOptional()
+  @Matches(/^\d{1,8}(\.\d{1,2})?$/, {
+    message: 'Refund amount must be a positive number with up to 2 decimal places',
+  })
+  refundAmountETB?: string;
+
+  @Transform(trim)
+  @IsString()
+  @MinLength(5)
+  @MaxLength(2000)
+  decisionNote: string;
+}

@@ -40,6 +40,7 @@ import {
   UpdateCannedResponseDto,
   UpdateCaseDto,
   UploadCaseAttachmentDto,
+  SettleDisputeDto,
 } from './dto/admin-cases.dto';
 import {
   CaseCategory,
@@ -327,4 +328,20 @@ export class AdminCasesController {
       userAgent,
     });
   }
+
+  @Post(':id/settle-dispute')
+  @RequirePermissions(Permission.CASES_COMPENSATE)
+  settleDispute(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SettleDisputeDto,
+    @GetUser() actor: User,
+    @Ip() ipAddress: string,
+    @Headers('user-agent') userAgent: string,
+  ) {
+    return this.adminCasesService.settleDispute(id, dto, actor, {
+      ipAddress,
+      userAgent,
+    });
+  }
+
 }
