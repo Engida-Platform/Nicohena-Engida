@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
@@ -77,7 +77,21 @@ export default function AppHeader() {
                     <div className="px-4 py-2 border-b border-[#E5E0D5]/40">
                       <p className="text-xs text-[#73776F]">Signed in as</p>
                       <p className="text-sm font-bold text-[#252923] truncate">{user.name || user.email}</p>
+                      {user.role === 'ADMIN' && (
+                        <span className="mt-1 inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-900">
+                          Administrator
+                        </span>
+                      )}
                     </div>
+                    {user.role === 'ADMIN' && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-amber-900 bg-amber-50/70 hover:bg-amber-100 font-bold border-b border-[#E5E0D5]/40"
+                      >
+                        Admin Operations Console
+                      </Link>
+                    )}
                     <Link
                       href="/dashboard"
                       onClick={() => setUserMenuOpen(false)}

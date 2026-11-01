@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -16,7 +16,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [returnPath, setReturnPath] = useState('/dashboard');
 
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -28,6 +28,21 @@ export default function LoginPage() {
       setError(googleErrorMessage(googleError));
     }
   }, []);
+
+  // If already logged in, redirect appropriately
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (user.role === 'ADMIN') {
+      const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
+      router.replace(dest);
+    } else if (returnPath && returnPath !== '/dashboard') {
+      router.replace(returnPath);
+    } else if (user.hostProfile) {
+      router.replace('/host/dashboard');
+    } else {
+      router.replace('/dashboard');
+    }
+  }, [authLoading, user, returnPath, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +61,10 @@ export default function LoginPage() {
 
     try {
       const loggedUser = await login(email, password);
-      if (returnPath && returnPath !== '/dashboard') {
+      if (loggedUser.role === 'ADMIN') {
+        const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
+        router.push(dest);
+      } else if (returnPath && returnPath !== '/dashboard') {
         router.push(returnPath);
       } else if (loggedUser.hostProfile) {
         router.push('/host/dashboard');

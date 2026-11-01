@@ -33,7 +33,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<User | null>;
   setHostProfile: (profile: HostProfile | null) => void;
@@ -76,14 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return enriched as User;
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string): Promise<User> => {
     await apiFetch('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ name, email, password }),
       skipAuth: true,
     });
     // Auto-login after registration
-    await login(email, password);
+    return await login(email, password);
   };
 
   const logout = async () => {

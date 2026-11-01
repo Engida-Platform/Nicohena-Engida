@@ -44,9 +44,12 @@ export default function DashboardPage() {
   const [bookings, setBookings] = useState<GuestBooking[]>([]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && user?.hostProfile) {
+    if (typeof window !== 'undefined' && user) {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('view') !== 'guest') {
+      if (params.get('view') === 'guest') return;
+      if (user.role === 'ADMIN') {
+        router.replace('/admin');
+      } else if (user.hostProfile) {
         router.replace('/host/dashboard');
       }
     }

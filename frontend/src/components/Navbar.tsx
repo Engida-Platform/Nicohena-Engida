@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
-import { Building2, Menu, X, LogOut, User, Sparkles, Luggage, ChevronDown } from 'lucide-react';
+import { Building2, Menu, X, LogOut, User, Sparkles, Luggage, ChevronDown, ShieldCheck } from 'lucide-react';
 
 export default function Navbar() {
   const { user, logout, loading } = useAuth();
@@ -107,6 +107,12 @@ export default function Navbar() {
                           </p>
                         </div>
                       </div>
+                      {user.role === 'ADMIN' && (
+                        <div className="mt-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-black uppercase tracking-wider text-amber-800">
+                          <ShieldCheck className="w-3 h-3" />
+                          <span>System Admin</span>
+                        </div>
+                      )}
                       {user.hostProfile && (
                         <div className="mt-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 border border-blue-100 text-[10px] font-black uppercase tracking-wider text-[#1e40af]">
                           <Building2 className="w-3 h-3" />
@@ -117,6 +123,27 @@ export default function Navbar() {
 
                     {/* Navigation Links with clear distinction */}
                     <div className="py-1">
+                      {/* 0. Admin Operations */}
+                      {user.role === 'ADMIN' && (
+                        <Link
+                          href="/admin"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="flex items-start gap-3 px-4 py-2.5 text-xs text-amber-950 bg-amber-50/50 hover:bg-amber-100/70 transition border-b border-amber-100/60"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-amber-200/80 text-amber-900 flex items-center justify-center shrink-0 mt-0.5">
+                            <ShieldCheck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="font-extrabold text-amber-950 leading-none">
+                              Admin Console
+                            </p>
+                            <p className="text-[10px] font-medium text-amber-800/80 mt-1">
+                              Platform operations, users & revenue
+                            </p>
+                          </div>
+                        </Link>
+                      )}
+
                       {/* 1. Host Portal */}
                       <Link
                         href={user.hostProfile ? '/host/dashboard' : '/become-a-host'}
@@ -228,6 +255,16 @@ export default function Navbar() {
                   <p className="text-xs font-black text-slate-900">{user.name}</p>
                   <p className="text-[10px] text-slate-500">{user.email}</p>
                 </div>
+                {user.role === 'ADMIN' && (
+                  <Link
+                    href="/admin"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-2 px-2 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 rounded-lg border border-amber-200/60"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Admin Console</span>
+                  </Link>
+                )}
                 <Link
                   href={user.hostProfile ? '/host/dashboard' : '/become-a-host'}
                   onClick={() => setMobileMenuOpen(false)}

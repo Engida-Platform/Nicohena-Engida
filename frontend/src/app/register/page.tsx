@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
@@ -17,7 +17,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [returnPath, setReturnPath] = useState('/dashboard');
 
-  const { register } = useAuth();
+  const { register, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -29,6 +29,21 @@ export default function RegisterPage() {
       setError(googleErrorMessage(googleError));
     }
   }, []);
+
+  // If already logged in, redirect appropriately
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (user.role === 'ADMIN') {
+      const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
+      router.replace(dest);
+    } else if (returnPath && returnPath !== '/dashboard') {
+      router.replace(returnPath);
+    } else if (user.hostProfile) {
+      router.replace('/host/dashboard');
+    } else {
+      router.replace('/dashboard');
+    }
+  }, [authLoading, user, returnPath, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,8 +65,17 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(name, email, password);
-      router.push(returnPath);
+      const newUser = await register(name, email, password);
+      if (newUser?.role === 'ADMIN') {
+        const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
+        router.push(dest);
+      } else if (returnPath && returnPath !== '/dashboard') {
+        router.push(returnPath);
+      } else if (newUser?.hostProfile) {
+        router.push('/host/dashboard');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError(
         err.message || 'Registration failed. Please check your information and try again.'

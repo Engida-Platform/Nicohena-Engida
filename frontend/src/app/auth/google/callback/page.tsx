@@ -21,10 +21,20 @@ export default function GoogleCallbackPage() {
     if (loading) return;
 
     const params = new URLSearchParams(window.location.search);
-    const nextPath = getSafeReturnPath(params.get('next'), '/dashboard');
+    const rawNext = params.get('next');
 
     if (user) {
-      router.replace(nextPath);
+      if (user.role === 'ADMIN') {
+        const adminDest =
+          rawNext && rawNext.startsWith('/admin')
+            ? getSafeReturnPath(rawNext, '/admin')
+            : '/admin';
+        router.replace(adminDest);
+      } else {
+        const defaultFallback = user.hostProfile ? '/host/dashboard' : '/dashboard';
+        const nextPath = getSafeReturnPath(rawNext, defaultFallback);
+        router.replace(nextPath);
+      }
     } else {
       setStatus('error');
       router.replace('/login?error=google_failed');
