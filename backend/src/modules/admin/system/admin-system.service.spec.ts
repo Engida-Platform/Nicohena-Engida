@@ -116,5 +116,26 @@ describe('AdminSystemService', () => {
         }),
       );
     });
+
+    it('triggers payout-daily-batch and records audit', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { pending_count: '2', total_pending_minor: '150000' },
+      ]);
+
+      const res = await service.triggerJob(
+        'payout-daily-batch',
+        { id: 'admin-1' } as any,
+      );
+
+      expect(res.status).toBe(JobRunStatus.SUCCEEDED);
+      expect(res.counts?.pendingPayoutsFound).toBe(2);
+      expect(res.counts?.advisoryLockAcquired).toBe(true);
+      expect(auditService.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'system.job_trigger',
+          metadata: expect.objectContaining({ jobName: 'payout-daily-batch' }),
+        }),
+      );
+    });
   });
 });

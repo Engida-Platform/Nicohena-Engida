@@ -6,16 +6,18 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../../auth/guards/roles.guard';
+import { Roles } from '../../../auth/decorators/roles.decorator';
 import { PermissionsGuard } from '../rbac/permissions.guard';
-import { SuperAdminBypassGuard } from '../rbac/super-admin-bypass.guard';
 import { RequirePermissions } from '../rbac/permissions.decorator';
 import { Permission } from '../rbac/permissions';
 import { GetUser } from '../../../auth/decorators/get-user.decorator';
-import { User } from '../../../users/entities/user.entity';
+import { User, UserRole } from '../../../users/entities/user.entity';
 import { AdminSystemService } from './admin-system.service';
 
 @Controller('admin/system')
-@UseGuards(JwtAuthGuard, SuperAdminBypassGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles(UserRole.ADMIN)
 export class AdminSystemController {
   constructor(private readonly systemService: AdminSystemService) {}
 

@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
 import type { PaymentListItem } from '../../../../types/admin-finance';
@@ -26,15 +27,20 @@ export default function PaymentsTab() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<any | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  const limit = 20;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   const fetchPayments = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
       params.set('page', String(page));
-      params.set('limit', '20');
+      params.set('limit', String(limit));
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
       if (search.trim()) params.set('search', search.trim());
 
@@ -43,8 +49,10 @@ export default function PaymentsTab() {
       );
       setPayments(res.data || []);
       setTotal(res.total || 0);
-    } catch {
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load payments list.');
       setPayments([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -59,8 +67,8 @@ export default function PaymentsTab() {
     try {
       const detail = await apiFetch<any>(`/admin/finance/payments/${id}`);
       setSelectedPayment(detail);
-    } catch {
-      // Failed to inspect
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to load payment detail.');
     } finally {
       setDetailLoading(false);
     }
@@ -124,6 +132,28 @@ export default function PaymentsTab() {
         </div>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[#ecd0c9] bg-[#f8e9e5] px-4 py-3 text-xs text-[#8f4035] shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#a24b3e]" strokeWidth={1.8} />
+            <p className="truncate font-medium">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchPayments()}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#ecd0c9] bg-white px-2.5 py-1 text-xs font-bold text-[#8f4035] hover:bg-[#f3dcd6] cursor-pointer shrink-0"
+          >
+            <RotateCcw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Payments Table */}
       <div className="bg-white border border-[#d8d0c8] rounded-2xl shadow-xs overflow-hidden">
         {loading ? (
@@ -133,56 +163,84 @@ export default function PaymentsTab() {
             ))}
           </div>
         ) : payments.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
-                  <th className="py-3 px-4">Date</th>
-                  <th className="py-3 px-4">Booking Ref</th>
-                  <th className="py-3 px-4">Guest</th>
-                  <th className="py-3 px-4">Provider / Method</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Amount</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
-                {payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-[#faf5ee]/60 transition">
-                    <td className="py-3 px-4 whitespace-nowrap text-[#73776f]">
-                      {formatDateTime(p.createdAt)}
-                    </td>
-                    <td className="py-3 px-4 font-mono font-bold text-[#3a302a]">
-                      {p.bookingReference || p.bookingId.slice(0, 8)}
-                    </td>
-                    <td className="py-3 px-4 font-medium">
-                      {p.guestName || 'Engida Guest'}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <span className="font-semibold">{p.provider}</span>
-                      <span className="text-[10px] text-[#73776f] ml-1.5">
-                        ({p.paymentMethod})
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <AdminStatusBadge label={p.status} tone={getTone(p.status)} dot />
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
-                      {formatMinor(p.amountMinor, p.currency)}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => handleInspect(p.id)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#3a302a] cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Inspect</span>
-                      </button>
-                    </td>
+          <div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4">Booking Ref</th>
+                    <th className="py-3 px-4">Guest</th>
+                    <th className="py-3 px-4">Provider / Method</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Amount</th>
+                    <th className="py-3 px-4 text-right">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
+                  {payments.map((p) => (
+                    <tr key={p.id} className="hover:bg-[#faf5ee]/60 transition">
+                      <td className="py-3 px-4 whitespace-nowrap text-[#73776f]">
+                        {formatDateTime(p.createdAt)}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-[#3a302a]">
+                        {p.bookingReference || p.bookingId.slice(0, 8)}
+                      </td>
+                      <td className="py-3 px-4 font-medium">
+                        {p.guestName || 'Engida Guest'}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <span className="font-semibold">{p.provider}</span>
+                        <span className="text-[10px] text-[#73776f] ml-1.5">
+                          ({p.paymentMethod})
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <AdminStatusBadge label={p.status} tone={getTone(p.status)} dot />
+                      </td>
+                      <td className="py-3 px-4 text-right font-mono font-bold whitespace-nowrap">
+                        {formatMinor(p.amountMinor, p.currency)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => handleInspect(p.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#3a302a] cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Inspect</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Bar */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-[#d8d0c8] bg-[#faf5ee] px-4 py-3 text-xs text-[#73776f]">
+                <div>
+                  Page <span className="font-bold text-[#3a302a]">{page}</span> of{' '}
+                  <span className="font-bold text-[#3a302a]">{totalPages}</span> ({total} total records)
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-12 text-center text-[#73776f]">
@@ -196,71 +254,87 @@ export default function PaymentsTab() {
       </div>
 
       {/* Inspect Payment Dialog */}
-      {selectedPayment && (
-        <AdminDialog
-          open={!!selectedPayment}
-          onClose={() => setSelectedPayment(null)}
-          title={`Payment ${selectedPayment.id.slice(0, 8)}`}
-          description="Authoritative quote binding, provider event stream, and ledger posting details."
-          width="lg"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="grid grid-cols-2 gap-3 bg-[#faf5ee] p-4 rounded-xl border border-[#d8d0c8]">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#73776f]">Status</span>
-                <div className="mt-1">
-                  <AdminStatusBadge
-                    label={selectedPayment.status}
-                    tone={getTone(selectedPayment.status)}
-                    dot
-                  />
+      {selectedPayment && (() => {
+        const p = selectedPayment.payment || selectedPayment;
+        const providerEvents = selectedPayment.providerEvents || p.providerEvents || [];
+        return (
+          <AdminDialog
+            open={!!selectedPayment}
+            onClose={() => setSelectedPayment(null)}
+            title={`Payment ${p.id ? p.id.slice(0, 8) : ''}`}
+            description="Authoritative quote binding, provider event stream, and ledger posting details."
+            width="lg"
+          >
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3 bg-[#faf5ee] p-4 rounded-xl border border-[#d8d0c8]">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#73776f]">Status</span>
+                  <div className="mt-1">
+                    <AdminStatusBadge
+                      label={p.status}
+                      tone={getTone(p.status)}
+                      dot
+                    />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#73776f]">Amount</span>
+                  <p className="font-mono text-base font-bold text-[#3a302a]">
+                    {formatMinor(p.amountMinor, p.currency)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#73776f]">Provider Tx ID</span>
+                  <p className="font-mono text-[#3a302a]">
+                    {p.providerTransactionId || 'Pending Provider'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#73776f]">Idempotency Key</span>
+                  <p className="font-mono text-[#73776f] truncate">
+                    {p.idempotencyKey || '—'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#73776f]">Booking Ref</span>
+                  <p className="font-mono text-[#3a302a]">
+                    {p.bookingReference || p.bookingId || '—'}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-[#73776f]">Guest</span>
+                  <p className="font-medium text-[#3a302a]">
+                    {p.guestName || 'Engida Guest'}
+                  </p>
                 </div>
               </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#73776f]">Amount</span>
-                <p className="font-mono text-base font-bold text-[#3a302a]">
-                  {formatMinor(selectedPayment.amountMinor, selectedPayment.currency)}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#73776f]">Provider Tx ID</span>
-                <p className="font-mono text-[#3a302a]">
-                  {selectedPayment.providerTransactionId || 'Pending Provider'}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#73776f]">Idempotency Key</span>
-                <p className="font-mono text-[#73776f] truncate">
-                  {selectedPayment.idempotencyKey || '—'}
-                </p>
-              </div>
-            </div>
 
-            {/* Event Audit Stream */}
-            <div>
-              <h4 className="font-bold text-xs text-[#3a302a] mb-2">Provider Webhook Stream</h4>
-              {selectedPayment.providerEvents && selectedPayment.providerEvents.length > 0 ? (
-                <div className="space-y-2">
-                  {selectedPayment.providerEvents.map((ev: any) => (
-                    <div
-                      key={ev.id}
-                      className="p-3 bg-white border border-[#d8d0c8] rounded-xl font-mono text-[11px] space-y-1"
-                    >
-                      <div className="flex justify-between text-[#73776f]">
-                        <span className="font-bold text-[#3a302a]">{ev.eventType}</span>
-                        <span>{formatDateTime(ev.createdAt)}</span>
+              {/* Event Audit Stream */}
+              <div>
+                <h4 className="font-bold text-xs text-[#3a302a] mb-2">Provider Webhook Stream</h4>
+                {providerEvents.length > 0 ? (
+                  <div className="space-y-2">
+                    {providerEvents.map((ev: any) => (
+                      <div
+                        key={ev.id}
+                        className="p-3 bg-white border border-[#d8d0c8] rounded-xl font-mono text-[11px] space-y-1"
+                      >
+                        <div className="flex justify-between text-[#73776f]">
+                          <span className="font-bold text-[#3a302a]">{ev.eventType}</span>
+                          <span>{formatDateTime(ev.createdAt)}</span>
+                        </div>
+                        <div className="text-[#605850]">Signature: {ev.signatureValid ? 'VALID' : 'INVALID'}</div>
                       </div>
-                      <div className="text-[#605850]">Signature: {ev.signatureValid ? 'VALID' : 'INVALID'}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-[#73776f] italic">No provider webhooks logged yet.</p>
-              )}
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[#73776f] italic">No provider webhooks logged yet.</p>
+                )}
+              </div>
             </div>
-          </div>
-        </AdminDialog>
-      )}
+          </AdminDialog>
+        );
+      })()}
     </div>
   );
 }

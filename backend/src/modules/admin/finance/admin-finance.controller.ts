@@ -234,10 +234,16 @@ export class AdminFinanceController {
     );
   }
 
-  @Get('ledger')
+  @Get(['ledger', 'ledger/transactions'])
   @RequirePermissions(Permission.FINANCE_VIEW)
   listLedger(@Query() query: any) {
     return this.adminFinanceService.listLedgerTransactions(query);
+  }
+
+  @Get('ledger/accounts')
+  @RequirePermissions(Permission.FINANCE_VIEW)
+  listLedgerAccounts() {
+    return this.adminFinanceService.listLedgerAccounts();
   }
 
   @Get(['escrow', 'escrow-holds'])
@@ -338,12 +344,13 @@ export class AdminFinanceController {
     @Ip() ipAddress: string,
     @Headers('user-agent') userAgent?: string,
   ) {
+    const action = body?.action;
     const note =
       (typeof body === 'string' ? body : null) ||
       body?.notes ||
       body?.note ||
-      (body?.action ? `Action: ${body.action}` : 'Resolved by administrator');
-    return this.reconService.resolveIssue(id, note, actor, { ipAddress, userAgent });
+      (action ? `Action: ${action}` : 'Resolved by administrator');
+    return this.reconService.resolveIssue(id, note, actor, { ipAddress, userAgent, action });
   }
 
   @Get('settings')
@@ -366,6 +373,7 @@ export class AdminFinanceController {
       return this.settingsService.updateSingleSetting(key, value, actor, {
         ipAddress,
         userAgent,
+        reason: body?.reason || 'Finance setting updated by administrator',
       });
     }
     return this.settingsService.updateSettings(

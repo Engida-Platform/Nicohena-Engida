@@ -17,6 +17,7 @@ import {
   RefreshCw,
   TrendingUp,
   Users,
+  AlertCircle,
 } from 'lucide-react';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
@@ -29,6 +30,8 @@ import {
   StatusFunnelItem,
   TimeSeriesPoint,
 } from '../../../types/admin-system';
+import { useAuth } from '../../../context/AuthContext';
+import { can, ADMIN_PERMISSIONS } from '../../../types/admin';
 
 const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {
   '7d': 'Last 7 Days',
@@ -39,6 +42,7 @@ const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {
 };
 
 export default function AdminAnalyticsPage() {
+  const { user } = useAuth();
   const [period, setPeriod] = useState<AnalyticsPeriod>('30d');
   const [data, setData] = useState<AnalyticsOverviewResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,8 +66,12 @@ export default function AdminAnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    fetchOverview(period);
-  }, [fetchOverview, period]);
+    if (can(user?.permissions, ADMIN_PERMISSIONS.ANALYTICS_VIEW)) {
+      fetchOverview(period);
+    } else {
+      setLoading(false);
+    }
+  }, [fetchOverview, period, user?.permissions]);
 
   const handleExportCsv = async () => {
     setExporting(true);
@@ -122,6 +130,22 @@ export default function AdminAnalyticsPage() {
       ? `${pathGbv} L ${pointsGbv[pointsGbv.length - 1].x} ${chartHeight - paddingY} L ${pointsGbv[0].x} ${chartHeight - paddingY} Z`
       : '';
 
+  if (!can(user?.permissions, ADMIN_PERMISSIONS.ANALYTICS_VIEW)) {
+    return (
+      <div className="p-8 text-center bg-white rounded-2xl border border-[#d8d0c8] max-w-md mx-auto my-12">
+        <div className="w-12 h-12 rounded-2xl bg-[#f8e9e5] text-[#9a3f33] flex items-center justify-center mx-auto mb-3">
+          <BarChart3 className="w-6 h-6" />
+        </div>
+        <h2 className="font-serif text-lg font-bold text-[#3a302a]">
+          Analytics Access Required
+        </h2>
+        <p className="text-xs text-[#73776f] mt-1">
+          Your administrator role does not have the <code className="font-mono">analytics.view</code> permission.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 pb-12">
       {/* Page Header */}
@@ -172,48 +196,68 @@ export default function AdminAnalyticsPage() {
       />
 
       {error && (
-        <div className="rounded-xl border border-[#d47070] bg-[#fdf2f2] p-4 text-xs font-semibold text-[#8c3c3c]">
-          {error}
+        <div className="rounded-xl border border-[#d47070] bg-[#fdf2f2] p-4 flex items-center justify-between text-xs font-semibold text-[#8c3c3c]">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => fetchOverview(period)}
+            className="px-3 py-1 bg-white border border-[#d47070] rounded-xl font-bold hover:bg-[#fbf0f0] cursor-pointer"
+          >
+            Retry
+          </button>
         </div>
       )}
 
-      {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Gross Booking Value */}
-        <div className="relative overflow-hidden rounded-2xl border border-[#d8d0c8] bg-white p-5 shadow-[0_12px_24px_-18px_rgba(58,48,42,0.15)] transition-all hover:border-[#b3541e]/40">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-[#78706a]">
-              Gross Booking Value
-            </span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f6f0e8] text-[#b3541e]">
-              <Flame className="h-4 w-4" />
-            </span>
+      {loading && !data ? (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-32 bg-white border border-[#d8d0c8] rounded-2xl animate-pulse p-5" />
+            ))}
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="font-headline text-3xl font-bold tracking-tight text-[#3a302a]">
-              {data ? formatCurrency(data.kpis.grossBookingValueEtb) : '—'}
-            </span>
-          </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold">
-            {data && data.kpis.growth.gbvPercent >= 0 ? (
-              <>
-                <span className="inline-flex items-center text-emerald-700">
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                  +{data.kpis.growth.gbvPercent}%
-                </span>
-                <span className="text-[#78706a]">vs previous period</span>
-              </>
-            ) : (
-              <>
-                <span className="inline-flex items-center text-[#8c3c3c]">
-                  <ArrowDownRight className="h-3.5 w-3.5" />
-                  {data?.kpis.growth.gbvPercent}%
-                </span>
-                <span className="text-[#78706a]">vs previous period</span>
-              </>
-            )}
-          </div>
+          <div className="h-72 bg-white border border-[#d8d0c8] rounded-2xl animate-pulse p-6" />
         </div>
+      ) : (
+        <>
+          {/* Primary KPI Grid */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {/* Gross Booking Value */}
+            <div className="relative overflow-hidden rounded-2xl border border-[#d8d0c8] bg-white p-5 shadow-[0_12px_24px_-18px_rgba(58,48,42,0.15)] transition-all hover:border-[#b3541e]/40">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#78706a]">
+                  Gross Booking Value
+                </span>
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f6f0e8] text-[#b3541e]">
+                  <Flame className="h-4 w-4" />
+                </span>
+              </div>
+              <div className="mt-3 flex items-baseline gap-2">
+                <span className="font-headline text-3xl font-bold tracking-tight text-[#3a302a]">
+                  {data ? formatCurrency(data.kpis.grossBookingValueEtb) : '—'}
+                </span>
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-xs font-semibold">
+                {(data?.kpis?.growth?.gbvPercent ?? 0) >= 0 ? (
+                  <>
+                    <span className="inline-flex items-center text-emerald-700">
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                      +{data?.kpis?.growth?.gbvPercent ?? 0}%
+                    </span>
+                    <span className="text-[#78706a]">vs previous period</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex items-center text-[#8c3c3c]">
+                      <ArrowDownRight className="h-3.5 w-3.5" />
+                      {data?.kpis?.growth?.gbvPercent ?? 0}%
+                    </span>
+                    <span className="text-[#78706a]">vs previous period</span>
+                  </>
+                )}
+              </div>
+            </div>
 
         {/* Net Platform Take-rate Revenue */}
         <div className="relative overflow-hidden rounded-2xl border border-[#d8d0c8] bg-white p-5 shadow-[0_12px_24px_-18px_rgba(58,48,42,0.15)] transition-all hover:border-[#b3541e]/40">
@@ -563,6 +607,8 @@ export default function AdminAnalyticsPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

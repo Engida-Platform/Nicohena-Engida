@@ -76,9 +76,15 @@ export class AdminContentService {
     });
   }
 
-  async getContentBlockBySlug(slug: string) {
+  async getContentBlockBySlug(slug: string, onlyPublished: boolean = false) {
+    const where: Record<string, unknown> = {
+      slug: slug.trim().toLowerCase(),
+    };
+    if (onlyPublished) {
+      where.isPublished = true;
+    }
     const block = await this.contentBlockRepository.findOne({
-      where: { slug: slug.trim().toLowerCase() },
+      where,
     });
     if (!block) {
       throw new NotFoundException(`Content block with slug "${slug}" not found`);
@@ -115,11 +121,26 @@ export class AdminContentService {
       throw new NotFoundException(`Content block ${id} not found`);
     }
 
-    Object.assign(block, dto);
-    block.version += 1;
+    const hasChanges =
+      (dto.title !== undefined && dto.title !== block.title) ||
+      (dto.content !== undefined && dto.content !== block.content) ||
+      (dto.metaDescription !== undefined && dto.metaDescription !== block.metaDescription) ||
+      (dto.isPublished !== undefined && dto.isPublished !== block.isPublished);
+
+    const { slug, ...updates } = dto;
+    Object.assign(block, updates);
+
+    if (hasChanges) {
+      block.version += 1;
+    }
     block.lastEditedByAdminId = adminId || block.lastEditedByAdminId;
-    if (dto.isPublished && !block.publishedAt) {
-      block.publishedAt = new Date();
+
+    if (dto.isPublished === true) {
+      if (!block.publishedAt) {
+        block.publishedAt = new Date();
+      }
+    } else if (dto.isPublished === false) {
+      block.publishedAt = null;
     }
 
     return this.contentBlockRepository.save(block);

@@ -5,6 +5,7 @@ import {
   Clock,
   RotateCcw,
   AlertCircle,
+  AlertTriangle,
   ShieldCheck,
   ShieldAlert,
   Unlock,
@@ -13,14 +14,20 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
+import { useAuth } from '../../../../context/AuthContext';
+import { ADMIN_PERMISSIONS, can } from '../../../../types/admin';
 import type { EscrowHoldListItem } from '../../../../types/admin-finance';
 import { formatMinor, formatDateTime } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
 import AdminDialog from '../../../../components/admin/AdminDialog';
 
 export default function EscrowTab() {
+  const { user } = useAuth();
   const [holds, setHolds] = useState<EscrowHoldListItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [actionHold, setActionHold] = useState<EscrowHoldListItem | null>(null);
   const [actionType, setActionType] = useState<'RELEASE' | 'FREEZE' | 'UNFREEZE' | null>(null);
@@ -28,17 +35,26 @@ export default function EscrowTab() {
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const limit = 20;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
   const fetchHolds = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('limit', String(limit));
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
-      const res = await apiFetch<{ data: EscrowHoldListItem[] }>(
+      const res = await apiFetch<{ data: EscrowHoldListItem[]; total: number }>(
         `/admin/finance/escrow-holds?${params.toString()}`,
       );
       setHolds(res.data || []);
-    } catch {
+      setTotal(res.total || 0);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load escrow holds.');
       setHolds([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
@@ -46,7 +62,7 @@ export default function EscrowTab() {
 
   useEffect(() => {
     fetchHolds();
-  }, [statusFilter]);
+  }, [page, statusFilter]);
 
   const handleExecuteAction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +107,10 @@ export default function EscrowTab() {
           <label className="text-xs font-bold text-[#605850]">Status:</label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-1.5 text-xs font-medium text-[#3a302a]"
           >
             <option value="ALL">All Holds</option>
@@ -110,6 +129,28 @@ export default function EscrowTab() {
         </button>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[#ecd0c9] bg-[#f8e9e5] px-4 py-3 text-xs text-[#8f4035] shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#a24b3e]" strokeWidth={1.8} />
+            <p className="truncate font-medium">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchHolds()}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#ecd0c9] bg-white px-2.5 py-1 text-xs font-bold text-[#8f4035] hover:bg-[#f3dcd6] cursor-pointer shrink-0"
+          >
+            <RotateCcw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Holds Table */}
       <div className="bg-white border border-[#d8d0c8] rounded-2xl shadow-xs overflow-hidden">
         {loading ? (
@@ -119,105 +160,139 @@ export default function EscrowTab() {
             ))}
           </div>
         ) : holds.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
-                  <th className="py-3 px-4">Booking Ref</th>
-                  <th className="py-3 px-4">Property & Host</th>
-                  <th className="py-3 px-4">Status & Dispute</th>
-                  <th className="py-3 px-4">Release Due</th>
-                  <th className="py-3 px-4 text-right">Escrow Amount</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
-                {holds.map((h) => {
-                  const isReleased = h.status === 'RELEASED';
-                  const isDisputed = h.disputeFrozen || h.status === 'DISPUTED';
-                  return (
-                    <tr key={h.id} className="hover:bg-[#faf5ee]/60 transition">
-                      <td className="py-3 px-4 font-mono font-bold">
-                        {h.bookingReference || h.bookingId.slice(0, 8)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-[#3a302a]">
-                          {h.propertyTitle || 'Property'}
-                        </div>
-                        <div className="text-[10px] text-[#73776f]">Host: {h.hostName || 'Host'}</div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-1.5">
-                          <AdminStatusBadge
-                            label={h.status}
-                            tone={isReleased ? 'success' : isDisputed ? 'danger' : 'warning'}
-                            dot
-                          />
-                          {h.disputeFrozen && (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#f8e9e5] text-[#9a3f33] px-2 py-0.5 rounded-full border border-[#ebd0c9]">
-                              <Lock className="w-3 h-3" /> Frozen
-                            </span>
-                          )}
-                        </div>
-                        {h.freezeReason && (
-                          <div className="text-[10px] text-[#9a3f33] mt-0.5 max-w-xs truncate font-medium">
-                            {h.freezeReason}
+          <div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#d8d0c8] text-[#73776f] font-bold uppercase tracking-wider bg-[#faf5ee]">
+                    <th className="py-3 px-4">Booking Ref</th>
+                    <th className="py-3 px-4">Property & Host</th>
+                    <th className="py-3 px-4">Status & Dispute</th>
+                    <th className="py-3 px-4">Release Due</th>
+                    <th className="py-3 px-4 text-right">Escrow Amount</th>
+                    <th className="py-3 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
+                  {holds.map((h) => {
+                    const isReleased = h.status === 'RELEASED';
+                    const isDisputed = h.disputeFrozen || h.status === 'DISPUTED';
+                    const canPayouts = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_PAYOUTS);
+                    const canRefunds = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_REFUNDS);
+                    return (
+                      <tr key={h.id} className="hover:bg-[#faf5ee]/60 transition">
+                        <td className="py-3 px-4 font-mono font-bold">
+                          {h.bookingReference || h.bookingId.slice(0, 8)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-[#3a302a]">
+                            {h.propertyTitle || 'Property'}
                           </div>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-[#73776f]">
-                        {isReleased ? (
-                          <span className="text-[#536b4a] font-medium">
-                            Released {formatDateTime(h.releasedAt)}
-                          </span>
-                        ) : (
-                          formatDateTime(h.releaseDueAt)
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono font-bold">
-                        {formatMinor(h.amountMinor, h.currency)}
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-1.5">
-                        {!isReleased && (
-                          <>
-                            <button
-                              onClick={() => {
-                                setActionHold(h);
-                                setActionType('RELEASE');
-                              }}
-                              className="px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#234b36] cursor-pointer"
-                            >
-                              Release
-                            </button>
-                            {h.disputeFrozen ? (
-                              <button
-                                onClick={() => {
-                                  setActionHold(h);
-                                  setActionType('UNFREEZE');
-                                }}
-                                className="px-2 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#3a302a] cursor-pointer"
-                              >
-                                Unfreeze
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  setActionHold(h);
-                                  setActionType('FREEZE');
-                                }}
-                                className="px-2 py-1 rounded-lg border border-[#ebd0c9] bg-[#f8e9e5] hover:bg-rose-100 text-xs font-bold text-[#9a3f33] cursor-pointer"
-                              >
-                                Freeze
-                              </button>
+                          <div className="text-[10px] text-[#73776f]">Host: {h.hostName || 'Host'}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <AdminStatusBadge
+                              label={h.status}
+                              tone={isReleased ? 'success' : isDisputed ? 'danger' : 'warning'}
+                              dot
+                            />
+                            {h.disputeFrozen && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#f8e9e5] text-[#9a3f33] px-2 py-0.5 rounded-full border border-[#ebd0c9]">
+                                <Lock className="w-3 h-3" /> Frozen
+                              </span>
                             )}
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          </div>
+                          {h.freezeReason && (
+                            <div className="text-[10px] text-[#9a3f33] mt-0.5 max-w-xs truncate font-medium">
+                              {h.freezeReason}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-[#73776f]">
+                          {isReleased ? (
+                            <span className="text-[#536b4a] font-medium">
+                              Released {formatDateTime(h.releasedAt)}
+                            </span>
+                          ) : (
+                            formatDateTime(h.releaseDueAt)
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold">
+                          {formatMinor(h.amountMinor, h.currency)}
+                        </td>
+                        <td className="py-3 px-4 text-right space-x-1.5">
+                          {!isReleased && (
+                            <>
+                              {canPayouts && (
+                                <button
+                                  onClick={() => {
+                                    setActionHold(h);
+                                    setActionType('RELEASE');
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#234b36] cursor-pointer"
+                                >
+                                  Release
+                                </button>
+                              )}
+                              {canRefunds && (
+                                h.disputeFrozen ? (
+                                  <button
+                                    onClick={() => {
+                                      setActionHold(h);
+                                      setActionType('UNFREEZE');
+                                    }}
+                                    className="px-2 py-1 rounded-lg border border-[#d8d0c8] bg-white hover:bg-[#faf5ee] text-xs font-bold text-[#3a302a] cursor-pointer"
+                                  >
+                                    Unfreeze
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => {
+                                      setActionHold(h);
+                                      setActionType('FREEZE');
+                                    }}
+                                    className="px-2 py-1 rounded-lg border border-[#ebd0c9] bg-[#f8e9e5] hover:bg-rose-100 text-xs font-bold text-[#9a3f33] cursor-pointer"
+                                  >
+                                    Freeze
+                                  </button>
+                                )
+                              )}
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-[#d8d0c8] bg-[#faf5ee] px-4 py-3 text-xs text-[#73776f]">
+                <div>
+                  Page <span className="font-bold text-[#3a302a]">{page}</span> of{' '}
+                  <span className="font-bold text-[#3a302a]">{totalPages}</span> ({total} total holds)
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1 || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages || loading}
+                    className="rounded-lg border border-[#d8d0c8] bg-white px-3 py-1 font-bold text-[#3a302a] shadow-xs hover:bg-[#f2ece4] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="py-12 text-center text-[#73776f]">

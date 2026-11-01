@@ -9,23 +9,30 @@ import {
   ShieldCheck,
   Ban,
   Search,
+  AlertTriangle,
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
+import { useAuth } from '../../../../context/AuthContext';
+import { ADMIN_PERMISSIONS, can } from '../../../../types/admin';
 import type { PayoutAccountListItem } from '../../../../types/admin-finance';
 import { formatDateTime } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
 
 export default function AccountsTab() {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<PayoutAccountListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const fetchAccounts = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await apiFetch<{ data: PayoutAccountListItem[] }>('/admin/finance/payout-accounts');
       setAccounts(res.data || []);
-    } catch {
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load host payout accounts.');
       setAccounts([]);
     } finally {
       setLoading(false);
@@ -85,6 +92,28 @@ export default function AccountsTab() {
         </button>
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[#ecd0c9] bg-[#f8e9e5] px-4 py-3 text-xs text-[#8f4035] shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#a24b3e]" strokeWidth={1.8} />
+            <p className="truncate font-medium">{error}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void fetchAccounts()}
+            disabled={loading}
+            className="inline-flex items-center gap-1 rounded-lg border border-[#ecd0c9] bg-white px-2.5 py-1 text-xs font-bold text-[#8f4035] hover:bg-[#f3dcd6] cursor-pointer shrink-0"
+          >
+            <RotateCcw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       <div className="bg-white border border-[#d8d0c8] rounded-2xl shadow-xs overflow-hidden">
         {loading ? (
@@ -107,62 +136,65 @@ export default function AccountsTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f2ece4] text-[#3a302a]">
-                {filteredAccounts.map((a) => (
-                  <tr key={a.id} className="hover:bg-[#faf5ee]/60 transition">
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-[#3a302a]">{a.accountName}</div>
-                      <div className="text-[10px] text-[#73776f]">Host ID: {a.hostId.slice(0, 8)}…</div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-[#3a302a]">{a.bankName || a.provider}</div>
-                      {a.bankBranch && (
-                        <div className="text-[10px] text-[#73776f]">Branch: {a.bankBranch}</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 font-mono font-bold text-[#3a302a]">
-                      •••• {a.accountNumberLast4}
-                      {a.phoneLast4 && (
-                        <span className="text-[10px] text-[#73776f] block font-normal">
-                          Phone: •••• {a.phoneLast4}
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <AdminStatusBadge
-                        label={a.status}
-                        tone={
-                          a.status === 'VERIFIED'
-                            ? 'success'
-                            : a.status === 'PENDING'
-                            ? 'warning'
-                            : 'danger'
-                        }
-                        dot
-                      />
-                    </td>
-                    <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
-                      {formatDateTime(a.verifiedAt)}
-                    </td>
-                    <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                      {a.status !== 'VERIFIED' && a.status !== 'DISABLED' && (
-                        <button
-                          onClick={() => handleVerify(a.id)}
-                          className="px-2.5 py-1 rounded-lg border border-[#d6dfcd] bg-[#edf1e8] hover:bg-emerald-100 text-xs font-bold text-[#536b4a] cursor-pointer"
-                        >
-                          Verify
-                        </button>
-                      )}
-                      {a.status !== 'DISABLED' && (
-                        <button
-                          onClick={() => handleDisable(a.id)}
-                          className="px-2 py-1 rounded-lg border border-[#ebd0c9] bg-[#f8e9e5] hover:bg-rose-100 text-xs font-bold text-[#9a3f33] cursor-pointer"
-                        >
-                          Disable
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {filteredAccounts.map((a) => {
+                  const canPayouts = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_PAYOUTS);
+                  return (
+                    <tr key={a.id} className="hover:bg-[#faf5ee]/60 transition">
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-[#3a302a]">{a.accountName}</div>
+                        <div className="text-[10px] text-[#73776f]">Host ID: {a.hostId.slice(0, 8)}…</div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-[#3a302a]">{a.bankName || a.provider}</div>
+                        {a.bankBranch && (
+                          <div className="text-[10px] text-[#73776f]">Branch: {a.bankBranch}</div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-mono font-bold text-[#3a302a]">
+                        •••• {a.accountNumberLast4}
+                        {a.phoneLast4 && (
+                          <span className="text-[10px] text-[#73776f] block font-normal">
+                            Phone: •••• {a.phoneLast4}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <AdminStatusBadge
+                          label={a.status}
+                          tone={
+                            a.status === 'VERIFIED'
+                              ? 'success'
+                              : a.status === 'PENDING'
+                              ? 'warning'
+                              : 'danger'
+                          }
+                          dot
+                        />
+                      </td>
+                      <td className="py-3 px-4 text-[#73776f] whitespace-nowrap">
+                        {formatDateTime(a.verifiedAt)}
+                      </td>
+                      <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                        {canPayouts && a.status !== 'VERIFIED' && a.status !== 'DISABLED' && (
+                          <button
+                            onClick={() => handleVerify(a.id)}
+                            className="px-2.5 py-1 rounded-lg border border-[#d6dfcd] bg-[#edf1e8] hover:bg-emerald-100 text-xs font-bold text-[#536b4a] cursor-pointer"
+                          >
+                            Verify
+                          </button>
+                        )}
+                        {canPayouts && a.status !== 'DISABLED' && (
+                          <button
+                            onClick={() => handleDisable(a.id)}
+                            className="px-2 py-1 rounded-lg border border-[#ebd0c9] bg-[#f8e9e5] hover:bg-rose-100 text-xs font-bold text-[#9a3f33] cursor-pointer"
+                          >
+                            Disable
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

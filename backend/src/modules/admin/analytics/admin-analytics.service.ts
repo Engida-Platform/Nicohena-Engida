@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, MoreThanOrEqual, Repository } from 'typeorm';
 import { Booking, BookingStatus } from '../../bookings/entities/booking.entity';
@@ -8,6 +8,7 @@ import { HostProfile } from '../../../users/entities/host-profile.entity';
 import { PropertyCategory } from '../../catalog/entities/property-category.entity';
 import { Destination } from '../../catalog/entities/destination.entity';
 import { FinanceSettingsService } from '../../finance/services/finance-settings.service';
+import { escapeCsv } from '../utils/csv';
 
 export type AnalyticsPeriod = '7d' | '30d' | '90d' | 'ytd' | '1y';
 
@@ -133,7 +134,18 @@ export class AdminAnalyticsService {
     return { start, end, previousStart, previousEnd };
   }
 
-  async getOverview(period: AnalyticsPeriod = '30d'): Promise<AnalyticsOverviewResult> {
+  private validatePeriod(period: string = '30d'): AnalyticsPeriod {
+    const valid: AnalyticsPeriod[] = ['7d', '30d', '90d', 'ytd', '1y'];
+    if (!valid.includes(period as AnalyticsPeriod)) {
+      throw new BadRequestException(
+        `Invalid analytics period "${period}". Valid periods are: ${valid.join(', ')}`,
+      );
+    }
+    return period as AnalyticsPeriod;
+  }
+
+  async getOverview(periodInput: string = '30d'): Promise<AnalyticsOverviewResult> {
+    const period = this.validatePeriod(periodInput);
     const { start, end, previousStart, previousEnd } = this.getPeriodDates(period);
 
     // The commission rate is configured in finance settings, so analytics always
@@ -183,10 +195,11 @@ export class AdminAnalyticsService {
 
       // Price is stored as number or string in booking entity
       const price = Number(b.totalPrice) || 0;
-      currentGbvMinor += price;
-      currentRevenueMinor += Math.round(price * commissionRate);
 
+      // Only confirmed and completed bookings contribute to Gross Booking Value and Net Revenue
       if (b.status === BookingStatus.CONFIRMED || b.status === BookingStatus.COMPLETED) {
+        currentGbvMinor += price;
+        currentRevenueMinor += Math.round(price * commissionRate);
         confirmedCount++;
         const checkin = new Date(b.checkInDate);
         const checkout = new Date(b.checkOutDate);
@@ -204,16 +217,20 @@ export class AdminAnalyticsService {
         cityStats[city] = { bookings: 0, gbvMinor: 0 };
       }
       cityStats[city].bookings++;
-      cityStats[city].gbvMinor += price;
+      if (b.status === BookingStatus.CONFIRMED || b.status === BookingStatus.COMPLETED) {
+        cityStats[city].gbvMinor += price;
+      }
     }
 
     // Previous Period Growth Calculations
     let prevGbvMinor = 0;
     let prevRevenueMinor = 0;
     for (const b of previousBookings) {
-      const price = Number(b.totalPrice) || 0;
-      prevGbvMinor += price;
-      prevRevenueMinor += Math.round(price * commissionRate);
+      if (b.status === BookingStatus.CONFIRMED || b.status === BookingStatus.COMPLETED) {
+        const price = Number(b.totalPrice) || 0;
+        prevGbvMinor += price;
+        prevRevenueMinor += Math.round(price * commissionRate);
+      }
     }
 
     const calcGrowth = (curr: number, prev: number) => {
@@ -247,10 +264,11 @@ export class AdminAnalyticsService {
       const bucket = timeSeriesMap.get(key);
       if (bucket) {
         const price = Number(b.totalPrice) || 0;
-        bucket.gbv += price;
-        bucket.rev += Math.round(price * commissionRate);
         bucket.bookings++;
-        if (b.status === BookingStatus.CANCELLED) {
+        if (b.status === BookingStatus.CONFIRMED || b.status === BookingStatus.COMPLETED) {
+          bucket.gbv += price;
+          bucket.rev += Math.round(price * commissionRate);
+        } else if (b.status === BookingStatus.CANCELLED) {
           bucket.cancels++;
         }
       }
@@ -392,41 +410,52 @@ export class AdminAnalyticsService {
     };
   }
 
-  async exportReportCsv(period: AnalyticsPeriod = '30d'): Promise<string> {
+  private escapeCsvCell(val: unknown): string {
+    if (val === null || val === undefined) return '""';
+    let str = String(val);
+    if (/^[=\+\-@\t\r]/.test(str)) {
+      str = `'${str}`;
+    }
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+
+  async exportReportCsv(periodInput: string = '30d'): Promise<string> {
+    const period = this.validatePeriod(periodInput);
     const data = await this.getOverview(period);
     const lines: string[] = [];
+    const esc = (v: unknown) => this.escapeCsvCell(v);
 
-    lines.push('ENGIDA BUSINESS ANALYTICS REPORT');
-    lines.push(`Period: ${data.period.toUpperCase()} (${data.startDate} to ${data.endDate})`);
-    lines.push(`Generated At: ${new Date().toISOString()}`);
+    lines.push(esc('ENGIDA BUSINESS ANALYTICS REPORT'));
+    lines.push(esc(`Period: ${data.period.toUpperCase()} (${data.startDate} to ${data.endDate})`));
+    lines.push(esc(`Generated At: ${new Date().toISOString()}`));
     lines.push('');
 
-    lines.push('--- CORE EXECUTIVE KPIS ---');
-    lines.push('Metric,Value');
-    lines.push(`Gross Booking Value (ETB),${data.kpis.grossBookingValueEtb}`);
-    lines.push(`Platform Commission Rate (%),${data.kpis.commissionRatePercent}`);
-    lines.push(`Net Platform Take-Rate Revenue (ETB),${data.kpis.netRevenueEtb}`);
-    lines.push(`Disbursed Host Payouts (ETB),${data.kpis.hostPayoutsEtb}`);
-    lines.push(`Total Bookings,${data.kpis.totalBookings}`);
-    lines.push(`Confirmed Stays,${data.kpis.confirmedBookings}`);
-    lines.push(`Cancellation Rate (%),${data.kpis.cancellationRatePercent}%`);
-    lines.push(`Average Daily Rate (ETB),${data.kpis.averageDailyRateEtb}`);
-    lines.push(`Average Length of Stay (Nights),${data.kpis.averageLengthOfStayNights}`);
-    lines.push(`Active Published Listings,${data.kpis.activeListings}`);
-    lines.push(`Active Verified Hosts,${data.kpis.activeHosts}`);
+    lines.push(esc('--- CORE EXECUTIVE KPIS ---'));
+    lines.push([esc('Metric'), esc('Value')].join(','));
+    lines.push([esc('Gross Booking Value (ETB)'), esc(data.kpis.grossBookingValueEtb)].join(','));
+    lines.push([esc('Platform Commission Rate (%)'), esc(`${data.kpis.commissionRatePercent}%`)].join(','));
+    lines.push([esc('Net Platform Take-Rate Revenue (ETB)'), esc(data.kpis.netRevenueEtb)].join(','));
+    lines.push([esc('Disbursed Host Payouts (ETB)'), esc(data.kpis.hostPayoutsEtb)].join(','));
+    lines.push([esc('Total Bookings'), esc(data.kpis.totalBookings)].join(','));
+    lines.push([esc('Confirmed Stays'), esc(data.kpis.confirmedBookings)].join(','));
+    lines.push([esc('Cancellation Rate (%)'), esc(`${data.kpis.cancellationRatePercent}%`)].join(','));
+    lines.push([esc('Average Daily Rate (ETB)'), esc(data.kpis.averageDailyRateEtb)].join(','));
+    lines.push([esc('Average Length of Stay (Nights)'), esc(data.kpis.averageLengthOfStayNights)].join(','));
+    lines.push([esc('Active Published Listings'), esc(data.kpis.activeListings)].join(','));
+    lines.push([esc('Active Verified Hosts'), esc(data.kpis.activeHosts)].join(','));
     lines.push('');
 
-    lines.push('--- DAILY TIME SERIES ---');
-    lines.push('Date,Label,GBV (ETB),Revenue (ETB),Bookings Count,Cancellations');
+    lines.push(esc('--- DAILY TIME SERIES ---'));
+    lines.push([esc('Date'), esc('Label'), esc('GBV (ETB)'), esc('Revenue (ETB)'), esc('Bookings Count'), esc('Cancellations')].join(','));
     for (const p of data.timeSeries) {
-      lines.push(`${p.date},"${p.label}",${p.gbvEtb},${p.revenueEtb},${p.bookingsCount},${p.cancellationsCount}`);
+      lines.push([esc(p.date), esc(p.label), esc(p.gbvEtb), esc(p.revenueEtb), esc(p.bookingsCount), esc(p.cancellationsCount)].join(','));
     }
     lines.push('');
 
-    lines.push('--- TOP DESTINATIONS ---');
-    lines.push('City,Region,Bookings,GBV (ETB),Share (%)');
+    lines.push(esc('--- TOP DESTINATIONS ---'));
+    lines.push([esc('City'), esc('Region'), esc('Bookings'), esc('GBV (ETB)'), esc('Share (%)')].join(','));
     for (const d of data.topDestinations) {
-      lines.push(`"${d.city}","${d.region}",${d.bookingsCount},${d.gbvEtb},${d.sharePercent}%`);
+      lines.push([esc(d.city), esc(d.region), esc(d.bookingsCount), esc(d.gbvEtb), esc(`${d.sharePercent}%`)].join(','));
     }
 
     return lines.join('\n');

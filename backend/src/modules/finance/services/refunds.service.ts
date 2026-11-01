@@ -23,15 +23,34 @@ import { FinanceSettingsService } from './finance-settings.service';
 import { AuditService } from '../../audit/audit.service';
 import { previewCancellationPolicy } from '../../bookings/cancellation-policy.service';
 import { toMinorUnits } from '../../../lib/money';
+import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 import { LedgerTransactionType } from '../entities/ledger-transaction.entity';
 
 export class ProposeRefundDto {
+  @IsUUID()
   bookingId: string;
+
+  @IsOptional()
+  @IsUUID()
   paymentId?: string;
+
+  @IsOptional()
   amountMinor?: string | bigint;
+
+  @IsString()
+  @IsNotEmpty()
   reason: string;
+
+  @IsOptional()
+  @IsUUID()
   cancellationRequestId?: string;
+
+  @IsOptional()
+  @IsUUID()
   caseId?: string;
+
+  @IsOptional()
+  @IsString()
   policyTier?: string;
 }
 

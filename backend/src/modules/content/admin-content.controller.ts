@@ -11,8 +11,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../users/entities/user.entity';
 import { PermissionsGuard } from '../admin/rbac/permissions.guard';
-import { SuperAdminBypassGuard } from '../admin/rbac/super-admin-bypass.guard';
 import { RequirePermissions } from '../admin/rbac/permissions.decorator';
 import { Permission } from '../admin/rbac/permissions';
 import { AdminContentService } from './admin-content.service';
@@ -25,7 +27,8 @@ import {
 } from './dto/admin-content.dto';
 
 @Controller('admin/content')
-@UseGuards(JwtAuthGuard, SuperAdminBypassGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles(UserRole.ADMIN)
 export class AdminContentController {
   constructor(private readonly contentService: AdminContentService) {}
 
@@ -108,5 +111,20 @@ export class AdminContentController {
   @RequirePermissions(Permission.CONTENT_MANAGE)
   async deleteContentBlock(@Param('id') id: string) {
     return this.contentService.deleteContentBlock(id);
+  }
+}
+
+@Controller('content')
+export class PublicContentController {
+  constructor(private readonly contentService: AdminContentService) {}
+
+  @Get('faqs')
+  async getPublicFaqs(@Query('category') category?: FaqCategory) {
+    return this.contentService.listFaqs(category, true);
+  }
+
+  @Get('blocks/:slug')
+  async getPublicBlockBySlug(@Param('slug') slug: string) {
+    return this.contentService.getContentBlockBySlug(slug, true);
   }
 }

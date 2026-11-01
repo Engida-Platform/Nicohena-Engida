@@ -10,11 +10,14 @@ import {
   ZapOff,
   ShieldAlert,
   Info,
+  AlertCircle,
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
 import { formatMinor } from '../../../../lib/finance-format';
 import type { FinanceSettingItem } from '../../../../types/admin-finance';
 import AdminDialog from '../../../../components/admin/AdminDialog';
+import { useAuth } from '@/context/AuthContext';
+import { can, ADMIN_PERMISSIONS } from '@/types/admin';
 
 function formatBps(value: string | undefined): string {
   const numeric = Number(value);
@@ -23,14 +26,20 @@ function formatBps(value: string | undefined): string {
 }
 
 export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: () => void }) {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<FinanceSettingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [confirmToggleKey, setConfirmToggleKey] = useState<string | null>(null);
 
+  const canConfigure = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_CONFIG);
+
   const fetchSettings = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await apiFetch<FinanceSettingItem[]>('/admin/finance/settings');
       setSettings(res || []);
@@ -38,9 +47,14 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
       (res || []).forEach((s) => {
         valMap[s.key] = s.value;
       });
+      // Synchronize canonical and alias platform commission
+      const comm = valMap['finance.commission_rate_bps'] || valMap['finance.platform_commission_bps'] || '';
+      valMap['finance.commission_rate_bps'] = comm;
+      valMap['finance.platform_commission_bps'] = comm;
       setValues(valMap);
-    } catch {
+    } catch (err: any) {
       setSettings([]);
+      setError(err.message || 'Failed to load finance settings');
     } finally {
       setLoading(false);
     }
@@ -50,34 +64,92 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
     fetchSettings();
   }, []);
 
-  const handleSaveSetting = async (key: string, value: string) => {
+  const handleSaveSetting = async (key: string, value: string, auditReason?: string) => {
+    if (!canConfigure) return;
+
+    // Validate basis point keys
+    if (key.endsWith('_bps')) {
+      const num = Number(value);
+      if (isNaN(num) || num < 0 || num > 10000) {
+        alert('Basis points must be a valid integer between 0 and 10000 (0% to 100%).');
+        return;
+      }
+    }
+
     setSavingKey(key);
+    setError(null);
+    setSuccessMsg(null);
+
     try {
       await apiFetch(`/admin/finance/settings/${key}`, {
         method: 'PATCH',
-        body: JSON.stringify({ value }),
+        body: JSON.stringify({
+          value,
+          reason: auditReason || `Updated by admin ${user?.email || user?.id || 'console'}`,
+        }),
       });
-      setValues((prev) => ({ ...prev, [key]: value }));
+
+      setValues((prev) => {
+        const next = { ...prev, [key]: value };
+        if (key === 'finance.commission_rate_bps') next['finance.platform_commission_bps'] = value;
+        if (key === 'finance.platform_commission_bps') next['finance.commission_rate_bps'] = value;
+        return next;
+      });
+
+      setSuccessMsg(`Setting ${key} updated successfully.`);
+      setTimeout(() => setSuccessMsg(null), 3000);
       onRefreshSummary();
     } catch (err: any) {
-      alert(err.message || 'Failed to update setting');
+      setError(err.message || 'Failed to update setting');
     } finally {
       setSavingKey(null);
     }
   };
 
   const handleToggleFlag = (key: string) => {
+    if (!canConfigure) return;
     const current = values[key] === 'true';
     if (!current) {
       // Enabling live money flag requires confirmation
       setConfirmToggleKey(key);
     } else {
-      handleSaveSetting(key, 'false');
+      handleSaveSetting(key, 'false', 'Disabled live money flag via console');
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Error Banner */}
+      {error && (
+        <div className="p-4 bg-[#fdf2f2] border border-[#f5c6cb] rounded-2xl flex items-center justify-between text-xs text-[#a83232]">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={fetchSettings}
+            className="px-3 py-1 bg-white border border-[#f5c6cb] rounded-xl font-bold hover:bg-[#fbf0f0] cursor-pointer"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Success Banner */}
+      {successMsg && (
+        <div className="p-4 bg-[#edf1e8] border border-[#d6dfcd] rounded-2xl flex items-center gap-2 text-xs text-[#536b4a] font-bold">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {!canConfigure && (
+        <div className="p-3 bg-[#faf5ee] border border-[#d8d0c8] rounded-xl text-xs text-[#73776f] flex items-center gap-2">
+          <Lock className="w-4 h-4 shrink-0 text-[#b3541e]" />
+          <span>Read-only: You need <code>FINANCE_CONFIG</code> permissions to modify system finance parameters.</span>
+        </div>
+      )}
+
       {/* Live Feature Flags Section */}
       <div className="bg-white border border-[#d8d0c8] rounded-2xl p-5 shadow-xs space-y-4">
         <div className="border-b border-[#f2ece4] pb-3">
@@ -138,8 +210,8 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
                   </div>
                   <button
                     onClick={() => handleToggleFlag(flag.key)}
-                    disabled={savingKey === flag.key}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0 ${
+                    disabled={!canConfigure || savingKey === flag.key}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow-xs cursor-pointer shrink-0 disabled:opacity-50 disabled:cursor-not-allowed ${
                       isEnabled
                         ? 'bg-[#536b4a] text-white hover:bg-[#3c4f35]'
                         : 'bg-white border border-[#d8d0c8] text-[#3a302a] hover:bg-[#faf5ee]'
@@ -177,20 +249,22 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
+                disabled={!canConfigure}
                 value={values['finance.platform_commission_bps'] ?? ''}
                 onChange={(e) =>
                   setValues({ ...values, 'finance.platform_commission_bps': e.target.value })
                 }
-                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono"
+                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono disabled:opacity-60"
               />
               <button
+                disabled={!canConfigure || savingKey === 'finance.platform_commission_bps'}
                 onClick={() =>
                   handleSaveSetting(
                     'finance.platform_commission_bps',
                     values['finance.platform_commission_bps'],
                   )
                 }
-                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer"
+                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
               </button>
@@ -211,17 +285,19 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
+                disabled={!canConfigure}
                 value={values['finance.vat_rate_bps'] ?? ''}
                 onChange={(e) =>
                   setValues({ ...values, 'finance.vat_rate_bps': e.target.value })
                 }
-                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono"
+                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono disabled:opacity-60"
               />
               <button
+                disabled={!canConfigure || savingKey === 'finance.vat_rate_bps'}
                 onClick={() =>
                   handleSaveSetting('finance.vat_rate_bps', values['finance.vat_rate_bps'])
                 }
-                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer"
+                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
               </button>
@@ -242,6 +318,7 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
+                disabled={!canConfigure}
                 value={values['finance.refund_dual_approval_threshold_minor'] ?? ''}
                 onChange={(e) =>
                   setValues({
@@ -249,16 +326,17 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
                     'finance.refund_dual_approval_threshold_minor': e.target.value,
                   })
                 }
-                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono"
+                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono disabled:opacity-60"
               />
               <button
+                disabled={!canConfigure || savingKey === 'finance.refund_dual_approval_threshold_minor'}
                 onClick={() =>
                   handleSaveSetting(
                     'finance.refund_dual_approval_threshold_minor',
                     values['finance.refund_dual_approval_threshold_minor'],
                   )
                 }
-                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer"
+                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
               </button>
@@ -282,6 +360,7 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
+                disabled={!canConfigure}
                 value={values['finance.payout_dual_approval_threshold_minor'] ?? ''}
                 onChange={(e) =>
                   setValues({
@@ -289,16 +368,17 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
                     'finance.payout_dual_approval_threshold_minor': e.target.value,
                   })
                 }
-                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono"
+                className="w-full bg-[#faf5ee] border border-[#d8d0c8] rounded-xl px-3 py-2 text-[#3a302a] font-mono disabled:opacity-60"
               />
               <button
+                disabled={!canConfigure || savingKey === 'finance.payout_dual_approval_threshold_minor'}
                 onClick={() =>
                   handleSaveSetting(
                     'finance.payout_dual_approval_threshold_minor',
                     values['finance.payout_dual_approval_threshold_minor'],
                   )
                 }
-                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer"
+                className="px-3 py-2 bg-[#b3541e] text-white rounded-xl font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Save
               </button>

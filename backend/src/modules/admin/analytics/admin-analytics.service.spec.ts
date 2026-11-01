@@ -140,9 +140,9 @@ describe('AdminAnalyticsService', () => {
     it('calculates KPIs, time series, and distributions', async () => {
       const res = await service.getOverview('30d');
 
-      expect(res.kpis.grossBookingValueEtb).toBe(15000);
-      expect(res.kpis.netRevenueEtb).toBe(2250);
-      expect(res.kpis.hostPayoutsEtb).toBe(12750);
+      expect(res.kpis.grossBookingValueEtb).toBe(10000);
+      expect(res.kpis.netRevenueEtb).toBe(1500);
+      expect(res.kpis.hostPayoutsEtb).toBe(8500);
       expect(res.kpis.commissionRatePercent).toBe(15);
       expect(res.kpis.totalBookings).toBe(2);
       expect(res.kpis.confirmedBookings).toBe(1);

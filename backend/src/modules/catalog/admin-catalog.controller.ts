@@ -10,8 +10,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../users/entities/user.entity';
 import { PermissionsGuard } from '../admin/rbac/permissions.guard';
-import { SuperAdminBypassGuard } from '../admin/rbac/super-admin-bypass.guard';
 import { RequirePermissions } from '../admin/rbac/permissions.decorator';
 import { Permission } from '../admin/rbac/permissions';
 import { AdminCatalogService } from './admin-catalog.service';
@@ -26,7 +28,8 @@ import {
 } from './dto/admin-catalog.dto';
 
 @Controller('admin/catalog')
-@UseGuards(JwtAuthGuard, SuperAdminBypassGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@Roles(UserRole.ADMIN)
 export class AdminCatalogController {
   constructor(private readonly catalogService: AdminCatalogService) {}
 
@@ -122,5 +125,21 @@ export class AdminCatalogController {
   @RequirePermissions(Permission.CATALOG_MANAGE)
   async deleteAmenity(@Param('id') id: string) {
     return this.catalogService.deleteAmenity(id);
+  }
+}
+
+@Controller('catalog')
+export class PublicCatalogController {
+  constructor(private readonly catalogService: AdminCatalogService) {}
+
+  @Get('destinations')
+  async getPublicDestinations(@Query('featured') featured?: string) {
+    const onlyFeatured = featured === 'true' ? true : undefined;
+    return this.catalogService.listDestinations(onlyFeatured, true);
+  }
+
+  @Get('categories')
+  async getPublicCategories() {
+    return this.catalogService.listCategories(true);
   }
 }

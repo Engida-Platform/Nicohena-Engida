@@ -10,13 +10,17 @@ import {
   Trash2,
   Users,
   X,
+  AlertCircle,
 } from 'lucide-react';
 import { apiFetch } from '../../../lib/api';
 import { useDefaultCurrency } from '../../../hooks/useDefaultCurrency';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { CouponDiscountType, CouponItem } from '../../../types/admin-growth';
+import { useAuth } from '../../../context/AuthContext';
+import { can, ADMIN_PERMISSIONS } from '../../../types/admin';
 
 export default function AdminCouponsPage() {
+  const { user } = useAuth();
   const [coupons, setCoupons] = useState<CouponItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +39,7 @@ export default function AdminCouponsPage() {
     maxDiscountAmountMinor: 250000, // 2,500 ETB cap
     startsAt: new Date().toISOString().slice(0, 16),
     expiresAt: '',
-    maxRedemptions: 100,
+    maxRedemptions: 100 as number | null,
     perUserLimit: 1,
     isActive: true,
   });
@@ -57,8 +61,12 @@ export default function AdminCouponsPage() {
   }, []);
 
   useEffect(() => {
-    loadCoupons();
-  }, [loadCoupons]);
+    if (can(user?.permissions, ADMIN_PERMISSIONS.COUPONS_MANAGE)) {
+      loadCoupons();
+    } else {
+      setLoading(false);
+    }
+  }, [loadCoupons, user?.permissions]);
 
   const handleToggleActive = async (id: string) => {
     try {
@@ -127,6 +135,22 @@ export default function AdminCouponsPage() {
     return matchesSearch && matchesFilter;
   });
 
+  if (!can(user?.permissions, ADMIN_PERMISSIONS.COUPONS_MANAGE)) {
+    return (
+      <div className="p-8 text-center bg-white rounded-2xl border border-[#d8d0c8] max-w-md mx-auto my-12">
+        <div className="w-12 h-12 rounded-2xl bg-[#f8e9e5] text-[#9a3f33] flex items-center justify-center mx-auto mb-3">
+          <Tag className="w-6 h-6" />
+        </div>
+        <h2 className="font-serif text-lg font-bold text-[#3a302a]">
+          Coupons Management Access Required
+        </h2>
+        <p className="text-xs text-[#73776f] mt-1">
+          Your administrator role does not have the <code className="font-mono">coupons.manage</code> permission.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <AdminPageHeader
@@ -168,8 +192,17 @@ export default function AdminCouponsPage() {
       />
 
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">
-          {error}
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => loadCoupons()}
+            className="px-3 py-1 bg-white border border-red-300 rounded-lg text-xs font-bold hover:bg-red-50 cursor-pointer"
+          >
+            Retry
+          </button>
         </div>
       )}
 
@@ -182,7 +215,7 @@ export default function AdminCouponsPage() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="font-serif text-3xl font-bold text-[#3a302a]">
-              {activeCount}
+              {loading && coupons.length === 0 ? '—' : activeCount}
             </span>
             <span className="text-xs text-[#605850]">of {coupons.length} codes</span>
           </div>
@@ -195,7 +228,7 @@ export default function AdminCouponsPage() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="font-serif text-3xl font-bold text-[#3a302a]">
-              {totalRedemptions}
+              {loading && coupons.length === 0 ? '—' : totalRedemptions}
             </span>
             <span className="text-xs text-emerald-600 font-medium">Applied to bookings</span>
           </div>
@@ -260,12 +293,21 @@ export default function AdminCouponsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f2ece4]">
-              {filteredCoupons.map((coupon) => (
-                <tr key={coupon.id} className="hover:bg-[#faf5ee]/60 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-[#3a302a] bg-[#faf5ee] border border-[#d8d0c8] px-2 py-0.5 rounded">
-                        {coupon.code}
+              {loading && coupons.length === 0 ? (
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr key={i}>
+                    <td colSpan={7} className="py-4 px-4">
+                      <div className="h-6 bg-[#faf5ee] animate-pulse rounded" />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                filteredCoupons.map((coupon) => (
+                  <tr key={coupon.id} className="hover:bg-[#faf5ee]/60 transition-colors">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-sm text-[#3a302a] bg-[#faf5ee] border border-[#d8d0c8] px-2 py-0.5 rounded">
+                          {coupon.code}
                       </span>
                     </div>
                     {coupon.description && (
@@ -361,8 +403,9 @@ export default function AdminCouponsPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-              {filteredCoupons.length === 0 && (
+              ))
+              )}
+              {!loading && filteredCoupons.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-8 text-center text-[#605850]">
                     No promotional coupons found matching your criteria.
@@ -482,6 +525,52 @@ export default function AdminCouponsPage() {
                 </div>
               </div>
 
+              {form.discountType === 'PERCENTAGE' && (
+                <div>
+                  <label className="font-semibold text-[#3a302a] block mb-1">
+                    Maximum Discount Cap (minor units, e.g. 250000 = 2,500 {defaultCurrency || 'ETB'})
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="Leave empty for uncapped percentage discount"
+                    value={form.maxDiscountAmountMinor || ''}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        maxDiscountAmountMinor: e.target.value ? Number(e.target.value) : 0,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-semibold text-[#3a302a] block mb-1">
+                    Start Date & Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={form.startsAt}
+                    onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
+                  />
+                </div>
+                <div>
+                  <label className="font-semibold text-[#3a302a] block mb-1">
+                    Expiration Date & Time (Optional)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={form.expiresAt}
+                    onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
+                    className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-[#3a302a] block mb-1">
@@ -490,12 +579,12 @@ export default function AdminCouponsPage() {
                   <input
                     type="number"
                     min={1}
-                    placeholder="e.g. 100"
-                    value={form.maxRedemptions || ''}
+                    placeholder="Leave empty for unlimited"
+                    value={form.maxRedemptions ?? ''}
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        maxRedemptions: e.target.value ? Number(e.target.value) : 100,
+                        maxRedemptions: e.target.value ? Number(e.target.value) : null,
                       })
                     }
                     className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
@@ -515,18 +604,6 @@ export default function AdminCouponsPage() {
                     className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-[#3a302a] block mb-1">
-                  Expiration Date (Optional)
-                </label>
-                <input
-                  type="date"
-                  value={form.expiresAt}
-                  onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
-                  className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
-                />
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-[#f2ece4]">

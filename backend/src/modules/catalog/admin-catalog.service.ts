@@ -34,8 +34,13 @@ export class AdminCatalogService {
 
   // ==================== CATEGORIES ====================
 
-  async listCategories() {
+  async listCategories(onlyActive?: boolean) {
+    const where: Record<string, unknown> = {};
+    if (onlyActive !== undefined) {
+      where.isActive = onlyActive;
+    }
     return this.categoryRepository.find({
+      where,
       order: { displayOrder: 'ASC', createdAt: 'DESC' },
     });
   }
@@ -61,7 +66,8 @@ export class AdminCatalogService {
       throw new NotFoundException(`Category ${id} not found`);
     }
 
-    Object.assign(category, dto);
+    const { slug, ...updates } = dto;
+    Object.assign(category, updates);
     return this.categoryRepository.save(category);
   }
 
@@ -76,10 +82,13 @@ export class AdminCatalogService {
 
   // ==================== DESTINATIONS ====================
 
-  async listDestinations(onlyFeatured?: boolean) {
+  async listDestinations(onlyFeatured?: boolean, onlyActive: boolean = false) {
     const where: Record<string, unknown> = {};
     if (onlyFeatured !== undefined) {
       where.isFeatured = onlyFeatured;
+    }
+    if (onlyActive) {
+      where.isActive = true;
     }
     return this.destinationRepository.find({
       where,
@@ -108,7 +117,8 @@ export class AdminCatalogService {
       throw new NotFoundException(`Destination ${id} not found`);
     }
 
-    Object.assign(destination, dto);
+    const { slug, ...updates } = dto;
+    Object.assign(destination, updates);
     return this.destinationRepository.save(destination);
   }
 

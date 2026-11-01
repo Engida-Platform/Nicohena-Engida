@@ -51,19 +51,33 @@ export class EscrowService {
 
   /**
    * Freezes escrow hold due to an open dispute or safety case.
+   * Supports lookup by hold ID or booking ID.
    */
   async freezeHold(
-    bookingId: string,
+    identifier: string,
     reason: string,
     actor?: User | null,
     context?: { ipAddress?: string | null; userAgent?: string | null },
   ) {
     const hold = await this.escrowRepo.findOne({
-      where: { bookingId, status: EscrowHoldStatus.HELD },
+      where: [
+        { id: identifier, status: EscrowHoldStatus.HELD },
+        { bookingId: identifier, status: EscrowHoldStatus.HELD },
+      ],
+      relations: ['booking'],
     });
 
     if (!hold) {
-      return null;
+      const anyHold = await this.escrowRepo.findOne({
+        where: [{ id: identifier }, { bookingId: identifier }],
+      });
+      if (anyHold) {
+        if (anyHold.status === EscrowHoldStatus.FROZEN) {
+          throw new BadRequestException('Escrow hold is already frozen');
+        }
+        throw new BadRequestException(`Cannot freeze escrow hold in status ${anyHold.status}`);
+      }
+      throw new NotFoundException(`Escrow hold ${identifier} not found`);
     }
 
     const beforeStatus = hold.status;
@@ -79,13 +93,22 @@ export class EscrowService {
       entityId: hold.id,
       before: { status: beforeStatus },
       after: { status: hold.status, freezeReason: reason },
-      metadata: { bookingId },
+      metadata: { bookingId: hold.bookingId },
       ipAddress: context?.ipAddress ?? null,
       userAgent: context?.userAgent ?? null,
     });
 
-    this.logger.log(`Escrow hold ${hold.id} for booking ${bookingId} FROZEN: ${reason}`);
+    this.logger.log(`Escrow hold ${hold.id} for booking ${hold.bookingId} FROZEN: ${reason}`);
     return hold;
+  }
+
+  async freezeHoldById(
+    holdId: string,
+    reason: string,
+    actor?: User | null,
+    context?: { ipAddress?: string | null; userAgent?: string | null },
+  ) {
+    return this.freezeHold(holdId, reason, actor, context);
   }
 
   /**

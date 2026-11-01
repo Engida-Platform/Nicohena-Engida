@@ -187,7 +187,7 @@ export class ReconciliationService {
     issueId: string,
     resolutionNote: string,
     actor: User,
-    context?: { ipAddress?: string | null; userAgent?: string | null },
+    context?: { ipAddress?: string | null; userAgent?: string | null; action?: string },
   ) {
     if (!resolutionNote || !resolutionNote.trim()) {
       throw new BadRequestException('A resolution note is required to resolve a reconciliation issue');
@@ -198,7 +198,8 @@ export class ReconciliationService {
       throw new NotFoundException(`Reconciliation issue ${issueId} not found`);
     }
 
-    issue.status = ReconciliationIssueStatus.RESOLVED;
+    const isIgnored = context?.action?.toUpperCase() === 'IGNORE' || resolutionNote.toUpperCase().includes('ACTION: IGNORE');
+    issue.status = isIgnored ? ReconciliationIssueStatus.IGNORED : ReconciliationIssueStatus.RESOLVED;
     issue.resolvedById = actor.id;
     issue.resolvedAt = new Date();
     issue.resolutionNote = resolutionNote;
@@ -206,11 +207,11 @@ export class ReconciliationService {
 
     await this.auditService.record({
       actor,
-      action: 'finance.reconciliation_resolved',
+      action: isIgnored ? 'finance.reconciliation_ignored' : 'finance.reconciliation_resolved',
       entityType: 'reconciliation_issue',
       entityId: issue.id,
       after: { status: issue.status, resolutionNote },
-      metadata: { issueType: issue.issueType, providerRef: issue.providerReference },
+      metadata: { issueType: issue.issueType, providerRef: issue.providerReference, action: context?.action || 'RESOLVE' },
       ipAddress: context?.ipAddress ?? null,
       userAgent: context?.userAgent ?? null,
     });

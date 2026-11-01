@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -12,13 +13,16 @@ import { AmenityCategory } from '../../amenities/entities/amenity.entity';
 
 export class CreateCategoryDto {
   @IsString()
+  @MaxLength(100)
   slug: string;
 
   @IsString()
+  @MaxLength(120)
   name: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   nameAmharic?: string;
 
   @IsOptional()
@@ -43,10 +47,17 @@ export class CreateCategoryDto {
 export class UpdateCategoryDto {
   @IsOptional()
   @IsString()
+  @MaxLength(100)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
   name?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   nameAmharic?: string;
 
   @IsOptional()
@@ -70,16 +81,20 @@ export class UpdateCategoryDto {
 
 export class CreateDestinationDto {
   @IsString()
+  @MaxLength(100)
   slug: string;
 
   @IsString()
+  @MaxLength(120)
   name: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   nameAmharic?: string;
 
   @IsString()
+  @MaxLength(120)
   region: string;
 
   @IsOptional()
@@ -118,14 +133,22 @@ export class CreateDestinationDto {
 export class UpdateDestinationDto {
   @IsOptional()
   @IsString()
+  @MaxLength(100)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
   name?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   nameAmharic?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   region?: string;
 
   @IsOptional()
@@ -163,10 +186,12 @@ export class UpdateDestinationDto {
 
 export class CreateAmenityDto {
   @IsString()
+  @MaxLength(120)
   name: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   nameAmharic?: string;
 
   @IsEnum(AmenityCategory)
@@ -190,10 +215,12 @@ export class CreateAmenityDto {
 export class UpdateAmenityDto {
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   name?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(120)
   nameAmharic?: string;
 
   @IsOptional()
