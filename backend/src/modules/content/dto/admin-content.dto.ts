@@ -4,6 +4,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -14,10 +15,12 @@ export class CreateFaqDto {
   category: FaqCategory;
 
   @IsString()
+  @MaxLength(300)
   question: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   questionAmharic?: string;
 
   @IsString()
@@ -45,10 +48,12 @@ export class UpdateFaqDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   question?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   questionAmharic?: string;
 
   @IsOptional()
@@ -72,9 +77,11 @@ export class UpdateFaqDto {
 
 export class CreateContentBlockDto {
   @IsString()
+  @MaxLength(100)
   slug: string;
 
   @IsString()
+  @MaxLength(200)
   title: string;
 
   @IsString()
@@ -82,6 +89,7 @@ export class CreateContentBlockDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   metaDescription?: string;
 
   @IsOptional()
@@ -92,6 +100,12 @@ export class CreateContentBlockDto {
 export class UpdateContentBlockDto {
   @IsOptional()
   @IsString()
+  @MaxLength(100)
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
   title?: string;
 
   @IsOptional()
@@ -100,6 +114,7 @@ export class UpdateContentBlockDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   metaDescription?: string;
 
   @IsOptional()

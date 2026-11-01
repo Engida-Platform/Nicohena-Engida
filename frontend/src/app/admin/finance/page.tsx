@@ -257,7 +257,7 @@ export default function AdminFinancePage() {
             summary={summary}
             loading={summaryLoading}
             onRefresh={fetchSummary}
-            onNavigateTab={handleSelectTab}
+            onNavigateTab={(tab) => handleSelectTab(tab as FinanceTabKey)}
           />
         </div>
         {visitedTabs.payments && (

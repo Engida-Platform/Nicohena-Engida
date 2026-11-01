@@ -5,7 +5,7 @@ import { Destination } from './entities/destination.entity';
 import { Amenity } from '../amenities/entities/amenity.entity';
 import { Property } from '../properties/entities/property.entity';
 import { AdminCatalogService } from './admin-catalog.service';
-import { AdminCatalogController } from './admin-catalog.controller';
+import { AdminCatalogController, PublicCatalogController } from './admin-catalog.controller';
 
 @Module({
   imports: [
@@ -16,7 +16,7 @@ import { AdminCatalogController } from './admin-catalog.controller';
       Property,
     ]),
   ],
-  controllers: [AdminCatalogController],
+  controllers: [AdminCatalogController, PublicCatalogController],
   providers: [AdminCatalogService],
   exports: [AdminCatalogService],
 })

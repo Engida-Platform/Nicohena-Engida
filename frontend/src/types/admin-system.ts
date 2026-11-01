@@ -131,6 +131,7 @@ export interface ScheduledJobInfo {
   lastStatus: 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'NEVER_RUN';
   lastDurationMs: number | null;
   details: Record<string, any> | null;
+  canTrigger?: boolean;
 }
 
 export interface GatewayStatus {

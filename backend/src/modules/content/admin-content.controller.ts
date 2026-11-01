@@ -113,3 +113,18 @@ export class AdminContentController {
     return this.contentService.deleteContentBlock(id);
   }
 }
+
+@Controller('content')
+export class PublicContentController {
+  constructor(private readonly contentService: AdminContentService) {}
+
+  @Get('faqs')
+  async getPublicFaqs(@Query('category') category?: FaqCategory) {
+    return this.contentService.listFaqs(category, true);
+  }
+
+  @Get('blocks/:slug')
+  async getPublicBlockBySlug(@Param('slug') slug: string) {
+    return this.contentService.getContentBlockBySlug(slug, true);
+  }
+}

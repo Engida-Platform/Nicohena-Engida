@@ -10,9 +10,11 @@ export class AmenitiesService {
     private readonly amenityRepository: Repository<Amenity>,
   ) {}
 
-  async findAll(): Promise<Amenity[]> {
+  async findAll(onlyActive: boolean = true): Promise<Amenity[]> {
+    const where = onlyActive ? { isActive: true } : {};
     return this.amenityRepository.find({
-      order: { name: 'ASC' },
+      where,
+      order: { displayOrder: 'ASC', name: 'ASC' },
     });
   }
 

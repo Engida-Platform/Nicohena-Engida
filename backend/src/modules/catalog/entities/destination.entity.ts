@@ -33,10 +33,30 @@ export class Destination {
   @Column({ type: 'varchar', length: 500, nullable: true, name: 'image_url' })
   imageUrl: string | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 6, nullable: true })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 6,
+    nullable: true,
+    transformer: {
+      to: (value: number | null): number | null => value,
+      from: (value: string | number | null): number | null =>
+        value !== null && value !== undefined ? Number(value) : null,
+    },
+  })
   latitude: number | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 6, nullable: true })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 6,
+    nullable: true,
+    transformer: {
+      to: (value: number | null): number | null => value,
+      from: (value: string | number | null): number | null =>
+        value !== null && value !== undefined ? Number(value) : null,
+    },
+  })
   longitude: number | null;
 
   @Column({ type: 'boolean', default: false, name: 'is_featured' })

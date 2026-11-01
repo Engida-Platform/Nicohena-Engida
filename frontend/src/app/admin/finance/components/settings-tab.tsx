@@ -16,8 +16,8 @@ import { apiFetch } from '../../../../lib/api';
 import { formatMinor } from '../../../../lib/finance-format';
 import type { FinanceSettingItem } from '../../../../types/admin-finance';
 import AdminDialog from '../../../../components/admin/AdminDialog';
-import { useAuth } from '../../../../context/auth-context';
-import { can, ADMIN_PERMISSIONS } from '../../../../lib/permissions';
+import { useAuth } from '@/context/AuthContext';
+import { can, ADMIN_PERMISSIONS } from '@/types/admin';
 
 function formatBps(value: string | undefined): string {
   const numeric = Number(value);

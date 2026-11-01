@@ -17,8 +17,8 @@ import type { ReconciliationIssueItem } from '../../../../types/admin-finance';
 import { formatMinor, formatDateTime } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
 import AdminDialog from '../../../../components/admin/AdminDialog';
-import { useAuth } from '../../../../context/auth-context';
-import { can, ADMIN_PERMISSIONS } from '../../../../lib/permissions';
+import { useAuth } from '@/context/AuthContext';
+import { can, ADMIN_PERMISSIONS } from '@/types/admin';
 
 export default function ReconciliationTab() {
   const { user } = useAuth();
@@ -319,7 +319,7 @@ export default function ReconciliationTab() {
                   </button>
                   <button
                     disabled={page >= totalPages}
-                    onClick={() => setPage((p) => p + 1))}
+                    onClick={() => setPage((p) => p + 1)}
                     className="p-1.5 border border-[#d8d0c8] rounded-lg disabled:opacity-40 hover:bg-[#faf5ee] cursor-pointer disabled:cursor-not-allowed"
                   >
                     <ChevronRight className="w-4 h-4" />

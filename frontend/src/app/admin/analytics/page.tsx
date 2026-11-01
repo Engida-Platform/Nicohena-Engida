@@ -30,7 +30,7 @@ import {
   StatusFunnelItem,
   TimeSeriesPoint,
 } from '../../../types/admin-system';
-import { useAuth } from '../../../context/auth-context';
+import { useAuth } from '../../../context/AuthContext';
 import { can, ADMIN_PERMISSIONS } from '../../../types/admin';
 
 const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {

@@ -127,3 +127,19 @@ export class AdminCatalogController {
     return this.catalogService.deleteAmenity(id);
   }
 }
+
+@Controller('catalog')
+export class PublicCatalogController {
+  constructor(private readonly catalogService: AdminCatalogService) {}
+
+  @Get('destinations')
+  async getPublicDestinations(@Query('featured') featured?: string) {
+    const onlyFeatured = featured === 'true' ? true : undefined;
+    return this.catalogService.listDestinations(onlyFeatured, true);
+  }
+
+  @Get('categories')
+  async getPublicCategories() {
+    return this.catalogService.listCategories(true);
+  }
+}

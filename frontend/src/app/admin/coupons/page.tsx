@@ -16,7 +16,7 @@ import { apiFetch } from '../../../lib/api';
 import { useDefaultCurrency } from '../../../hooks/useDefaultCurrency';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { CouponDiscountType, CouponItem } from '../../../types/admin-growth';
-import { useAuth } from '../../../context/auth-context';
+import { useAuth } from '../../../context/AuthContext';
 import { can, ADMIN_PERMISSIONS } from '../../../types/admin';
 
 export default function AdminCouponsPage() {
