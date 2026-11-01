@@ -57,3 +57,4 @@ export class DecideCaseCompensationDto {
   @MaxLength(1000)
   note?: string;
 }
+
