@@ -18,6 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:smoke": "node scripts/platform-e2e-smoke-test.js",
     "typeorm": "typeorm-ts-node-commonjs",
     "seed:properties": "node src/database/seeds/seed-ethiopian-listings.js",
     "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
