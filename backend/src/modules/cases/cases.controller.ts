@@ -92,3 +92,4 @@ export class CasesController {
     return this.casesService.decideCompensation(id, dto, user);
   }
 }
+
