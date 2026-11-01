@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
 import type { Property } from '@/types';
@@ -350,6 +349,7 @@ export default function PropertyDetailsPage() {
   const [checkOut, setCheckOut] = useState('2026-11-20');
   const [guests, setGuests] = useState(2);
   const [isBookingSuccess, setIsBookingSuccess] = useState(false);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
   useEffect(() => {
     // 1. First check if it matches our rich curated catalogue
@@ -433,6 +433,45 @@ export default function PropertyDetailsPage() {
           ],
         };
         setProperty(adapted);
+
+        // Fetch availability blocks for UUID properties (best-effort, non-fatal)
+        apiFetch<{ blockedDates?: string[]; blocks?: { startDate: string; endDate: string }[] } | { startDate: string; endDate: string }[]>(
+          `/properties/${data.id}/availability-blocks`,
+          { skipAuth: true }
+        )
+          .then((blocksData) => {
+            const flat: string[] = [];
+            if (Array.isArray(blocksData)) {
+              (blocksData as { startDate: string; endDate: string }[]).forEach((block) => {
+                const start = new Date(block.startDate);
+                const end = new Date(block.endDate);
+                const d = new Date(start);
+                while (d <= end) {
+                  flat.push(d.toISOString().split('T')[0]);
+                  d.setDate(d.getDate() + 1);
+                }
+              });
+            } else {
+              const typed = blocksData as { blockedDates?: string[]; blocks?: { startDate: string; endDate: string }[] };
+              if (typed.blockedDates) {
+                flat.push(...typed.blockedDates);
+              } else if (typed.blocks) {
+                typed.blocks.forEach((block) => {
+                  const start = new Date(block.startDate);
+                  const end = new Date(block.endDate);
+                  const d = new Date(start);
+                  while (d <= end) {
+                    flat.push(d.toISOString().split('T')[0]);
+                    d.setDate(d.getDate() + 1);
+                  }
+                });
+              }
+            }
+            setBlockedDates(flat);
+          })
+          .catch(() => {
+            // Non-fatal
+          });
       })
       .catch(() => {
         // Fallback gracefully to default premier property
@@ -498,7 +537,7 @@ export default function PropertyDetailsPage() {
     setIsBookingLoading(true);
     try {
       if (isUuid(property.id)) {
-        await apiFetch('/bookings', {
+        const newBooking = await apiFetch<{ id: string; reference?: string }>('/bookings', {
           method: 'POST',
           body: JSON.stringify({
             propertyId: property.id,
@@ -507,6 +546,8 @@ export default function PropertyDetailsPage() {
             guestCount: guests,
           }),
         });
+        router.push(`/checkout/${newBooking.id}`);
+        return;
       }
       setIsBookingSuccess(true);
       setTimeout(() => {
@@ -548,13 +589,13 @@ export default function PropertyDetailsPage() {
         {/* Breadcrumb Navigation & Action Bar */}
         <div className="flex items-center justify-between gap-4 mb-6">
           <Link
-            href="/"
+            href="/properties"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#605850] hover:text-[#c2652a] transition-colors group active:scale-95"
           >
             <span className="material-symbols-outlined text-base transition-transform group-hover:-translate-x-1">
               arrow_back
             </span>
-            <span>Back to stays</span>
+            <span>Back to Properties</span>
           </Link>
 
           <div className="flex items-center gap-2">
@@ -953,6 +994,13 @@ export default function PropertyDetailsPage() {
                   </div>
                 </div>
 
+                {blockedDates.length > 0 && (
+                  <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">event_busy</span>
+                    {blockedDates.length} date{blockedDates.length !== 1 ? "s" : ""} unavailable
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between pt-1">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-[#605850]">
@@ -1055,7 +1103,7 @@ export default function PropertyDetailsPage() {
               <div className="mt-6 p-4 rounded-2xl bg-[#f2ece4]/60 border border-[#d8d0c8]/50 flex items-center gap-3">
                 <span className="material-symbols-outlined text-[#a84d16] text-xl">verified_user</span>
                 <div className="text-xs text-[#605850] leading-snug">
-                  <span className="font-bold text-[#3a302a]">AirCover Guarantee:</span> Every booking includes free protection from Host cancellations and listing inaccuracies.
+                  <span className="font-bold text-[#3a302a]">ENGIDA Guarantee:</span> Every booking on ENGIDA is protected. Verified hosts, secure payments, and your trust is our priority.
                 </div>
               </div>
             </div>
