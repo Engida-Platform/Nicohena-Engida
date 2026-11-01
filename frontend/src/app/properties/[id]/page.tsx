@@ -39,6 +39,7 @@ interface DetailedProperty {
   rating: number;
   reviewsCount: number;
   pricePerNight: number;
+  cleaningFee?: number | string;
   currency: string;
   badge?: string;
   isSuperhost?: boolean;
@@ -525,14 +526,52 @@ export default function PropertyDetailsPage() {
     return diffDays > 0 ? diffDays : 0;
   }, [checkIn, checkOut]);
 
-  const nightlyPrice = property?.pricePerNight || 350;
-  const subtotal = nightlyPrice * nightsCount;
-  const cleaningFee = useMemo(() => {
-    if (nightsCount < 1) return 0;
-    return property?.currency?.toUpperCase() === 'ETB' ? 750 : 65;
-  }, [nightsCount, property?.currency]);
-  const serviceFee = nightsCount > 0 ? Math.round(subtotal * 0.12) : 0;
-  const totalPrice = subtotal + cleaningFee + serviceFee;
+  const [quote, setQuote] = useState<{
+    nights: number;
+    pricePerNight: number;
+    basePrice: number;
+    cleaningFee: number;
+    subtotal: number;
+    serviceFee: number;
+    discount: number;
+    totalPrice: number;
+    currency: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (property?.id && isUuid(property.id) && checkIn && checkOut && nightsCount > 0) {
+      apiFetch<{
+        nights: number;
+        pricePerNight: number;
+        basePrice: number;
+        cleaningFee: number;
+        subtotal: number;
+        serviceFee: number;
+        discount: number;
+        totalPrice: number;
+        currency: string;
+      }>('/bookings/quote', {
+        method: 'POST',
+        skipAuth: true,
+        body: JSON.stringify({
+          propertyId: property.id,
+          checkInDate: checkIn,
+          checkOutDate: checkOut,
+          guestCount: guests,
+        }),
+      })
+        .then((res) => setQuote(res))
+        .catch(() => setQuote(null));
+    } else {
+      setQuote(null);
+    }
+  }, [property?.id, checkIn, checkOut, guests, nightsCount]);
+
+  const nightlyPrice = quote?.pricePerNight ?? (property?.pricePerNight || 350);
+  const subtotal = quote?.basePrice ?? (nightlyPrice * nightsCount);
+  const cleaningFee = quote ? quote.cleaningFee : (nightsCount > 0 ? (Number(property?.cleaningFee) || 0) : 0);
+  const discount = quote?.discount ?? 0;
+  const totalPrice = quote?.totalPrice ?? (subtotal + cleaningFee);
 
   // Booking & messaging states
   const [isBookingLoading, setIsBookingLoading] = useState(false);
@@ -1096,7 +1135,7 @@ export default function PropertyDetailsPage() {
 
               {isBookingSuccess && (
                 <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center animate-fade-in-up">
-                  Reservation request sent! Host will confirm within 2 hours.
+                  Reservation request sent! Host typically responds within 2 hours.
                 </div>
               )}
 
@@ -1107,7 +1146,7 @@ export default function PropertyDetailsPage() {
               )}
 
               <p className="text-center text-xs text-[#605850] mt-3">
-                You won&apos;t be charged yet
+                You will be redirected to secure checkout
               </p>
 
               {/* Transparent Price Breakdown */}
@@ -1116,17 +1155,21 @@ export default function PropertyDetailsPage() {
                   <span className="underline">{property.currency}{nightlyPrice} × {nightsCount} nights</span>
                   <span className="text-[#3a302a] font-medium">{property.currency}{subtotal}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="underline">Cleaning fee</span>
-                  <span className="text-[#3a302a] font-medium">{property.currency}{cleaningFee}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="underline">Engida service fee</span>
-                  <span className="text-[#3a302a] font-medium">{property.currency}{serviceFee}</span>
-                </div>
+                {cleaningFee > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="underline">Cleaning fee</span>
+                    <span className="text-[#3a302a] font-medium">{property.currency}{cleaningFee}</span>
+                  </div>
+                )}
+                {discount > 0 && (
+                  <div className="flex justify-between items-center text-emerald-700">
+                    <span className="underline">Promotional discount</span>
+                    <span className="font-medium">-{property.currency}{discount}</span>
+                  </div>
+                )}
 
                 <div className="mt-3 pt-3 border-t border-[#d8d0c8]/60 flex justify-between items-center text-sm font-bold text-[#3a302a]">
-                  <span>Total before taxes</span>
+                  <span>Total</span>
                   <span>{property.currency}{totalPrice}</span>
                 </div>
               </div>

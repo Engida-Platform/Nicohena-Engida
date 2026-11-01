@@ -347,7 +347,7 @@ describe('HostService', () => {
         displayName: dto.displayName,
         bio: dto.bio,
         phone: dto.phone,
-        verificationStatus: HostVerificationStatus.VERIFIED,
+        verificationStatus: HostVerificationStatus.UNVERIFIED,
       });
       expect(mockHostProfileRepo.save).toHaveBeenCalled();
       expect(result).toBeDefined();

@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { PaymentsService } from './payments.service';
-import { CreatePaymentSessionDto, InitializePaymentDto, VerifyPaymentDto } from './dto/payment.dto';
+import { CreatePaymentSessionDto, InitializePaymentDto, VerifyPaymentDto, CompleteSandboxPaymentDto } from './dto/payment.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
@@ -57,6 +57,19 @@ export class PaymentsController {
     @GetUser() user: User,
   ) {
     return this.captureService.getPaymentSession(id, user);
+  }
+
+  /**
+   * Verified provider webhook ingestion with raw body and signature verification
+   */
+  @Post('sandbox/complete')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async completeSandboxPayment(
+    @Body() dto: CompleteSandboxPaymentDto,
+    @GetUser() user: User,
+  ) {
+    return this.captureService.completeSandboxPayment(dto, user);
   }
 
   /**

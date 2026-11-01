@@ -12,6 +12,12 @@ import { Repository, Not, In, EntityManager } from 'typeorm';
 import { Booking, BookingStatus, PaymentMethod, PaymentStatus } from './entities/booking.entity';
 import { BookingStatusHistory, BookingActorType } from './entities/booking-status-history.entity';
 import { CancellationPolicyTier } from './entities/cancellation-policy';
+import {
+  CancellationRequest,
+  CancellationRequestStatus,
+  CancellationRequestSource,
+} from './entities/cancellation-request.entity';
+import { previewCancellationPolicy } from './cancellation-policy.service';
 import { Property, ListingType, ListingStatus } from '../properties/entities/property.entity';
 import { Room } from '../properties/entities/room.entity';
 import { AvailabilityBlock } from '../properties/entities/availability-block.entity';
@@ -21,6 +27,9 @@ import { UpdateBookingStatusDto } from './dto/update-booking-status.dto';
 import { UserRole, User } from '../../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { PricingService, PriceQuote } from './pricing.service';
+import { Coupon } from '../coupons/entities/coupon.entity';
+import { CouponRedemption } from '../coupons/entities/coupon-redemption.entity';
 
 @Injectable()
 export class BookingsService {
@@ -42,6 +51,11 @@ export class BookingsService {
     @Optional()
     @InjectRepository(BookingStatusHistory)
     private readonly statusHistoryRepository?: Repository<BookingStatusHistory>,
+    @Optional()
+    private readonly pricingService?: PricingService,
+    @Optional()
+    @InjectRepository(CancellationRequest)
+    private readonly cancellationRequestRepository?: Repository<CancellationRequest>,
   ) {}
 
   async create(createBookingDto: CreateBookingDto, guestId: string): Promise<Booking> {
@@ -155,23 +169,68 @@ export class BookingsService {
         throw new BadRequestException('The selected dates are blocked by the host and not available for booking');
       }
 
-      const totalPrice = nights * pricePerNight;
-      const method = createBookingDto.paymentMethod || PaymentMethod.CASH_ON_ARRIVAL;
-      const isOnlinePaid =
-        [
-          PaymentMethod.CHAPA,
-          PaymentMethod.TELEBIRR,
-          PaymentMethod.CBE_BIRR,
-          PaymentMethod.INTERNATIONAL_CARD,
-          PaymentMethod.PAYPAL,
-          PaymentMethod.WISE,
-        ].includes(method) && Boolean(createBookingDto.paymentReference);
+      let quote: PriceQuote;
+      if (this.pricingService) {
+        quote = await this.pricingService.quote({
+          propertyId,
+          roomId: roomId || undefined,
+          checkInDate,
+          checkOutDate,
+          guestCount,
+          couponCode: createBookingDto.couponCode,
+          userId: guestId,
+        });
+      } else {
+        const basePrice = nights * pricePerNight;
+        const cleaningFee = Number(property.cleaningFee) || 0;
+        const total = basePrice + cleaningFee;
+        quote = {
+          nights,
+          pricePerNight,
+          basePrice,
+          cleaningFee,
+          subtotal: total,
+          serviceFee: 0,
+          discount: 0,
+          totalPrice: total,
+          currency: 'ETB',
+          breakdown: {
+            nights,
+            nightlyRate: pricePerNight,
+            basePrice,
+            cleaningFee,
+            serviceFee: 0,
+            discount: 0,
+            total,
+            currency: 'ETB',
+            quoteVersion: 'v2',
+          },
+        };
+      }
 
-      const paymentStatus = isOnlinePaid
-        ? PaymentStatus.PAID
-        : method === PaymentMethod.CASH_ON_ARRIVAL
-        ? PaymentStatus.ON_ARRIVAL
-        : PaymentStatus.PENDING;
+      const totalPrice = quote.totalPrice;
+      const discountAmount = quote.discount || 0;
+      const couponCode = quote.coupon?.code || null;
+      const priceBreakdown = quote.breakdown;
+
+      if (quote.coupon) {
+        const couponRepo = manager.getRepository(Coupon);
+        const redemptionRepo = manager.getRepository(CouponRedemption);
+        await redemptionRepo.save(
+          redemptionRepo.create({
+            couponId: quote.coupon.id,
+            userId: guestId,
+            discountAmountMinor: Math.round(quote.coupon.discountAmount * 100),
+          }),
+        );
+        await couponRepo.increment({ id: quote.coupon.id }, 'redemptionsCount', 1);
+      }
+
+      const method = createBookingDto.paymentMethod || PaymentMethod.CASH_ON_ARRIVAL;
+      const paymentStatus =
+        method === PaymentMethod.CASH_ON_ARRIVAL
+          ? PaymentStatus.ON_ARRIVAL
+          : PaymentStatus.PENDING;
 
       const reference = await this.nextBookingReference(manager);
 
@@ -184,13 +243,17 @@ export class BookingsService {
         checkOutDate,
         guestCount,
         totalPrice,
+        discountAmount,
+        couponCode,
+        priceBreakdown,
+        quoteVersion: 'v2',
         status: BookingStatus.PENDING,
         cancellationPolicy: CancellationPolicyTier.MODERATE,
         paymentMethod: method,
         paymentStatus,
-        paymentReference: createBookingDto.paymentReference || null,
-        paymentCurrency: createBookingDto.paymentCurrency || 'ETB',
-        paidAt: isOnlinePaid ? new Date() : null,
+        paymentReference: null,
+        paymentCurrency: createBookingDto.paymentCurrency || quote.currency || 'ETB',
+        paidAt: null,
       });
       const saved = await bookingRepository.save(booking);
       return {
@@ -495,6 +558,118 @@ export class BookingsService {
 
     this.logger.log(`Booking ${id} status updated to ${updateDto.status} by user ${userId}`);
     return this.findOne(id, userId, userRole);
+  }
+
+  /**
+   * BOOK-03: Guest cancellation request with policy evaluation and automated refunds.
+   */
+  async requestCancellation(bookingId: string, guestId: string, reason: string) {
+    const booking = await this.bookingRepository.findOne({
+      where: { id: bookingId },
+      relations: ['property'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException(`Booking ${bookingId} not found`);
+    }
+
+    if (booking.guestId !== guestId) {
+      throw new ForbiddenException('You can only cancel your own bookings');
+    }
+
+    if (booking.status === BookingStatus.CANCELLED || booking.status === BookingStatus.COMPLETED) {
+      throw new BadRequestException(`Booking is already ${booking.status.toLowerCase()}`);
+    }
+
+    // If unpaid or cash on arrival, cancel immediately with no refund required
+    if (booking.paymentStatus !== PaymentStatus.PAID) {
+      booking.status = BookingStatus.CANCELLED;
+      booking.cancelledById = guestId;
+      booking.cancelledByType = BookingActorType.GUEST;
+      booking.cancelledAt = new Date();
+      booking.cancellationReason = reason || 'Guest cancelled unpaid reservation';
+      await this.bookingRepository.save(booking);
+
+      await this.statusHistoryRepository?.save(
+        this.statusHistoryRepository.create({
+          bookingId: booking.id,
+          fromStatus: BookingStatus.PENDING,
+          toStatus: BookingStatus.CANCELLED,
+          source: BookingActorType.GUEST,
+          actorId: guestId,
+          reason: booking.cancellationReason,
+        }),
+      );
+
+      return {
+        message: 'Reservation cancelled successfully',
+        status: BookingStatus.CANCELLED,
+        refundRequired: false,
+      };
+    }
+
+    // For paid booking: check if there is already an open cancellation request
+    if (this.cancellationRequestRepository) {
+      const existing = await this.cancellationRequestRepository.findOne({
+        where: {
+          bookingId: booking.id,
+          status: CancellationRequestStatus.REQUESTED,
+        },
+      });
+
+      if (existing) {
+        throw new ConflictException('A cancellation request is already open for this booking');
+      }
+
+      const preview = previewCancellationPolicy({
+        policyTier: booking.cancellationPolicy,
+        checkInDate: booking.checkInDate,
+        totalPrice: booking.totalPrice,
+        currency: booking.paymentCurrency || 'ETB',
+      });
+
+      const request = this.cancellationRequestRepository.create({
+        bookingId: booking.id,
+        source: CancellationRequestSource.GUEST,
+        requestedById: guestId,
+        policyTier: preview.policyTier,
+        estimatedRefundAmount: preview.refundAmount.toString(),
+        policyPreview: preview as unknown as Record<string, unknown>,
+        currency: preview.currency,
+        reason: reason || 'Guest cancellation request',
+        status: CancellationRequestStatus.REQUESTED,
+      });
+
+      const saved = await this.cancellationRequestRepository.save(request);
+
+      // Notify host
+      if (this.notificationsService && booking.property?.hostId) {
+        await this.notificationsService.createNotification({
+          userId: booking.property.hostId,
+          type: NotificationType.BOOKING_CANCELLED,
+          title: 'Guest Requested Cancellation',
+          message: `Guest requested cancellation for booking ${booking.reference || booking.id}. Policy refund: ${preview.refundPercent}%.`,
+          link: '/host/reservations',
+          metadata: {
+            bookingId: booking.id,
+            cancellationRequestId: saved.id,
+            refundAmount: preview.refundAmount,
+          },
+        });
+      }
+
+      return {
+        message: 'Cancellation request submitted for review',
+        cancellationRequestId: saved.id,
+        policyPreview: preview,
+        status: 'CANCELLATION_REQUESTED',
+      };
+    }
+
+    return {
+      message: 'Cancellation request recorded',
+      status: 'CANCELLATION_REQUESTED',
+    };
   }
 
   /**

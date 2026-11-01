@@ -664,7 +664,7 @@ describe('Step 5L: Integrated Host-Side Acceptance Testing', () => {
       expect(paymentSession.status).toBe('success');
       expect(paymentSession.transactionReference).toBeDefined();
 
-      // 3. Guest creates reservation with transaction reference
+      // 3. Guest creates reservation with online payment method (creates PENDING payment)
       const booking = await bookingsService.create(
         {
           propertyId: storedProperty.id,
@@ -672,13 +672,18 @@ describe('Step 5L: Integrated Host-Side Acceptance Testing', () => {
           checkOutDate: '2027-04-14',
           guestCount: 2,
           paymentMethod: PaymentMethod.CHAPA,
-          paymentReference: paymentSession.transactionReference,
         },
         GUEST_ID,
       );
       expect(booking.totalPrice).toBe(8000); // 4 nights * 2000
       expect(booking.status).toBe(BookingStatus.PENDING);
-      expect(booking.paymentStatus).toBe(PaymentStatus.PAID);
+      expect(booking.paymentStatus).toBe(PaymentStatus.PENDING);
+
+      // SEC-01: Payment capture transitions payment status to PAID via capture service
+      const stored = storedBookings.find((b) => b.id === booking.id)!;
+      stored.paymentStatus = PaymentStatus.PAID;
+      stored.paidAt = new Date();
+      booking.paymentStatus = PaymentStatus.PAID;
 
       // 4. Host confirms reservation
       const confirmed = await hostService.confirmReservation(booking.id, HOST_ID);

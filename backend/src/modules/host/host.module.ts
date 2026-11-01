@@ -7,6 +7,7 @@ import { Room } from '../properties/entities/room.entity';
 import { AvailabilityBlock } from '../properties/entities/availability-block.entity';
 import { Amenity } from '../amenities/entities/amenity.entity';
 import { Booking } from '../bookings/entities/booking.entity';
+import { BookingStatusHistory } from '../bookings/entities/booking-status-history.entity';
 import { HostProfile } from '../../users/entities/host-profile.entity';
 import { User } from '../../users/entities/user.entity';
 import { ListingReview } from '../properties/entities/listing-review.entity';
@@ -36,6 +37,7 @@ import { EscrowHold } from '../finance/entities/escrow-hold.entity';
       AvailabilityBlock,
       Amenity,
       Booking,
+      BookingStatusHistory,
       HostProfile,
       User,
       ListingReview,

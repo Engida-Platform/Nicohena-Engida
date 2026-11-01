@@ -122,6 +122,22 @@ export class Property {
   @Column({ type: 'decimal', precision: 10, scale: 2, name: 'price_per_night', default: 0 })
   pricePerNight: number;
 
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 2,
+    name: 'cleaning_fee',
+    default: 0,
+    transformer: {
+      to: (v: number) => v,
+      from: (v: string | number) => Number(v) || 0,
+    },
+  })
+  cleaningFee: number;
+
+  @Column({ type: 'boolean', default: false, name: 'instant_book' })
+  instantBook: boolean;
+
   @Column({ type: 'decimal', precision: 14, scale: 2, nullable: true, name: 'sale_price' })
   salePrice: number | null;
 

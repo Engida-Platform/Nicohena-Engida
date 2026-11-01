@@ -69,3 +69,17 @@ export class VerifyPaymentDto {
   @IsOptional()
   bookingId?: string;
 }
+
+export class CompleteSandboxPaymentDto {
+  @IsUUID()
+  @IsNotEmpty()
+  bookingId: string;
+
+  @IsString()
+  @IsOptional()
+  providerPaymentId?: string;
+
+  @IsString()
+  @IsOptional()
+  txRef?: string;
+}

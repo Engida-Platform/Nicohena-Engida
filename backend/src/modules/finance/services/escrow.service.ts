@@ -9,10 +9,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { EscrowHold, EscrowHoldStatus } from '../entities/escrow-hold.entity';
 import { CommissionSnapshot } from '../entities/commission-snapshot.entity';
-import { TaxLine } from '../entities/tax-line.entity';
+import { TaxLine, TaxType } from '../entities/tax-line.entity';
 import { Booking, BookingStatus } from '../../bookings/entities/booking.entity';
 import { Case, CaseStatus } from '../../admin/cases/entities/case.entity';
-import { LedgerService } from './ledger.service';
+import { LedgerService, LedgerEntryInput } from './ledger.service';
+import { LedgerAccountType } from '../entities/ledger-account.entity';
 import { FinanceSettingsService } from './finance-settings.service';
 import { AuditService } from '../../audit/audit.service';
 import { User } from '../../../users/entities/user.entity';
@@ -236,6 +237,103 @@ export class EscrowService {
       const commissionMinor = BigInt(comm.commissionMinor);
       const hostNetMinor = BigInt(comm.hostNetMinor);
 
+      let effectiveCommission = commissionMinor;
+      let effectiveHostNet = hostNetMinor;
+
+      if (unrefundedMinor < totalMinor && totalMinor > 0n) {
+        effectiveCommission = (commissionMinor * unrefundedMinor) / totalMinor;
+        effectiveHostNet = unrefundedMinor - effectiveCommission;
+      }
+
+      // Read tax lines for VAT and Withholding
+      const taxLines = await em.getRepository(TaxLine).find({ where: { bookingId: hold.bookingId } });
+      const vatLine = taxLines.find((t) => t.type === TaxType.VAT);
+      const withholdingLine = taxLines.find((t) => t.type === TaxType.WITHHOLDING);
+
+      let vatMinor = 0n;
+      if (vatLine) {
+        vatMinor = BigInt(vatLine.amountMinor);
+        if (unrefundedMinor < totalMinor && totalMinor > 0n) {
+          vatMinor = (vatMinor * unrefundedMinor) / totalMinor;
+        }
+      }
+
+      let withholdingMinor = 0n;
+      if (withholdingLine) {
+        withholdingMinor = BigInt(withholdingLine.amountMinor);
+        if (unrefundedMinor < totalMinor && totalMinor > 0n) {
+          withholdingMinor = (withholdingMinor * unrefundedMinor) / totalMinor;
+        }
+      }
+
+      // Net commission to platform revenue (excluding VAT)
+      const netCommissionMinor = effectiveCommission >= vatMinor ? effectiveCommission - vatMinor : effectiveCommission;
+      // Host payable net of withholding
+      const finalHostPayableMinor = effectiveHostNet >= withholdingMinor ? effectiveHostNet - withholdingMinor : effectiveHostNet;
+
+      const entries: LedgerEntryInput[] = [
+        {
+          accountCode: '2010',
+          accountName: 'ESCROW_LIABILITY',
+          accountType: LedgerAccountType.LIABILITY,
+          debitMinor: unrefundedMinor,
+          creditMinor: 0n,
+          currency: hold.currency,
+          memo: `Release from escrow hold`,
+        },
+        {
+          accountCode: `2020-HOST-${hostId.slice(0, 8)}`,
+          accountName: `Host Payable (${hostId.slice(0, 8)})`,
+          accountType: LedgerAccountType.LIABILITY,
+          ownerId: hostId,
+          ownerType: 'HOST',
+          debitMinor: 0n,
+          creditMinor: finalHostPayableMinor,
+          currency: hold.currency,
+          memo: `Stay payout allocation to host`,
+        },
+        {
+          accountCode: '4010',
+          accountName: 'PLATFORM_COMMISSION_REVENUE',
+          accountType: LedgerAccountType.REVENUE,
+          debitMinor: 0n,
+          creditMinor: netCommissionMinor,
+          currency: hold.currency,
+          memo: `Platform commission on stay (net of VAT)`,
+        },
+      ];
+
+      if (vatMinor > 0n) {
+        entries.push({
+          accountCode: '2100',
+          accountName: 'VAT_PAYABLE',
+          accountType: LedgerAccountType.LIABILITY,
+          debitMinor: 0n,
+          creditMinor: vatMinor,
+          currency: hold.currency,
+          memo: `VAT payable on platform commission`,
+        });
+      }
+
+      if (withholdingMinor > 0n) {
+        entries.push({
+          accountCode: '2110',
+          accountName: 'WITHHOLDING_PAYABLE',
+          accountType: LedgerAccountType.LIABILITY,
+          debitMinor: 0n,
+          creditMinor: withholdingMinor,
+          currency: hold.currency,
+          memo: `Withholding tax payable from host earnings`,
+        });
+      }
+
+      // Reconcile any rounding difference to ensure debit == sum(credits)
+      const totalCredit = finalHostPayableMinor + netCommissionMinor + vatMinor + withholdingMinor;
+      if (totalCredit !== unrefundedMinor) {
+        const diff = unrefundedMinor - totalCredit;
+        entries[1].creditMinor += diff;
+      }
+
       // Post ESCROW_RELEASE transaction
       await this.ledgerService.recordTransaction(
         {
@@ -245,38 +343,19 @@ export class EscrowService {
           bookingId: hold.bookingId,
           description: `Escrow release for stay ${hold.booking?.reference || hold.bookingId}`,
           createdById: actor?.id ?? null,
-          entries: [
-            {
-              accountCode: '2010',
-              accountName: 'ESCROW_LIABILITY',
-              debitMinor: unrefundedMinor,
-              creditMinor: 0n,
-              currency: hold.currency,
-              memo: `Release from escrow hold`,
-            },
-            {
-              accountCode: `2020-HOST-${hostId.slice(0, 8)}`,
-              accountName: `Host Payable (${hostId.slice(0, 8)})`,
-              accountType: undefined,
-              ownerId: hostId,
-              ownerType: 'HOST',
-              debitMinor: 0n,
-              creditMinor: hostNetMinor,
-              currency: hold.currency,
-              memo: `Stay payout allocation to host`,
-            },
-            {
-              accountCode: '4010',
-              accountName: 'PLATFORM_COMMISSION_REVENUE',
-              debitMinor: 0n,
-              creditMinor: commissionMinor,
-              currency: hold.currency,
-              memo: `Platform commission on stay`,
-            },
-          ],
+          entries,
         },
         em,
       );
+
+      // Auto-complete booking if stay checkout date has elapsed and booking is still CONFIRMED
+      if (hold.booking && hold.booking.status === BookingStatus.CONFIRMED && hold.booking.checkOutDate) {
+        const checkOut = new Date(`${hold.booking.checkOutDate}T12:00:00.000Z`);
+        if (new Date() >= checkOut) {
+          hold.booking.status = BookingStatus.COMPLETED;
+          await bookRepo.save(hold.booking);
+        }
+      }
 
       hold.status = EscrowHoldStatus.RELEASED;
       hold.releasedAt = new Date();
@@ -291,15 +370,17 @@ export class EscrowService {
           after: {
             status: hold.status,
             releasedAmountMinor: unrefundedMinor.toString(),
-            hostNetMinor: hostNetMinor.toString(),
-            commissionMinor: commissionMinor.toString(),
+            hostNetMinor: entries[1].creditMinor.toString(),
+            commissionMinor: netCommissionMinor.toString(),
+            vatMinor: vatMinor.toString(),
+            withholdingMinor: withholdingMinor.toString(),
           },
           metadata: { reason, bookingId: hold.bookingId, hostId },
         },
         em,
       );
 
-      this.logger.log(`Released escrow hold ${hold.id} for booking ${hold.bookingId}: net host ${hostNetMinor}`);
+      this.logger.log(`Released escrow hold ${hold.id} for booking ${hold.bookingId}: net host ${entries[1].creditMinor}, VAT ${vatMinor}, withholding ${withholdingMinor}`);
       return hold;
     };
 
@@ -310,7 +391,7 @@ export class EscrowService {
   }
 
   /**
-   * Scans and releases all eligible holds whose delay window has elapsed and booking is COMPLETED.
+   * Scans and releases all eligible holds whose delay window has elapsed and booking is eligible.
    */
   async processEligibleReleases(): Promise<{ processedCount: number; errors: string[] }> {
     const settings = await this.settingsService.getAllSettings();
@@ -320,13 +401,33 @@ export class EscrowService {
     }
 
     const now = new Date();
-    const eligibleHolds = await this.escrowRepo
+    const eligibleQuery = this.escrowRepo
       .createQueryBuilder('hold')
       .innerJoinAndSelect('hold.booking', 'booking')
       .where('hold.status = :status', { status: EscrowHoldStatus.HELD })
-      .andWhere('hold.release_eligible_at <= :now', { now })
-      .andWhere('booking.status = :bookingStatus', { bookingStatus: BookingStatus.COMPLETED })
-      .getMany();
+      .andWhere('hold.release_eligible_at <= :now', { now });
+
+    if (settings.escrowReleaseTrigger === 'COMPLETED_PLUS_24H') {
+      eligibleQuery.andWhere('booking.status = :bookingStatus', { bookingStatus: BookingStatus.COMPLETED });
+    } else {
+      eligibleQuery.andWhere('booking.status IN (:...validStatuses)', {
+        validStatuses: [BookingStatus.CONFIRMED, BookingStatus.COMPLETED],
+      });
+    }
+
+    const eligibleHolds = await eligibleQuery.getMany();
+
+    // Check for stuck escrow holds (> 24 hours past eligibility)
+    const stuckThreshold = new Date(now.getTime() - 24 * 3600 * 1000);
+    const stuckCount = await this.escrowRepo
+      .createQueryBuilder('hold')
+      .where('hold.status = :status', { status: EscrowHoldStatus.HELD })
+      .andWhere('hold.release_eligible_at <= :stuckThreshold', { stuckThreshold })
+      .getCount();
+
+    if (stuckCount > 0) {
+      this.logger.warn(`Stuck escrow alert: ${stuckCount} hold(s) have been eligible for release for over 24 hours`);
+    }
 
     let processedCount = 0;
     const errors: string[] = [];

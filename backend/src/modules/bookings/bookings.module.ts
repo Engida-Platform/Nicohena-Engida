@@ -7,8 +7,11 @@ import { Property } from '../properties/entities/property.entity';
 import { Room } from '../properties/entities/room.entity';
 import { AvailabilityBlock } from '../properties/entities/availability-block.entity';
 import { HostProfile } from '../../users/entities/host-profile.entity';
+import { Coupon } from '../coupons/entities/coupon.entity';
+import { CouponRedemption } from '../coupons/entities/coupon-redemption.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BookingsService } from './bookings.service';
+import { PricingService } from './pricing.service';
 import { BookingsController } from './bookings.controller';
 
 @Module({
@@ -21,11 +24,13 @@ import { BookingsController } from './bookings.controller';
       Room,
       AvailabilityBlock,
       HostProfile,
+      Coupon,
+      CouponRedemption,
     ]),
     NotificationsModule,
   ],
   controllers: [BookingsController],
-  providers: [BookingsService],
-  exports: [BookingsService],
+  providers: [BookingsService, PricingService],
+  exports: [BookingsService, PricingService],
 })
 export class BookingsModule {}

@@ -30,10 +30,10 @@ export class CreateBookingDto {
 
   @IsString()
   @IsOptional()
-  paymentReference?: string;
+  paymentCurrency?: string;
 
   @IsString()
   @IsOptional()
-  paymentCurrency?: string;
+  couponCode?: string;
 }
 

@@ -1,5 +1,5 @@
-import { plainToInstance } from 'class-transformer';
-import { IsString, IsNumber, MinLength, validateSync } from 'class-validator';
+import { plainToInstance, Transform } from 'class-transformer';
+import { IsString, IsNumber, MinLength, IsOptional, IsBoolean, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
   @IsNumber()
@@ -14,6 +14,31 @@ class EnvironmentVariables {
 
   @IsString()
   AI_SERVICE_URL: string;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => (value !== undefined ? value === 'true' || value === true || value === 1 || value === '1' : true))
+  PAYMENTS_STRICT_VERIFICATION?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => (value !== undefined ? value === 'true' || value === true || value === 1 || value === '1' : true))
+  SANDBOX_WEBHOOKS_ENABLED?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => (value !== undefined ? value === 'true' || value === true || value === 1 || value === '1' : false))
+  HOST_VERIFICATION_REQUIRED?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => (value !== undefined ? value === 'true' || value === true || value === 1 || value === '1' : true))
+  PRICING_QUOTE_V2?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  @Transform(({ value }) => (value !== undefined ? value === 'true' || value === true || value === 1 || value === '1' : true))
+  INSTANT_BOOK_ENABLED?: boolean;
 }
 
 export function validate(config: Record<string, unknown>) {
