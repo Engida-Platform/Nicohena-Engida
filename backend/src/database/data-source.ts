@@ -53,6 +53,8 @@ import { CouponRedemption } from '../modules/coupons/entities/coupon-redemption.
 import { FaqItem } from '../modules/content/entities/faq-item.entity';
 import { ContentBlock } from '../modules/content/entities/content-block.entity';
 import { SystemSetting } from '../modules/admin/settings/entities/system-setting.entity';
+import { Conversation } from '../modules/messages/entities/conversation.entity';
+import { Message } from '../modules/messages/entities/message.entity';
 
 const phase4Entities = [
   PropertyCategory,
@@ -65,6 +67,11 @@ const phase4Entities = [
 
 const phase5Entities = [
   SystemSetting,
+];
+
+const messagingEntities = [
+  Conversation,
+  Message,
 ];
 
 const financeEntities = [
@@ -121,6 +128,7 @@ const AppDataSource = new DataSource(
           ...financeEntities,
           ...phase4Entities,
           ...phase5Entities,
+          ...messagingEntities,
         ],
         migrations: [path.join(__dirname, 'migrations/*{.ts,.js}')],
         synchronize: false,

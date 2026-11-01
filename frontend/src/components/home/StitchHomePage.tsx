@@ -574,6 +574,13 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                         >
                           Guest Trips & Dashboard
                         </Link>
+                        <Link
+                          href="/messages"
+                          onClick={() => setUserMenuOpen(false)}
+                          className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                        >
+                          Messages
+                        </Link>
                         <button
                           type="button"
                           onClick={() => {

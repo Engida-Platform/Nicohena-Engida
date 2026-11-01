@@ -343,6 +343,38 @@ export default function PropertyDetailsPage() {
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [hostMessage, setHostMessage] = useState('');
   const [messageSent, setMessageSent] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [sentConversationId, setSentConversationId] = useState<string | null>(null);
+
+  const handleSendInquiry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = hostMessage.trim();
+    if (!text || sendingMessage || !property) return;
+
+    if (!user) {
+      router.push(`/login?redirect=/properties/${property.id}`);
+      return;
+    }
+
+    setSendingMessage(true);
+    setMessageError(null);
+    try {
+      const res = await apiFetch<{ id: string; conversationId: string }>('/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          propertyId: property.id,
+          content: text,
+        }),
+      });
+      setSentConversationId(res.conversationId);
+      setMessageSent(true);
+    } catch (err: unknown) {
+      setMessageError(err instanceof Error ? err.message : 'Failed to send message to host');
+    } finally {
+      setSendingMessage(false);
+    }
+  };
 
   // Booking widget interactive state
   const [checkIn, setCheckIn] = useState('2026-11-15');
@@ -1059,7 +1091,7 @@ export default function PropertyDetailsPage() {
                 className="w-full mt-2.5 py-3 px-4 rounded-xl bg-[#faf5ee] hover:bg-[#ede4d8] text-[#3a302a] font-semibold text-xs transition-all duration-200 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
               >
                 <span className="material-symbols-outlined text-base text-[#a84d16]">chat_bubble</span>
-                <span>Inquire with Host (Preview)</span>
+                <span>Message Host</span>
               </button>
 
               {isBookingSuccess && (
@@ -1172,10 +1204,10 @@ export default function PropertyDetailsPage() {
                 </div>
                 <div>
                   <h3 className="font-headline font-bold text-lg text-[#3a302a] leading-tight">
-                    Inquire with {property.host.name} (Preview)
+                    Message {property.host.name}
                   </h3>
                   <p className="text-xs text-[#605850]">
-                    Typically responds {property.host.responseRate.toLowerCase()} · Messaging preview mode
+                    Typically responds {property.host.responseRate.toLowerCase()} · Direct & secure in-platform chat
                   </p>
                 </div>
               </div>
@@ -1193,32 +1225,50 @@ export default function PropertyDetailsPage() {
             <div className="p-6">
               {messageSent ? (
                 <div className="py-8 text-center flex flex-col items-center">
-                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mb-4">
+                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mb-4 shadow-xs">
                     <span className="material-symbols-outlined text-2xl">check_circle</span>
                   </div>
                   <h4 className="font-headline font-bold text-xl text-[#3a302a]">
-                    Inquiry Preview Recorded
+                    Message Sent to {property.host.name}
                   </h4>
-                  <p className="text-xs text-[#605850] mt-2 max-w-xs leading-relaxed">
-                    Host messaging is currently in preview mode. Your inquiry has been saved for when live messaging is enabled.
+                  <p className="text-xs text-[#605850] mt-2 max-w-sm leading-relaxed">
+                    Your inquiry has been delivered directly to the host. You can view all replies and follow up in your Messages center.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setMessageModalOpen(false)}
-                    className="mt-6 px-6 py-2.5 rounded-xl bg-[#b2531b] hover:bg-[#994413] text-white text-xs font-semibold transition active:scale-95"
-                  >
-                    Done
-                  </button>
+                  <div className="mt-6 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMessageModalOpen(false);
+                        if (sentConversationId) {
+                          router.push(`/messages?conversationId=${sentConversationId}`);
+                        } else {
+                          router.push('/messages');
+                        }
+                      }}
+                      className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs font-semibold transition active:scale-95 shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">chat</span>
+                      <span>Open in Messages</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMessageModalOpen(false);
+                        setHostMessage('');
+                      }}
+                      className="px-5 py-2.5 rounded-xl border border-[#d8d0c8] hover:bg-[#faf5ee] text-xs font-semibold text-[#605850] transition cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (!hostMessage.trim()) return;
-                    setMessageSent(true);
-                  }}
-                  className="space-y-4"
-                >
+                <form onSubmit={handleSendInquiry} className="space-y-4">
+                  {messageError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium">
+                      {messageError}
+                    </div>
+                  )}
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-[#605850] mb-2">
                       Common Inquiries
@@ -1265,10 +1315,10 @@ export default function PropertyDetailsPage() {
                     </button>
                     <button
                       type="submit"
-                      disabled={!hostMessage.trim()}
+                      disabled={!hostMessage.trim() || sendingMessage}
                       className="px-6 py-2.5 rounded-xl bg-[#b2531b] hover:bg-[#994413] disabled:opacity-40 text-white text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer flex items-center gap-1.5"
                     >
-                      <span>Send Inquiry (Preview)</span>
+                      <span>{sendingMessage ? 'Sending...' : 'Send Message'}</span>
                       <span className="material-symbols-outlined text-sm">send</span>
                     </button>
                   </div>

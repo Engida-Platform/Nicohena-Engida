@@ -99,6 +99,13 @@ export default function AppHeader() {
                     >
                       Dashboard
                     </Link>
+                    <Link
+                      href="/messages"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                    >
+                      Messages
+                    </Link>
                     {user.hostProfile ? (
                       <Link
                         href="/host/dashboard"

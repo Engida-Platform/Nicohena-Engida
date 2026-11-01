@@ -18,6 +18,7 @@ import {
   X,
   ChevronRight,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 import NotificationHub from '../../components/host/NotificationHub';
 
@@ -39,6 +40,11 @@ const NAV_ITEMS = [
     href: '/host/reservations',
     label: 'Reservations',
     icon: CalendarDays,
+  },
+  {
+    href: '/messages',
+    label: 'Messages',
+    icon: MessageSquare,
   },
   {
     href: '/host/earnings',

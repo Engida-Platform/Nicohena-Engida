@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
@@ -12,6 +13,7 @@ import {
   RotateCcw,
   UserRound,
   X,
+  MessageSquare,
 } from 'lucide-react';
 import { apiFetch } from '../../../lib/api';
 import type {
@@ -186,6 +188,13 @@ function ReservationActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <Link
+        href={`/messages?bookingId=${reservation.id}`}
+        className="inline-flex items-center gap-1.5 rounded-xl border border-[#234B36]/30 bg-[#234B36]/5 px-3 py-2 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10 transition"
+      >
+        <MessageSquare className="h-3.5 w-3.5" />
+        Message guest
+      </Link>
       {reservation.status === 'CONFIRMED' && !stayHasEnded && (
         <span className="text-xs text-[#73776F]">Completion is available after check-out.</span>
       )}

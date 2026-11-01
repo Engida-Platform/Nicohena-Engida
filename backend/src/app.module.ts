@@ -70,6 +70,9 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { Coupon } from './modules/coupons/entities/coupon.entity';
 import { CouponRedemption } from './modules/coupons/entities/coupon-redemption.entity';
 import { ContentModule } from './modules/content/content.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { Conversation } from './modules/messages/entities/conversation.entity';
+import { Message } from './modules/messages/entities/message.entity';
 import { FaqItem } from './modules/content/entities/faq-item.entity';
 import { ContentBlock } from './modules/content/entities/content-block.entity';
 import { SystemSetting } from './modules/admin/settings/entities/system-setting.entity';
@@ -142,6 +145,8 @@ import { validate } from './config/env.validation';
           FaqItem,
           ContentBlock,
           SystemSetting,
+          Conversation,
+          Message,
         ];
 
         if (databaseUrl) {
@@ -198,6 +203,7 @@ import { validate } from './config/env.validation';
     CatalogModule,
     CouponsModule,
     ContentModule,
+    MessagesModule,
   ],
   controllers: [AppController],
   providers: [
