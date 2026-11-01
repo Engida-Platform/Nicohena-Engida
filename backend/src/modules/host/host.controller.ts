@@ -468,6 +468,19 @@ export class HostController {
   // ─────────────────────────────────────────
 
   /**
+   * POST /host/payouts/request
+   * Request on-demand payout disbursement from available earnings.
+   */
+  @Post('payouts/request')
+  @HttpCode(HttpStatus.CREATED)
+  async requestPayout(
+    @GetUser() user: User,
+    @Body() dto: { payoutAccountId?: string; amountMinor?: string },
+  ) {
+    return this.hostService.requestPayout(user.id, dto, user);
+  }
+
+  /**
    * GET /host/payouts
    * List payouts disbursed or pending for the authenticated host.
    */

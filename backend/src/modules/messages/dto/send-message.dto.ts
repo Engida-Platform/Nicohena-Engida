@@ -21,3 +21,4 @@ export class SendMessageDto {
   @IsNotEmpty()
   content: string;
 }
+

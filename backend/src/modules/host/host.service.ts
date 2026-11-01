@@ -79,6 +79,7 @@ import { LedgerService } from '../finance/services/ledger.service';
 import { Payout } from '../finance/entities/payout.entity';
 import { PayoutAccount, PayoutAccountStatus } from '../finance/entities/payout-account.entity';
 import { EscrowHold, EscrowHoldStatus } from '../finance/entities/escrow-hold.entity';
+import { EscrowService } from '../finance/services/escrow.service';
 import { PayoutsService } from '../finance/services/payouts.service';
 
 // ─────────────────────────────────────────────
@@ -160,6 +161,8 @@ export class HostService {
     private readonly escrowRepo?: Repository<EscrowHold>,
     @Optional()
     private readonly payoutsService?: PayoutsService,
+    @Optional()
+    private readonly escrowService?: EscrowService,
   ) {}
 
   // ─────────────────────────────────────────
@@ -1290,6 +1293,20 @@ export class HostService {
       if (booking.checkOutDate > today) {
         throw new BadRequestException('A reservation can only be completed on or after its check-out date');
       }
+      // Auto-release escrow hold if one is held for this booking
+      if (this.escrowRepo && this.escrowService) {
+        try {
+          const hold = await this.escrowRepo.findOne({
+            where: { bookingId, status: EscrowHoldStatus.HELD },
+          });
+          if (hold) {
+            await this.escrowService.releaseHold(hold.id, null, 'Stay completion release');
+            this.logger.log(`Released escrow hold ${hold.id} on reservation completion ${bookingId}`);
+          }
+        } catch (escrowErr) {
+          this.logger.warn(`Could not auto-release escrow for booking ${bookingId}: ${escrowErr}`);
+        }
+      }
     }
 
     const updateResult = await this.bookingRepository.update(
@@ -1952,6 +1969,32 @@ export class HostService {
   // ─────────────────────────────────────────
   // 14. HOST PAYOUTS & ACCOUNTS (PHASE 3)
   // ─────────────────────────────────────────
+
+  async requestPayout(
+    hostId: string,
+    dto: { payoutAccountId?: string; amountMinor?: string },
+    user: User,
+  ) {
+    if (!this.payoutsService) throw new NotFoundException('Payouts service not initialized');
+    const payout = await this.payoutsService.requestOnDemandPayout(hostId, dto, user);
+
+    if (this.notificationsService && payout) {
+      try {
+        await this.notificationsService.createNotification({
+          userId: hostId,
+          type: NotificationType.BOOKING_CONFIRMED,
+          title: 'Payout Disbursement Initiated',
+          message: `Your payout of ${payout.currency} ${(Number(payout.amountMinor) / 100).toLocaleString()} has been processed.`,
+          link: '/host/earnings',
+          metadata: { payoutId: payout.id },
+        });
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    return this.getHostPayoutDetail(hostId, payout!.id);
+  }
 
   async getHostPayouts(hostId: string) {
     if (!this.payoutRepo) return [];

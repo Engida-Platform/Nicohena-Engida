@@ -33,6 +33,8 @@ import {
   Clock,
   Landmark,
   Wallet,
+  Printer,
+  X,
 } from 'lucide-react';
 
 function formatCurrency(amount: number, currency: string = 'ETB'): string {
@@ -133,6 +135,16 @@ export default function HostEarningsPage() {
   const [showAddAccountModal, setShowAddAccountModal] = useState<boolean>(false);
   const [isSubmittingAccount, setIsSubmittingAccount] = useState<boolean>(false);
   const [accountFormError, setAccountFormError] = useState<string | null>(null);
+
+  // Payout request modal states
+  const [showRequestPayoutModal, setShowRequestPayoutModal] = useState<boolean>(false);
+  const [selectedPayoutAccountId, setSelectedPayoutAccountId] = useState<string>('');
+  const [isRequestingPayout, setIsRequestingPayout] = useState<boolean>(false);
+  const [payoutRequestError, setPayoutRequestError] = useState<string | null>(null);
+  const [payoutRequestSuccess, setPayoutRequestSuccess] = useState<string | null>(null);
+
+  // Statement modal state
+  const [viewingStatement, setViewingStatement] = useState<any | null>(null);
 
   // New account form state
   const [newAccount, setNewAccount] = useState({
@@ -375,9 +387,23 @@ export default function HostEarningsPage() {
                 )
               )}
             </div>
-            <p className="text-[11px] text-[#234B36] mt-1 font-bold">
-              Cleared Host Payable (ready for next batch)
-            </p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-[11px] text-[#234B36] font-bold">
+                Cleared Host Payable
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowRequestPayoutModal(true);
+                  setPayoutRequestError(null);
+                  setPayoutRequestSuccess(null);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#234B36] hover:bg-[#1A3828] text-white text-[11px] font-bold transition shadow-2xs cursor-pointer"
+              >
+                <ArrowUpRight className="w-3 h-3" />
+                <span>Withdraw</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -742,13 +768,28 @@ export default function HostEarningsPage() {
                   Accounts receiving automated 02:00 Addis scheduled payouts. Numbers are stored encrypted (AES-256-GCM).
                 </p>
               </div>
-              <button
-                onClick={() => setShowAddAccountModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#234B36] hover:bg-[#2D5E43] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Payout Account</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRequestPayoutModal(true);
+                    setPayoutRequestError(null);
+                    setPayoutRequestSuccess(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-[#234B36] hover:bg-[#1A3828] text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span>Request Payout</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddAccountModal(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[#E5E0D5] hover:bg-[#F8F5ED] text-[#252923] rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Account</span>
+                </button>
+              </div>
             </div>
 
             {payoutAccounts.length > 0 ? (
@@ -851,10 +892,11 @@ export default function HostEarningsPage() {
                           </td>
                           <td className="py-3 px-3 text-right">
                             <button
+                              type="button"
                               onClick={async () => {
                                 try {
                                   const stmt = await apiFetch<any>(`/host/payouts/${p.id}/statement`);
-                                  alert(`Statement: ${stmt.statementId}\nAmount: ${formatCurrency(Number(stmt.amountMinor) / 100, stmt.currency)}\nGenerated: ${stmt.generatedAt}`);
+                                  setViewingStatement(stmt);
                                 } catch (err: any) {
                                   alert(err.message || 'Failed to download statement');
                                 }
@@ -994,6 +1036,255 @@ export default function HostEarningsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* ── 6. STATEMENT MODAL ── */}
+      {viewingStatement && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full border border-[#E5E0D5] overflow-hidden">
+            <div className="bg-[#234B36] text-white p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Landmark className="w-5 h-5 text-emerald-300" />
+                  <span className="font-mono text-xs uppercase tracking-wider text-emerald-200">
+                    Remittance Statement
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingStatement(null)}
+                  className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <h3 className="font-extrabold text-xl mt-2">
+                {viewingStatement.statementId}
+              </h3>
+              <p className="text-xs text-[#EEF3EF]/80 mt-1">
+                Issued by ENGIDA Platform Treasury · Federal Democratic Republic of Ethiopia
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-[#F8F5ED] border border-[#E5E0D5]">
+                <div>
+                  <span className="text-[#73776F] uppercase tracking-wider text-[10px] font-bold">Total Disbursed</span>
+                  <p className="text-lg font-black text-[#234B36] mt-0.5">
+                    {formatCurrency(Number(viewingStatement.amountMinor) / 100, viewingStatement.currency)}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[#73776F] uppercase tracking-wider text-[10px] font-bold">Payout Status</span>
+                  <div className="mt-1">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      {viewingStatement.status}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[#73776F] uppercase tracking-wider text-[10px] font-bold">Period Window</span>
+                  <p className="font-semibold text-[#252923] mt-0.5">
+                    {viewingStatement.periodStart} – {viewingStatement.periodEnd}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-[#73776F] uppercase tracking-wider text-[10px] font-bold">Generated At</span>
+                  <p className="font-semibold text-[#252923] mt-0.5">
+                    {formatDate(viewingStatement.generatedAt)}
+                  </p>
+                </div>
+              </div>
+
+              {viewingStatement.items && viewingStatement.items.length > 0 && (
+                <div>
+                  <h4 className="font-bold text-[#252923] mb-2 uppercase tracking-wide text-[10px]">
+                    Itemized Line Items
+                  </h4>
+                  <div className="divide-y divide-[#EEF3EF] border border-[#E5E0D5] rounded-xl overflow-hidden">
+                    {viewingStatement.items.map((item: any) => (
+                      <div key={item.id} className="p-3 flex items-center justify-between bg-white">
+                        <div>
+                          <p className="font-bold text-[#252923] text-xs">{item.description}</p>
+                          <p className="text-[10px] text-[#73776F] font-mono">{item.type}</p>
+                        </div>
+                        <span className="font-black text-[#234B36]">
+                          {formatCurrency(Number(item.amountMinor) / 100, viewingStatement.currency)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-3 border-t border-[#E5E0D5]">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#d8d0c8] text-xs font-bold text-[#252923] hover:bg-[#F8F5ED] transition cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print Statement</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingStatement(null)}
+                  className="px-5 py-2 rounded-xl bg-[#234B36] hover:bg-[#1A3828] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 7. REQUEST PAYOUT MODAL ── */}
+      {showRequestPayoutModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-[#E5E0D5] overflow-hidden">
+            <div className="bg-[#234B36] text-white p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="font-extrabold text-lg">Request Payout Disbursement</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowRequestPayoutModal(false)}
+                  className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-xs text-[#EEF3EF] mt-0.5">
+                Disburse cleared earnings to your verified bank or mobile wallet.
+              </p>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              {payoutRequestError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{payoutRequestError}</span>
+                </div>
+              )}
+
+              {payoutRequestSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 flex items-center gap-2 font-bold">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{payoutRequestSuccess}</span>
+                </div>
+              )}
+
+              <div className="p-4 rounded-2xl bg-[#F8F5ED] border border-[#E5E0D5]">
+                <span className="text-[#73776F] text-[10px] uppercase font-bold tracking-wider">
+                  Cleared Available Balance
+                </span>
+                <p className="text-2xl font-black text-[#234B36] mt-0.5">
+                  {formatCurrency(
+                    summary?.ledgerAvailableMinor
+                      ? Number(summary.ledgerAvailableMinor) / 100
+                      : 0,
+                    currency,
+                  )}
+                </p>
+                <p className="text-[10px] text-[#73776F] mt-1">
+                  Releases 24 hours post check-in for completed stays.
+                </p>
+              </div>
+
+              {payoutAccounts.length === 0 ? (
+                <div className="py-4 text-center">
+                  <p className="text-xs text-slate-600 mb-3 font-semibold">
+                    You must have a verified payout account (CBE or Telebirr) to request disbursements.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowRequestPayoutModal(false);
+                      setShowAddAccountModal(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#234B36] text-white rounded-xl text-xs font-bold"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Link Payout Account First</span>
+                  </button>
+                </div>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setIsRequestingPayout(true);
+                    setPayoutRequestError(null);
+                    setPayoutRequestSuccess(null);
+                    try {
+                      await apiFetch('/host/payouts/request', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          payoutAccountId: selectedPayoutAccountId || payoutAccounts[0].id,
+                        }),
+                      });
+                      setPayoutRequestSuccess('Payout initiated successfully! Funds are on the way to your account.');
+                      setRefreshKey((k) => k + 1);
+                      setTimeout(() => {
+                        setShowRequestPayoutModal(false);
+                        setActiveTab('PAYOUTS');
+                      }, 2000);
+                    } catch (err: any) {
+                      setPayoutRequestError(err.message || 'Failed to request payout.');
+                    } finally {
+                      setIsRequestingPayout(false);
+                    }
+                  }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="block font-bold text-[#252923] mb-1">
+                      Destination Account
+                    </label>
+                    <select
+                      value={selectedPayoutAccountId}
+                      onChange={(e) => setSelectedPayoutAccountId(e.target.value)}
+                      className="w-full bg-[#F8F5ED] border border-[#E5E0D5] rounded-xl px-3 py-2 font-medium"
+                    >
+                      {payoutAccounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.bankName || acc.provider} •••• {acc.accountNumberLast4} ({acc.accountName})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-[#73776F]">
+                    <div className="flex justify-between">
+                      <span>Disbursement Type:</span>
+                      <span className="font-bold text-[#252923]">Instant Direct Transfer</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Platform Payout Fee:</span>
+                      <span className="font-bold text-emerald-700">0.00 ETB (Free)</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRequestPayoutModal(false)}
+                      className="px-4 py-2 border border-[#d8d0c8] rounded-xl text-[#73776F] hover:bg-[#F8F5ED] font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isRequestingPayout || Number(summary?.ledgerAvailableMinor || 0) <= 0}
+                      className="px-5 py-2 bg-[#234B36] hover:bg-[#1A3828] disabled:opacity-40 text-white rounded-xl font-bold shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>{isRequestingPayout ? 'Processing…' : 'Confirm & Disburse'}</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

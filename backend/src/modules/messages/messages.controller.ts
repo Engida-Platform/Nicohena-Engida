@@ -44,3 +44,4 @@ export class MessagesController {
     return this.messagesService.sendMessage(dto, user);
   }
 }
+

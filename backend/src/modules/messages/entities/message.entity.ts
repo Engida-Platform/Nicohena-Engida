@@ -46,3 +46,4 @@ export class Message {
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }
+

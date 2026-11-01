@@ -316,6 +316,127 @@ export class PayoutsService {
   }
 
   /**
+   * Allows a host to request an on-demand payout disbursement from their available ledger balance.
+   */
+  async requestOnDemandPayout(
+    hostId: string,
+    dto: { payoutAccountId?: string; amountMinor?: string },
+    actor: User,
+  ) {
+    let account: PayoutAccount | null = null;
+    if (dto.payoutAccountId) {
+      account = await this.payoutAccountRepo.findOne({
+        where: { id: dto.payoutAccountId, hostId, status: PayoutAccountStatus.VERIFIED },
+      });
+    } else {
+      account = await this.payoutAccountRepo.findOne({
+        where: { hostId, status: PayoutAccountStatus.VERIFIED },
+        order: { createdAt: 'DESC' },
+      });
+    }
+
+    if (!account) {
+      throw new BadRequestException(
+        'No verified payout account found. Please link and verify a CBE bank account or Telebirr wallet first.',
+      );
+    }
+
+    const availableBalance = await this.ledgerService.getHostPayableBalance(hostId);
+    if (availableBalance <= 0n) {
+      throw new BadRequestException(
+        'No available cleared balance for payout. Funds in escrow release automatically upon stay completion.',
+      );
+    }
+
+    const requestedAmount = dto.amountMinor ? BigInt(dto.amountMinor) : availableBalance;
+    if (requestedAmount <= 0n || requestedAmount > availableBalance) {
+      throw new BadRequestException(
+        `Requested payout amount exceeds available balance of ${'ETB ' + fromMinorUnits(availableBalance)}`,
+      );
+    }
+
+    const pending = await this.payoutRepo.findOne({
+      where: [
+        { hostId, status: PayoutStatus.PROCESSING },
+        { hostId, status: PayoutStatus.PENDING_APPROVAL },
+      ],
+    });
+    if (pending) {
+      throw new BadRequestException(
+        'A payout disbursement is already currently in progress.',
+      );
+    }
+
+    const settings = await this.settingsService.getAllSettings();
+    const thresholdMinor = BigInt(settings.payoutDualApprovalThresholdMinor);
+    const requiresDualApproval = requestedAmount >= thresholdMinor;
+    const initialStatus = requiresDualApproval
+      ? PayoutStatus.PENDING_APPROVAL
+      : PayoutStatus.APPROVED;
+
+    const now = new Date();
+    const periodEnd = now.toISOString().split('T')[0];
+    const idempotencyKey = `payout_ondemand_${hostId}_${Date.now()}`;
+
+    const payout = this.payoutRepo.create({
+      hostId,
+      payoutAccountId: account.id,
+      periodStart: periodEnd,
+      periodEnd,
+      amountMinor: requestedAmount.toString(),
+      currency: account.currency || 'ETB',
+      status: initialStatus,
+      approvedById: requiresDualApproval ? null : actor.id,
+      idempotencyKey,
+    });
+
+    const savedPayout = await this.payoutRepo.save(payout);
+
+    const item = this.payoutItemRepo.create({
+      payoutId: savedPayout.id,
+      amountMinor: requestedAmount.toString(),
+      type: PayoutItemType.STAY_RELEASE,
+      description: `On-demand payout disbursement to ${account.bankName || account.provider} (•••• ${account.accountNumberLast4})`,
+    });
+    await this.payoutItemRepo.save(item);
+
+    const event = this.payoutEventRepo.create({
+      payoutId: savedPayout.id,
+      eventType: requiresDualApproval ? 'PAYOUT_DRAFTED' : 'PAYOUT_AUTO_APPROVED',
+      toStatus: initialStatus,
+      actorId: actor.id,
+      reason: 'Host on-demand payout request',
+    });
+    await this.payoutEventRepo.save(event);
+
+    await this.auditService.record({
+      actor,
+      action: 'finance.payout_requested',
+      entityType: 'payout',
+      entityId: savedPayout.id,
+      after: {
+        hostId,
+        amountMinor: savedPayout.amountMinor,
+        status: savedPayout.status,
+        requiresDualApproval,
+      },
+    });
+
+    if (initialStatus === PayoutStatus.APPROVED) {
+      try {
+        await this.executePayout(savedPayout.id, actor);
+      } catch (err: any) {
+        this.logger.warn(`Immediate execution of on-demand payout failed: ${err.message}`);
+      }
+    }
+
+    return this.payoutRepo.findOne({
+      where: { id: savedPayout.id },
+      relations: ['payoutAccount', 'items', 'events'],
+    });
+  }
+
+  /**
    * Approves a payout batch item. Enforces dual approval rule (proposer != approver).
    */
   async approvePayout(
