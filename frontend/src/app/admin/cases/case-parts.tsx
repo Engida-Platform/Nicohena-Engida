@@ -381,12 +381,36 @@ export function CaseWorkspace({
             </div>
 
             {terminal ? (
-              <div className="mt-5 flex items-start gap-2 border border-[#d6dfcd] bg-[#edf1e8] px-3 py-2.5 text-xs leading-5 text-[#536b4a]">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>
-                  This case is {CASE_STATUS_LABELS[detail.status].toLowerCase()}. Reopen it
-                  from the status controls before sending another reply.
-                </p>
+              <div className="mt-5 space-y-3">
+                <div className="flex items-start justify-between gap-2 border border-[#d6dfcd] bg-[#edf1e8] px-3 py-2.5 text-xs leading-5 text-[#536b4a]">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                      This case is {CASE_STATUS_LABELS[detail.status].toLowerCase()}.
+                      Logging an inbound reply reopens it automatically.
+                    </p>
+                  </div>
+                  {canManage ? (
+                    <button
+                      type="button"
+                      className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#b3541e] hover:underline whitespace-nowrap"
+                      onClick={onManageCanned}
+                    >
+                      Manage canned replies
+                    </button>
+                  ) : null}
+                </div>
+                {canManage ? (
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary h-8 min-h-8 text-xs"
+                      onClick={onLogInbound}
+                    >
+                      Log an inbound reply
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : canManage ? (
               <div className="admin-composer mt-5 -mx-4 -mb-4 sm:-mx-5 sm:-mb-5 lg:-mx-6">

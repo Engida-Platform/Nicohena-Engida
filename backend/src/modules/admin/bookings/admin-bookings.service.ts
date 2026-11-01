@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
+  LessThan,
   LessThanOrEqual,
+  MoreThan,
   MoreThanOrEqual,
   Not,
   Repository,
@@ -27,6 +29,7 @@ import { Case } from '../cases/entities/case.entity';
 import { AuditRequestContext, AuditService } from '../../audit/audit.service';
 import { escapeCsv } from '../utils/csv';
 import { User, UserRole } from '../../../users/entities/user.entity';
+import { Permission, hasPermission } from '../rbac/permissions';
 import {
   AdminBookingStatusDto,
   CreateAdminAvailabilityBlockDto,
@@ -82,7 +85,7 @@ export class AdminBookingsService {
     };
   }
 
-  async detail(id: string): Promise<Record<string, unknown>> {
+  async detail(id: string, actor?: User): Promise<Record<string, unknown>> {
     const booking = await this.bookingRepository.findOne({
       where: { id },
       relations: [
@@ -106,11 +109,16 @@ export class AdminBookingsService {
       throw new NotFoundException('Reservation not found');
     }
 
+    const casesPromise =
+      !actor || hasPermission(actor, Permission.CASES_VIEW)
+        ? this.caseRepository.find({
+            where: { bookingId: id },
+            order: { createdAt: 'DESC' },
+          })
+        : Promise.resolve([]);
+
     const [cases, availability] = await Promise.all([
-      this.caseRepository.find({
-        where: { bookingId: id },
-        order: { createdAt: 'DESC' },
-      }),
+      casesPromise,
       this.getAvailabilityForBooking(booking),
     ]);
 
@@ -189,7 +197,7 @@ export class AdminBookingsService {
 
     if (dto.idempotencyKey) {
       const existing = await this.cancellationRequestRepository.findOne({
-        where: { idempotencyKey: dto.idempotencyKey },
+        where: { bookingId: id, idempotencyKey: dto.idempotencyKey },
       });
       if (existing) return this.toCancellationRequest(existing);
     }
@@ -260,38 +268,48 @@ export class AdminBookingsService {
       throw new BadRequestException('Explain why the cancellation request is being declined');
     }
 
-    if (decision === 'approve') {
-      if (![BookingStatus.PENDING, BookingStatus.CONFIRMED].includes(booking.status)) {
-        throw new BadRequestException('Only pending or confirmed reservations can be cancelled');
-      }
-      await this.bookingsService.updateStatus(
-        id,
-        { status: BookingStatus.CANCELLED },
-        actor.id,
-        UserRole.ADMIN,
-        {
-          actor,
-          reason: note || request.reason,
-          source: BookingActorType.ADMIN,
-        },
-      );
+    if (decision === 'approve' && request.requestedById && request.requestedById === actor.id) {
+      throw new BadRequestException('A different administrator must approve this cancellation request');
     }
 
-    request.status =
-      decision === 'approve'
-        ? CancellationRequestStatus.APPROVED
-        : CancellationRequestStatus.REJECTED;
-    request.decidedById = actor.id;
-    request.decidedAt = new Date();
-    request.decisionNote = note;
-    const saved = await this.cancellationRequestRepository.save(request);
+    const beforeStatus = request.status;
+    const action = decision === 'approve' ? 'booking.cancellation_approved' : 'booking.cancellation_rejected';
+
+    const saved = await this.cancellationRequestRepository.manager.transaction(async (manager) => {
+      if (decision === 'approve') {
+        if (![BookingStatus.PENDING, BookingStatus.CONFIRMED].includes(booking.status)) {
+          throw new BadRequestException('Only pending or confirmed reservations can be cancelled');
+        }
+        await this.bookingsService.updateStatus(
+          id,
+          { status: BookingStatus.CANCELLED },
+          actor.id,
+          UserRole.ADMIN,
+          {
+            actor,
+            reason: note || request.reason,
+            source: BookingActorType.ADMIN,
+            manager,
+          },
+        );
+      }
+
+      request.status =
+        decision === 'approve'
+          ? CancellationRequestStatus.APPROVED
+          : CancellationRequestStatus.REJECTED;
+      request.decidedById = actor.id;
+      request.decidedAt = new Date();
+      request.decisionNote = note;
+      return manager.save(request);
+    });
 
     await this.auditService.record({
       actor,
-      action: `booking.cancellation_${decision}d`,
+      action,
       entityType: 'booking',
       entityId: id,
-      before: { status: request.status, requestId },
+      before: { status: beforeStatus, requestId },
       after: {
         status: decision === 'approve' ? BookingStatus.CANCELLED : booking.status,
         cancellationRequestId: requestId,
@@ -325,6 +343,18 @@ export class AdminBookingsService {
       },
     );
 
+    if (dto.status === BookingStatus.CANCELLED || dto.status === BookingStatus.COMPLETED) {
+      await this.cancellationRequestRepository.update(
+        { bookingId: id, status: CancellationRequestStatus.REQUESTED },
+        {
+          status: CancellationRequestStatus.WITHDRAWN,
+          decisionNote: `Auto-withdrawn: reservation status changed to ${dto.status}`,
+          decidedAt: new Date(),
+          decidedById: actor.id,
+        },
+      );
+    }
+
     await this.auditService.record({
       actor,
       action: 'booking.status_corrected',
@@ -336,7 +366,7 @@ export class AdminBookingsService {
       ...context,
     });
 
-    return this.detail(id);
+    return this.detail(id, actor);
   }
 
   async createBlock(
@@ -354,10 +384,9 @@ export class AdminBookingsService {
     const conflicts = await this.bookingRepository.find({
       where: {
         propertyId: dto.propertyId,
-        id: Not(bookingId),
         status: Not(BookingStatus.CANCELLED),
-        checkInDate: LessThanOrEqual(dto.endDate),
-        checkOutDate: MoreThanOrEqual(dto.startDate),
+        checkInDate: LessThan(dto.endDate),
+        checkOutDate: MoreThan(dto.startDate),
       },
     });
     if (conflicts.length > 0) {

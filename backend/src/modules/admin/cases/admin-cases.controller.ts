@@ -244,7 +244,7 @@ export class AdminCasesController {
 
   @Post(':id/attachments')
   @RequirePermissions(Permission.CASES_MANAGE)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   addAttachment(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File | undefined,

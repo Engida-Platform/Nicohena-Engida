@@ -14,6 +14,7 @@ import {
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import AdminDialog from '../../../components/admin/AdminDialog';
 import AdminEmptyState from '../../../components/admin/AdminEmptyState';
+import AdminNoAccess from '../../../components/admin/AdminNoAccess';
 import AdminStatusBadge from '../../../components/admin/AdminStatusBadge';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
 import { useDefaultCurrency } from '../../../hooks/useDefaultCurrency';
@@ -79,14 +80,22 @@ function errorMessage(error: unknown, fallback: string): string {
 
 export default function AdminCasesPage() {
   const { user } = useAuth();
+  const canView = can(user?.permissions, ADMIN_PERMISSIONS.CASES_VIEW);
   const canManage = can(user?.permissions, ADMIN_PERMISSIONS.CASES_MANAGE);
   const canCompensate = can(user?.permissions, ADMIN_PERMISSIONS.CASES_COMPENSATE);
 
   const [caseMetadata, setCaseMetadata] = useState<CaseMetadata>(EMPTY_CASE_METADATA);
+  const [metadataError, setMetadataError] = useState<string | null>(null);
+  const [assigneesError, setAssigneesError] = useState<string | null>(null);
+  const [cannedError, setCannedError] = useState<string | null>(null);
+
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [typeFilter, setTypeFilter] = useState<'all' | CaseType>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | CasePriority>('all');
+  const [severityFilter, setSeverityFilter] = useState<'all' | CaseSeverity>('all');
+  const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -107,6 +116,7 @@ export default function AdminCasesPage() {
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([]);
 
   const [replyBody, setReplyBody] = useState('');
+  const [replyIdempotencyKey, setReplyIdempotencyKey] = useState(() => crypto.randomUUID());
   const [sendingReply, setSendingReply] = useState(false);
   const [cannedId, setCannedId] = useState('');
   const [noteBody, setNoteBody] = useState('');
@@ -114,6 +124,10 @@ export default function AdminCasesPage() {
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
   const [attachmentCaption, setAttachmentCaption] = useState('');
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+
+  const deepLinkCaseRef = useRef<string | null>(null);
+  const detailRequestIdRef = useRef<string | null>(null);
+  const isFilterMountRef = useRef(true);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [newCaseType, setNewCaseType] = useState<CaseType>('COMPLAINT');
@@ -186,17 +200,44 @@ export default function AdminCasesPage() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
+  const loadAuxData = useCallback(async () => {
+    if (!canView) return;
+    setMetadataError(null);
+    setAssigneesError(null);
+    setCannedError(null);
+
     void apiFetch<CaseAssignee[]>('/admin/cases/assignees')
-      .then(setAssignees)
-      .catch(() => undefined);
+      .then((data) => {
+        setAssignees(data);
+        setAssigneesError(null);
+      })
+      .catch((error) => {
+        setAssigneesError(errorMessage(error, 'Could not load administrators'));
+      });
+
     void apiFetch<CannedResponse[]>('/admin/cases/canned-responses')
-      .then(setCannedResponses)
-      .catch(() => undefined);
+      .then((data) => {
+        setCannedResponses(data);
+        setCannedError(null);
+      })
+      .catch((error) => {
+        setCannedError(errorMessage(error, 'Could not load canned responses'));
+      });
+
     void apiFetch<CaseMetadata>('/admin/cases/metadata')
-      .then(setCaseMetadata)
-      .catch(() => setCaseMetadata(EMPTY_CASE_METADATA));
-  }, []);
+      .then((data) => {
+        setCaseMetadata(data);
+        setMetadataError(null);
+      })
+      .catch((error) => {
+        setCaseMetadata(EMPTY_CASE_METADATA);
+        setMetadataError(errorMessage(error, 'Could not load metadata'));
+      });
+  }, [canView]);
+
+  useEffect(() => {
+    void loadAuxData();
+  }, [loadAuxData]);
 
   useEffect(() => {
     if (!createOpen || bookingSearch.trim().length < 2 || linkedBooking) {
@@ -230,26 +271,50 @@ export default function AdminCasesPage() {
     if (debouncedSearch) params.set('q', debouncedSearch);
     if (statusFilter !== 'all') params.set('status', statusFilter);
     if (typeFilter !== 'all') params.set('type', typeFilter);
+    if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+    if (severityFilter !== 'all') params.set('severity', severityFilter);
+    if (assigneeFilter === 'me' && user?.id) {
+      params.set('assigneeId', user.id);
+    } else if (assigneeFilter === 'unassigned') {
+      params.set('unassigned', 'true');
+    } else if (assigneeFilter !== 'all') {
+      params.set('assigneeId', assigneeFilter);
+    }
     if (overdueOnly) params.set('overdue', 'true');
     params.set('page', String(page));
     params.set('limit', String(PAGE_SIZE));
     return params.toString();
-  }, [debouncedSearch, statusFilter, typeFilter, overdueOnly, page]);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    typeFilter,
+    priorityFilter,
+    severityFilter,
+    assigneeFilter,
+    overdueOnly,
+    page,
+    user?.id,
+  ]);
 
-  const loadList = useCallback(async () => {
-    setLoading(true);
-    setListError(null);
-    try {
-      const data = await apiFetch<AdminCasesResponse>(`/admin/cases?${listQuery}`);
-      setResult(data);
-    } catch (error) {
-      setListError(errorMessage(error, 'The support queue could not be loaded'));
-    } finally {
-      setLoading(false);
-    }
-  }, [listQuery]);
+  const loadList = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!canView) return;
+      if (!options?.silent) setLoading(true);
+      setListError(null);
+      try {
+        const data = await apiFetch<AdminCasesResponse>(`/admin/cases?${listQuery}`);
+        setResult(data);
+      } catch (error) {
+        setListError(errorMessage(error, 'The support queue could not be loaded'));
+      } finally {
+        if (!options?.silent) setLoading(false);
+      }
+    },
+    [canView, listQuery],
+  );
 
   useEffect(() => {
+    if (!canView) return;
     let active = true;
     const timer = window.setTimeout(() => {
       if (active) void loadList();
@@ -258,20 +323,34 @@ export default function AdminCasesPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [loadList]);
+  }, [canView, loadList]);
 
   useEffect(() => {
+    if (isFilterMountRef.current) {
+      isFilterMountRef.current = false;
+      return;
+    }
     const timer = window.setTimeout(() => {
       setSelectedId(null);
       setDetail(null);
       setActiveTab('conversation');
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [debouncedSearch, statusFilter, typeFilter, overdueOnly, page]);
+  }, [
+    debouncedSearch,
+    statusFilter,
+    typeFilter,
+    priorityFilter,
+    severityFilter,
+    assigneeFilter,
+    overdueOnly,
+    page,
+  ]);
 
   useEffect(() => {
     const linkedCase = new URLSearchParams(window.location.search).get('case');
     if (!linkedCase) return;
+    deepLinkCaseRef.current = linkedCase;
     const timer = window.setTimeout(() => {
       setSelectedId(linkedCase);
       if (window.matchMedia('(max-width: 1023px)').matches) {
@@ -281,20 +360,30 @@ export default function AdminCasesPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const loadDetail = useCallback(async (id: string) => {
-    setDetailLoading(true);
-    setDetailError(null);
-    try {
-      const data = await apiFetch<AdminCaseDetail>(`/admin/cases/${id}`);
-      setDetail(data);
-      setActiveTab('conversation');
-    } catch (error) {
-      setDetail(null);
-      setDetailError(errorMessage(error, 'The case could not be loaded'));
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
+  const loadDetail = useCallback(
+    async (id: string, options?: { silent?: boolean }) => {
+      if (!canView) return;
+      detailRequestIdRef.current = id;
+      if (!options?.silent) setDetailLoading(true);
+      setDetailError(null);
+      try {
+        const data = await apiFetch<AdminCaseDetail>(`/admin/cases/${id}`);
+        if (detailRequestIdRef.current === id) {
+          setDetail(data);
+        }
+      } catch (error) {
+        if (detailRequestIdRef.current === id) {
+          setDetail(null);
+          setDetailError(errorMessage(error, 'The case could not be loaded'));
+        }
+      } finally {
+        if (detailRequestIdRef.current === id && !options?.silent) {
+          setDetailLoading(false);
+        }
+      }
+    },
+    [canView],
+  );
 
   useEffect(() => {
     if (!selectedId) {
@@ -307,7 +396,11 @@ export default function AdminCasesPage() {
 
   useEffect(() => {
     if (loading || !result?.data.length) return;
-    if (selectedId && result.data.some((supportCase) => supportCase.id === selectedId)) {
+    if (
+      selectedId &&
+      (result.data.some((supportCase) => supportCase.id === selectedId) ||
+        selectedId === deepLinkCaseRef.current)
+    ) {
       return;
     }
     const isDesktop =
@@ -360,12 +453,15 @@ export default function AdminCasesPage() {
   // Periodic queue refresh every 60s when the window is visible
   useEffect(() => {
     const interval = setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        void loadList();
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible' && canView) {
+        void loadList({ silent: true });
+        if (selectedId) {
+          void loadDetail(selectedId, { silent: true });
+        }
       }
     }, 60_000);
     return () => clearInterval(interval);
-  }, [loadList]);
+  }, [canView, loadList, loadDetail, selectedId]);
 
   const refresh = async () => {
     await loadList();
@@ -571,11 +667,12 @@ export default function AdminCasesPage() {
         method: 'POST',
         body: JSON.stringify({
           body: replyBody.trim(),
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey: replyIdempotencyKey,
         }),
       });
       setReplyBody('');
       setCannedId('');
+      setReplyIdempotencyKey(crypto.randomUUID());
       applyDetail(updated);
       setToast({ message: 'Reply recorded.', tone: 'success' });
     } catch (error) {
@@ -611,6 +708,13 @@ export default function AdminCasesPage() {
 
   const uploadAttachment = async () => {
     if (!detail || !attachmentFile) return;
+    if (attachmentFile.size > 10 * 1024 * 1024) {
+      setToast({
+        message: 'Attachments must be 10 MB or less.',
+        tone: 'danger',
+      });
+      return;
+    }
     setUploadingAttachment(true);
     try {
       const formData = new FormData();
@@ -830,8 +934,11 @@ export default function AdminCasesPage() {
   };
 
   const counts = result?.counts;
+  const totalCases = counts
+    ? Object.values(counts).reduce((sum, n) => sum + n, 0)
+    : result?.total ?? 0;
   const statusFilters: Array<{ value: StatusFilter; label: string; count: number }> = [
-    { value: 'all', label: 'All cases', count: result?.total ?? 0 },
+    { value: 'all', label: 'All cases', count: totalCases },
     ...caseMetadata.statuses.map((value) => ({
       value: value as StatusFilter,
       label: CASE_STATUS_LABELS[value],
@@ -879,6 +986,15 @@ export default function AdminCasesPage() {
     />
   ) : null;
 
+  if (!canView) {
+    return (
+      <AdminNoAccess
+        area="Support & Cases"
+        required={[ADMIN_PERMISSIONS.CASES_VIEW]}
+      />
+    );
+  }
+
   return (
     <div className="space-y-5">
       <AdminPageHeader
@@ -925,14 +1041,22 @@ export default function AdminCasesPage() {
           <p className="admin-stat-value text-[#9a3f33]">{result?.overdue ?? '—'}</p>
           <p className="admin-stat-note">Past resolution SLA</p>
         </div>
-        <div className="admin-stat">
+        <button
+          type="button"
+          className={`admin-stat text-left cursor-pointer transition hover:bg-[#ede5dc] ${assigneeFilter === 'unassigned' ? 'ring-2 ring-[#b3541e]' : ''}`}
+          onClick={() => {
+            setAssigneeFilter((curr) => (curr === 'unassigned' ? 'all' : 'unassigned'));
+            setPage(1);
+          }}
+          aria-label="Filter unassigned cases"
+        >
           <p className="admin-stat-label">Unassigned</p>
           <p className="admin-stat-value">{result?.unassigned ?? '—'}</p>
           <p className="admin-stat-note">Need an owner</p>
-        </div>
+        </button>
       </section>
 
-      <div className="admin-toolbar">
+      <div className="admin-toolbar flex-wrap">
         <div className="admin-search">
           <Search />
           <input
@@ -957,6 +1081,52 @@ export default function AdminCasesPage() {
             <option key={value} value={value}>{CASE_TYPE_LABELS[value]}</option>
           ))}
         </select>
+        <select
+          className="admin-select w-auto min-w-[7.5rem]"
+          value={priorityFilter}
+          onChange={(event) => {
+            setPriorityFilter(event.target.value as 'all' | CasePriority);
+            setPage(1);
+          }}
+          aria-label="Filter by priority"
+        >
+          <option value="all">All priorities</option>
+          {caseMetadata.priorities.map((value) => (
+            <option key={value} value={value}>{CASE_PRIORITY_LABELS[value]}</option>
+          ))}
+        </select>
+        <select
+          className="admin-select w-auto min-w-[7.5rem]"
+          value={severityFilter}
+          onChange={(event) => {
+            setSeverityFilter(event.target.value as 'all' | CaseSeverity);
+            setPage(1);
+          }}
+          aria-label="Filter by severity"
+        >
+          <option value="all">All severities</option>
+          {caseMetadata.severities.map((value) => (
+            <option key={value} value={value}>{CASE_SEVERITY_LABELS[value]}</option>
+          ))}
+        </select>
+        <select
+          className="admin-select w-auto min-w-[8.5rem]"
+          value={assigneeFilter}
+          onChange={(event) => {
+            setAssigneeFilter(event.target.value);
+            setPage(1);
+          }}
+          aria-label="Filter by assignee"
+        >
+          <option value="all">All assignees</option>
+          {user?.id ? <option value="me">Assigned to me</option> : null}
+          <option value="unassigned">Unassigned</option>
+          {assignees.map((admin) => (
+            <option key={admin.id} value={admin.id}>
+              {admin.name}
+            </option>
+          ))}
+        </select>
         <button
           type="button"
           className={`admin-btn ${overdueOnly ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
@@ -970,6 +1140,31 @@ export default function AdminCasesPage() {
           Overdue
           <span className="admin-numeric text-[10px] opacity-75">{result?.overdue ?? 0}</span>
         </button>
+        {search.trim() ||
+        statusFilter !== 'all' ||
+        typeFilter !== 'all' ||
+        priorityFilter !== 'all' ||
+        severityFilter !== 'all' ||
+        assigneeFilter !== 'all' ||
+        overdueOnly ? (
+          <button
+            type="button"
+            className="admin-btn admin-btn-ghost text-xs"
+            onClick={() => {
+              setSearch('');
+              setDebouncedSearch('');
+              setStatusFilter('all');
+              setTypeFilter('all');
+              setPriorityFilter('all');
+              setSeverityFilter('all');
+              setAssigneeFilter('all');
+              setOverdueOnly(false);
+              setPage(1);
+            }}
+          >
+            Clear filters
+          </button>
+        ) : null}
       </div>
 
       <div className="admin-filter-row" role="group" aria-label="Case status filters">
@@ -989,6 +1184,19 @@ export default function AdminCasesPage() {
           </button>
         ))}
       </div>
+
+      {metadataError ? (
+        <div className="flex items-center justify-between border border-[#ebd0c9] bg-[#f8e9e5] px-4 py-2 text-xs text-[#7d3328]">
+          <span>Metadata failed to load: {metadataError}. Some filters and options may be limited.</span>
+          <button
+            type="button"
+            className="font-bold underline"
+            onClick={() => void loadAuxData()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : null}
 
       {listError ? (
         <div className="flex items-start gap-3 border border-[#ebd0c9] bg-[#f8e9e5] px-4 py-3 text-sm text-[#7d3328]">
@@ -1084,16 +1292,34 @@ export default function AdminCasesPage() {
             </div>
           ) : detailError ? (
             <div className="p-5">
-              <div className="flex items-start gap-3 border border-[#ebd0c9] bg-[#f8e9e5] px-4 py-3 text-sm text-[#7d3328]">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                <div>
-                  <p className="font-bold">The case could not be opened</p>
-                  <p className="mt-0.5 text-xs leading-5">{detailError}</p>
+              <div className="flex items-start justify-between gap-3 border border-[#ebd0c9] bg-[#f8e9e5] px-4 py-3 text-sm text-[#7d3328]">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <div>
+                    <p className="font-bold">The case could not be opened</p>
+                    <p className="mt-0.5 text-xs leading-5">{detailError}</p>
+                  </div>
                 </div>
+                {selectedId ? (
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-secondary h-7 min-h-7 px-2.5 text-xs"
+                    onClick={() => void loadDetail(selectedId)}
+                  >
+                    Retry
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : detail ? (
-            detailNode
+            <div className="relative flex min-w-0 flex-1 flex-col">
+              {detailLoading ? (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#b3541e]" />
+                </div>
+              ) : null}
+              {detailNode}
+            </div>
           ) : (
             <AdminEmptyState
               title="Select a case"
@@ -1357,7 +1583,9 @@ export default function AdminCasesPage() {
             </option>
           ))}
         </select>
-        {!assignees.length ? (
+        {assigneesError ? (
+          <p className="mt-2 text-xs text-[#9a3f33]">Failed to load administrators: {assigneesError}</p>
+        ) : !assignees.length ? (
           <p className="mt-2 text-xs text-[#9a3f33]">No active administrators are available to assign.</p>
         ) : null}
         <div className="mt-4">
@@ -1449,7 +1677,7 @@ export default function AdminCasesPage() {
           if (!submitting) setEditOpen(false);
         }}
         title="Adjust case details"
-        description="Priority and severity guide the queue order and service target. Existing deadlines are kept."
+        description="Priority and severity guide the queue order and triage urgency. Existing SLA deadlines are preserved."
         footer={
           <>
             <button type="button" className="admin-btn admin-btn-secondary" onClick={() => setEditOpen(false)} disabled={submitting}>
