@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
@@ -282,6 +282,20 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
   const [datesSelected, setDatesSelected] = useState('');
   const [guestCount, setGuestCount] = useState(1);
   const [searchPopoverOpen, setSearchPopoverOpen] = useState(false);
+  const [popularDestinations, setPopularDestinations] = useState<string[]>([
+    'Addis Ababa', 'Bishoftu', 'Hawassa', 'Bahir Dar', 'Lalibela'
+  ]);
+
+  // Load featured destinations from catalog if available
+  useEffect(() => {
+    apiFetch<Array<{ name: string }>>('/catalog/destinations?featured=true', { skipAuth: true })
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setPopularDestinations(data.map((d) => d.name));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Category and filter state
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -771,7 +785,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                     />
                     <div className="flex flex-wrap gap-2 pt-2">
                       <span className="text-xs text-[#73776F] self-center mr-1">Popular:</span>
-                      {['Addis Ababa', 'Bishoftu', 'Big Sur', 'Kyoto', 'Amalfi', 'Santorini'].map((dest) => (
+                      {popularDestinations.map((dest) => (
                         <button
                           key={dest}
                           type="button"

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { MapPin, Search as SearchIcon, ChevronRight } from "lucide-react";
+import { apiFetch } from "../../lib/api";
 
 export interface LocationHierarchy {
   region?: string;
@@ -85,9 +86,32 @@ export function LocationAutocomplete({
   onToggle,
   onClose,
 }: LocationAutocompleteProps) {
+  const [locations, setLocations] = useState<LocationItem[]>(POPULAR_DESTINATIONS);
   const [query, setQuery] = useState("");
   const [highlightIndex, setHighlightIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch live active destinations from catalog if available
+  useEffect(() => {
+    apiFetch<Array<{ id: string; slug?: string; name: string; region?: string; tagline?: string | null }>>(
+      "/catalog/destinations",
+      { skipAuth: true }
+    )
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const remoteDestinations: LocationItem[] = data.map((d) => ({
+            id: d.slug || d.id,
+            name: d.name,
+            subtitle: `${d.region || "Ethiopia"}${d.tagline ? ` · ${d.tagline}` : ""}`,
+            hierarchy: { city: d.name, region: d.region },
+          }));
+          setLocations(remoteDestinations);
+        }
+      })
+      .catch(() => {
+        // Fallback to POPULAR_DESTINATIONS on network error
+      });
+  }, []);
 
   // Focus input when popover opens
   useEffect(() => {
@@ -96,7 +120,7 @@ export function LocationAutocomplete({
     }
   }, [isOpen]);
 
-  const filteredLocations = POPULAR_DESTINATIONS.filter((item) => {
+  const filteredLocations = locations.filter((item) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return (
