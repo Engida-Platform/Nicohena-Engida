@@ -22,6 +22,7 @@ export enum NotificationType {
   CASE_ASSIGNED = 'CASE_ASSIGNED',
   CASE_REPLY = 'CASE_REPLY',
   CASE_ESCALATED = 'CASE_ESCALATED',
+  MESSAGE_RECEIVED = 'MESSAGE_RECEIVED',
 }
 
 @Entity('notifications')

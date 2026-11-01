@@ -343,6 +343,8 @@ export default function PropertyDetailsPage() {
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [hostMessage, setHostMessage] = useState('');
   const [messageSent, setMessageSent] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   // Booking widget interactive state
   const [checkIn, setCheckIn] = useState('2026-11-15');
@@ -1172,10 +1174,10 @@ export default function PropertyDetailsPage() {
                 </div>
                 <div>
                   <h3 className="font-headline font-bold text-lg text-[#3a302a] leading-tight">
-                    Inquire with {property.host.name} (Preview)
+                    Inquire with {property.host.name}
                   </h3>
                   <p className="text-xs text-[#605850]">
-                    Typically responds {property.host.responseRate.toLowerCase()} · Messaging preview mode
+                    Typically responds {property.host.responseRate.toLowerCase()} · Direct Host Chat
                   </p>
                 </div>
               </div>
@@ -1197,25 +1199,59 @@ export default function PropertyDetailsPage() {
                     <span className="material-symbols-outlined text-2xl">check_circle</span>
                   </div>
                   <h4 className="font-headline font-bold text-xl text-[#3a302a]">
-                    Inquiry Preview Recorded
+                    Inquiry Delivered to Host
                   </h4>
                   <p className="text-xs text-[#605850] mt-2 max-w-xs leading-relaxed">
-                    Host messaging is currently in preview mode. Your inquiry has been saved for when live messaging is enabled.
+                    Your inquiry has been sent to {property.host.name}. You can track replies and continue chatting in your dashboard.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setMessageModalOpen(false)}
-                    className="mt-6 px-6 py-2.5 rounded-xl bg-[#b2531b] hover:bg-[#994413] text-white text-xs font-semibold transition active:scale-95"
-                  >
-                    Done
-                  </button>
+                  <div className="mt-6 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMessageModalOpen(false);
+                        setMessageSent(false);
+                        setHostMessage('');
+                      }}
+                      className="px-5 py-2.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#605850] hover:bg-[#faf5ee] transition cursor-pointer"
+                    >
+                      Close
+                    </button>
+                    <Link
+                      href="/dashboard?tab=messages"
+                      className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs font-semibold transition active:scale-95 shadow-sm inline-flex items-center gap-1.5"
+                    >
+                      <span>View Messages</span>
+                      <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                    </Link>
+                  </div>
                 </div>
               ) : (
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
-                    if (!hostMessage.trim()) return;
-                    setMessageSent(true);
+                    if (!hostMessage.trim() || isSendingMessage) return;
+                    if (!user) {
+                      router.push(`/auth/login?returnUrl=/properties/${id}`);
+                      return;
+                    }
+                    setIsSendingMessage(true);
+                    setMessageError(null);
+                    try {
+                      if (isUuid(property.id)) {
+                        await apiFetch('/messages/send', {
+                          method: 'POST',
+                          body: JSON.stringify({
+                            propertyId: property.id,
+                            content: hostMessage.trim(),
+                          }),
+                        });
+                      }
+                      setMessageSent(true);
+                    } catch (err: unknown) {
+                      setMessageError(err instanceof Error ? err.message : 'Failed to send inquiry to host.');
+                    } finally {
+                      setIsSendingMessage(false);
+                    }
                   }}
                   className="space-y-4"
                 >
@@ -1255,6 +1291,9 @@ export default function PropertyDetailsPage() {
                     />
                   </div>
 
+                  {messageError && (
+                    <p className="text-xs text-red-600 font-medium">{messageError}</p>
+                  )}
                   <div className="flex items-center justify-end gap-3 pt-2">
                     <button
                       type="button"
@@ -1265,10 +1304,10 @@ export default function PropertyDetailsPage() {
                     </button>
                     <button
                       type="submit"
-                      disabled={!hostMessage.trim()}
-                      className="px-6 py-2.5 rounded-xl bg-[#b2531b] hover:bg-[#994413] disabled:opacity-40 text-white text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer flex items-center gap-1.5"
+                      disabled={!hostMessage.trim() || isSendingMessage}
+                      className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] disabled:opacity-40 text-white text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer flex items-center gap-1.5"
                     >
-                      <span>Send Inquiry (Preview)</span>
+                      <span>{isSendingMessage ? 'Sending...' : 'Send Inquiry'}</span>
                       <span className="material-symbols-outlined text-sm">send</span>
                     </button>
                   </div>

@@ -9,11 +9,13 @@ import {
   ChevronRight,
   CircleCheck,
   CircleX,
+  MessageSquare,
   RotateCcw,
   UserRound,
   X,
 } from 'lucide-react';
 import { apiFetch } from '../../../lib/api';
+import ChatModal from '../../../components/messaging/ChatModal';
 import type {
   BookingStatus,
   HostReservationRow,
@@ -147,10 +149,12 @@ function ReservationActions({
   reservation,
   processing,
   onAction,
+  onMessageGuest,
 }: {
   reservation: HostReservationRow;
   processing: boolean;
   onAction: (action: Action) => void;
+  onMessageGuest: () => void;
 }) {
   const actions: { action: Action; label: string; icon: typeof Check; className: string }[] = [];
 
@@ -182,10 +186,16 @@ function ReservationActions({
     });
   }
 
-  if (actions.length === 0) return null;
-
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={onMessageGuest}
+        className="inline-flex items-center gap-1.5 rounded-xl border border-[#d8d0c8] bg-white px-3 py-2 text-xs font-bold text-[#234B36] hover:bg-[#EEF3EF] transition cursor-pointer shadow-2xs"
+      >
+        <MessageSquare className="h-3.5 w-3.5" />
+        Message
+      </button>
       {reservation.status === 'CONFIRMED' && !stayHasEnded && (
         <span className="text-xs text-[#73776F]">Completion is available after check-out.</span>
       )}
@@ -220,6 +230,7 @@ export default function HostReservationsPage() {
   );
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [chatReservation, setChatReservation] = useState<HostReservationRow | null>(null);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({
@@ -460,6 +471,7 @@ export default function HostReservationsPage() {
                             reservation={reservation}
                             processing={processingId === reservation.id}
                             onAction={(action) => handleAction(reservation, action)}
+                            onMessageGuest={() => setChatReservation(reservation)}
                           />
                         </div>
                       </td>
@@ -506,6 +518,7 @@ export default function HostReservationsPage() {
                     reservation={reservation}
                     processing={processingId === reservation.id}
                     onAction={(action) => handleAction(reservation, action)}
+                    onMessageGuest={() => setChatReservation(reservation)}
                   />
                 </div>
               </article>
@@ -540,6 +553,16 @@ export default function HostReservationsPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {chatReservation && (
+        <ChatModal
+          isOpen={Boolean(chatReservation)}
+          onClose={() => setChatReservation(null)}
+          bookingId={chatReservation.id}
+          recipientName={chatReservation.guest?.name}
+          propertyTitle={chatReservation.property?.title}
+        />
       )}
     </div>
   );
