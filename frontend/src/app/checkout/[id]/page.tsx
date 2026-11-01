@@ -1,16 +1,13 @@
 'use client';
 
 /**
- * ENGIDA — Checkout & Booking Confirmation Page
- * Phase 2: Guest Reservation Flow
+ * ENGIDA — Checkout & Payment Flow
+ * Phase 3: Ethiopian Payments & Escrow Engine
  * Route: /checkout/[id]
- *
- * Fetches the pending booking by ID and lets the guest
- * confirm their payment method before the host accepts.
  */
 
-import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
@@ -44,43 +41,38 @@ interface BookingDetail {
 }
 
 type PaymentMethod =
-  | 'CASH_ON_ARRIVAL'
-  | 'CHAPA'
   | 'TELEBIRR'
-  | 'CBE_BIRR';
+  | 'CBE_BIRR'
+  | 'CHAPA'
+  | 'CASH_ON_ARRIVAL';
 
 const PAYMENT_OPTIONS: {
   value: PaymentMethod;
   label: string;
+  description: string;
   icon: string;
   badge?: string;
-  comingSoon?: boolean;
 }[] = [
   {
-    value: 'CASH_ON_ARRIVAL',
-    label: 'Cash on Arrival',
-    icon: 'payments',
-    badge: 'Most Common',
-  },
-  {
-    value: 'CHAPA',
-    label: 'Chapa Online Payment',
-    icon: 'credit_card',
-    badge: 'Recommended',
-    comingSoon: true,
-  },
-  {
     value: 'TELEBIRR',
-    label: 'Telebirr',
+    label: 'Telebirr Mobile Money',
+    description: 'Instant transfer via Telebirr app · Locked in platform escrow',
     icon: 'phone_iphone',
     badge: 'Popular in Ethiopia',
-    comingSoon: true,
   },
   {
     value: 'CBE_BIRR',
-    label: 'CBE Birr',
+    label: 'CBE Birr Mobile Banking',
+    description: 'Commercial Bank of Ethiopia direct mobile checkout',
     icon: 'account_balance',
-    comingSoon: true,
+    badge: 'Direct Bank Transfer',
+  },
+  {
+    value: 'CHAPA',
+    label: 'Chapa (Debit Cards & International)',
+    description: 'Visa, Mastercard, and Ethiopian domestic debit cards',
+    icon: 'credit_card',
+    badge: 'Cards & Online',
   },
 ];
 
@@ -125,7 +117,7 @@ function CheckoutSkeleton() {
         </div>
       </div>
       <div className="bg-white rounded-2xl border border-[#E5E0D5] p-6 space-y-4">
-        {[1, 2, 3, 4].map((i) => (
+        {[1, 2, 3].map((i) => (
           <div key={i} className="h-16 bg-[#EEF3EF] rounded-xl" />
         ))}
       </div>
@@ -133,9 +125,10 @@ function CheckoutSkeleton() {
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────────
-export default function CheckoutPage() {
+// ─── Checkout Content (inside Suspense) ─────────────────────────────────────────
+function CheckoutContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const bookingId = params?.id as string;
@@ -143,10 +136,16 @@ export default function CheckoutPage() {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('CASH_ON_ARRIVAL');
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('TELEBIRR');
   const [confirming, setConfirming] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+
+  // Check if user came back from cancelled sandbox payment
+  useEffect(() => {
+    if (searchParams.get('cancelled') === 'true') {
+      setToast('Payment was cancelled in the gateway simulator. Please try again.');
+    }
+  }, [searchParams]);
 
   // ── Auth guard ──
   useEffect(() => {
@@ -162,6 +161,11 @@ export default function CheckoutPage() {
     setLoading(true);
     apiFetch<BookingDetail>(`/bookings/${bookingId}`)
       .then((data) => {
+        // If already paid, redirect straight to receipt
+        if (data.paymentStatus === 'PAID') {
+          router.push(`/checkout/${bookingId}/success`);
+          return;
+        }
         setBooking(data);
       })
       .catch((err: unknown) => {
@@ -178,31 +182,46 @@ export default function CheckoutPage() {
   const nights = booking ? calcNights(booking.checkInDate, booking.checkOutDate) : 0;
   const totalETB = booking ? Number(booking.totalPrice) : 0;
 
-  const handleConfirm = async () => {
+  const handleProceedToPayment = async () => {
     if (!booking) return;
-
-    if (selectedPayment !== 'CASH_ON_ARRIVAL') {
-      const label = PAYMENT_OPTIONS.find((p) => p.value === selectedPayment)?.label ?? selectedPayment;
-      setToast(`${label} integration coming soon. Please select Cash on Arrival for now.`);
-      setTimeout(() => setToast(null), 4000);
-      return;
-    }
 
     setConfirming(true);
     try {
-      // Guest confirms payment method — PENDING→PENDING is a no-op backend-side,
-      // host will transition to CONFIRMED. This records the user action.
-      await apiFetch(`/bookings/${booking.id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'PENDING' }),
-      }).catch(() => {
-        // Non-fatal — PENDING → PENDING may be rejected, that is fine.
+      // 1. Create authoritative server session bound to server-side quote
+      const returnUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/checkout/${booking.id}/success`
+        : `/checkout/${booking.id}/success`;
+
+      const session = await apiFetch<{
+        paymentId: string;
+        sessionId: string;
+        checkoutUrl?: string;
+        mode?: string;
+        status: string;
+      }>('/payments/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          bookingId: booking.id,
+          paymentMethod: selectedPayment,
+          currency: 'ETB',
+          customerPhone: user?.hostProfile?.phone || '0911000000',
+          returnUrl,
+        }),
       });
-      setConfirmed(true);
-    } catch {
-      setToast('Something went wrong. Please try again.');
-      setTimeout(() => setToast(null), 4000);
-    } finally {
+
+      if (session.checkoutUrl) {
+        if (session.checkoutUrl.startsWith('http://') || session.checkoutUrl.startsWith('https://')) {
+          window.location.href = session.checkoutUrl;
+        } else {
+          router.push(session.checkoutUrl);
+        }
+      } else {
+        router.push(`/checkout/${booking.id}/success`);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to initialize payment gateway';
+      setToast(msg);
+      setTimeout(() => setToast(null), 5000);
       setConfirming(false);
     }
   };
@@ -242,68 +261,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // ── Success state ──
-  if (confirmed && booking) {
-    return (
-      <div className="min-h-screen bg-[#F8F5ED] flex flex-col font-body">
-        <AppHeader />
-        <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-16 flex flex-col items-center text-center">
-          {/* Success icon */}
-          <div className="w-20 h-20 rounded-full bg-[#EEF3EF] border-2 border-[#234B36]/30 flex items-center justify-center mb-6 shadow-lg shadow-[#234B36]/10">
-            <span className="material-symbols-outlined text-4xl text-[#234B36]">check_circle</span>
-          </div>
-
-          <h1 className="text-3xl font-black text-[#252923] mb-2">Your Stay is Booked!</h1>
-          {booking.reference && (
-            <p className="text-sm font-mono font-bold text-[#234B36] bg-[#EEF3EF] px-3 py-1.5 rounded-full border border-[#234B36]/20 mb-4">
-              {booking.reference}
-            </p>
-          )}
-          <p className="text-sm text-[#73776F] max-w-sm leading-relaxed mb-8">
-            The host will confirm your reservation within 24 hours. You&apos;ll receive a notification when confirmed.
-          </p>
-
-          {/* Stay summary */}
-          <div className="w-full bg-white rounded-2xl border border-[#E5E0D5] p-5 mb-6 text-left">
-            <div className="flex gap-4 items-start">
-              <img
-                src={getPropertyImage(booking.property)}
-                alt={booking.property?.title ?? 'Property'}
-                className="w-20 h-16 rounded-xl object-cover shrink-0"
-              />
-              <div>
-                <p className="font-bold text-sm text-[#252923]">{booking.property?.title ?? 'Your Booked Property'}</p>
-                <p className="text-xs text-[#73776F] mt-0.5">
-                  {booking.property?.subCity ? `${booking.property.subCity}, ` : ''}
-                  {booking.property?.city ?? ''}
-                </p>
-                <p className="text-xs text-[#73776F] mt-2">
-                  {formatDate(booking.checkInDate)} → {formatDate(booking.checkOutDate)} &middot; {nights} {nights === 1 ? 'night' : 'nights'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-3 w-full">
-            <Link
-              href="/dashboard"
-              className="flex-1 py-3.5 rounded-xl bg-[#234B36] text-white text-sm font-semibold text-center hover:bg-[#1a3828] transition cursor-pointer"
-            >
-              View My Bookings
-            </Link>
-            <Link
-              href="/properties"
-              className="flex-1 py-3.5 rounded-xl bg-white border border-[#E5E0D5] text-[#252923] text-sm font-semibold text-center hover:bg-[#EEF3EF] transition cursor-pointer"
-            >
-              Explore More Properties
-            </Link>
-          </div>
-        </main>
-        <AppFooter />
-      </div>
-    );
-  }
-
   // ── Main checkout view ──
   return (
     <div className="min-h-screen bg-[#F8F5ED] flex flex-col font-body">
@@ -313,7 +270,7 @@ export default function CheckoutPage() {
 
         {/* Toast notification */}
         {toast && (
-          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#252923] text-white text-xs font-semibold px-5 py-3 rounded-xl shadow-xl max-w-sm text-center">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#252923] text-white text-xs font-semibold px-5 py-3 rounded-xl shadow-xl max-w-md text-center border border-white/20 animate-fade-in-up">
             {toast}
           </div>
         )}
@@ -330,8 +287,8 @@ export default function CheckoutPage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-1">
-            <span className="material-symbols-outlined text-3xl text-[#234B36]">celebration</span>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#252923]">Reservation Confirmed!</h1>
+            <span className="material-symbols-outlined text-3xl text-[#234B36]">lock</span>
+            <h1 className="text-2xl sm:text-3xl font-black text-[#252923]">Secure Escrow Checkout</h1>
           </div>
           {booking?.reference && (
             <p className="text-xs font-mono font-bold text-[#234B36] bg-[#EEF3EF] inline-block px-3 py-1 rounded-full border border-[#234B36]/20 mt-2">
@@ -339,7 +296,7 @@ export default function CheckoutPage() {
             </p>
           )}
           <p className="text-sm text-[#73776F] mt-2">
-            Now select your payment method and confirm. The host will accept within 24 hours.
+            Your payment is held safely in platform escrow and released to the host only 24 hours after check-in.
           </p>
         </div>
 
@@ -370,7 +327,7 @@ export default function CheckoutPage() {
 
             {/* Stay Details */}
             <div className="bg-white rounded-2xl border border-[#E5E0D5] p-5 shadow-xs">
-              <h2 className="text-sm font-black text-[#252923] mb-4 uppercase tracking-wide">Stay Details</h2>
+              <h2 className="text-sm font-black text-[#252923] mb-4 uppercase tracking-wide">Stay Summary</h2>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[#73776F]">Check-in</p>
@@ -397,9 +354,9 @@ export default function CheckoutPage() {
               {/* Price total */}
               <div className="mt-4 pt-4 border-t border-[#E5E0D5]/70 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-[#73776F]">Total Amount</p>
+                  <p className="text-xs text-[#73776F]">Total to Pay (ETB)</p>
                   <p className="text-2xl font-black text-[#252923]">ETB {totalETB.toLocaleString()}</p>
-                  <p className="text-[10px] text-[#73776F] mt-0.5">Includes all fees and service charges</p>
+                  <p className="text-[10px] text-[#73776F] mt-0.5">Includes taxes and platform service fee</p>
                 </div>
                 <span className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
                   {booking.status}
@@ -414,9 +371,9 @@ export default function CheckoutPage() {
                 {PAYMENT_OPTIONS.map((option) => (
                   <label
                     key={option.value}
-                    className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       selectedPayment === option.value
-                        ? 'border-[#234B36] bg-[#EEF3EF]/60'
+                        ? 'border-[#234B36] bg-[#EEF3EF]/60 shadow-xs'
                         : 'border-[#E5E0D5] bg-white hover:border-[#234B36]/30 hover:bg-[#F8F5ED]'
                     }`}
                   >
@@ -426,68 +383,58 @@ export default function CheckoutPage() {
                       value={option.value}
                       checked={selectedPayment === option.value}
                       onChange={() => setSelectedPayment(option.value)}
-                      className="accent-[#234B36] w-4 h-4 cursor-pointer"
+                      className="accent-[#234B36] w-4 h-4 cursor-pointer mt-1"
                     />
-                    <span className="material-symbols-outlined text-xl text-[#234B36]">{option.icon}</span>
+                    <span className="material-symbols-outlined text-2xl text-[#234B36] shrink-0">{option.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-[#252923]">{option.label}</p>
-                      {option.comingSoon && (
-                        <p className="text-[10px] text-[#73776F]">Integration coming soon</p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      {option.badge && (
-                        <span className="px-2 py-0.5 rounded-full bg-[#234B36]/10 text-[#234B36] text-[10px] font-bold">
-                          {option.badge}
-                        </span>
-                      )}
-                      {option.comingSoon && (
-                        <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold border border-amber-200">
-                          Soon
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-[#252923]">{option.label}</p>
+                        {option.badge && (
+                          <span className="px-2 py-0.5 rounded-full bg-[#234B36]/10 text-[#234B36] text-[9px] font-bold">
+                            {option.badge}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-[#73776F] mt-0.5">{option.description}</p>
                     </div>
                   </label>
                 ))}
               </div>
             </div>
 
-            {/* ENGIDA Guarantee */}
+            {/* ENGIDA Escrow Guarantee Banner */}
             <div className="flex items-start gap-3 p-4 rounded-2xl bg-[#EEF3EF] border border-[#234B36]/20">
-              <span className="material-symbols-outlined text-xl text-[#234B36] shrink-0 mt-0.5">shield</span>
+              <span className="material-symbols-outlined text-2xl text-[#234B36] shrink-0 mt-0.5">verified_user</span>
               <div>
-                <p className="text-xs font-bold text-[#234B36]">ENGIDA Guarantee</p>
+                <p className="text-xs font-bold text-[#234B36]">Protected by ENGIDA Escrow</p>
                 <p className="text-xs text-[#73776F] leading-relaxed mt-0.5">
-                  Every booking on ENGIDA is protected. Verified hosts, secure payments, and your trust is our priority.
+                  Your payment is locked in platform escrow until 24 hours after check-in. If the listing does not match or access is not provided, you receive a 100% refund.
                 </p>
               </div>
             </div>
 
-            {/* Confirm Button */}
+            {/* Pay Button */}
             <button
               type="button"
-              onClick={handleConfirm}
+              onClick={handleProceedToPayment}
               disabled={confirming}
               className="w-full py-4 rounded-xl bg-[#234B36] hover:bg-[#1a3828] disabled:opacity-60 disabled:cursor-not-allowed text-white font-black text-base transition-all duration-200 shadow-lg shadow-[#234B36]/25 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
             >
               {confirming ? (
                 <>
                   <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Confirming...
+                  Connecting to Secure Gateway...
                 </>
               ) : (
                 <>
-                  <span>Confirm Reservation</span>
-                  <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                  <span>Pay ETB {totalETB.toLocaleString()} via {selectedPayment === 'TELEBIRR' ? 'Telebirr' : selectedPayment === 'CBE_BIRR' ? 'CBE Birr' : 'Chapa'}</span>
+                  <span className="material-symbols-outlined text-lg">lock</span>
                 </>
               )}
             </button>
 
             <p className="text-center text-xs text-[#73776F]">
-              You won&apos;t be charged until the host confirms your booking.{' '}
-              <Link href="/dashboard" className="underline hover:text-[#234B36] transition cursor-pointer">
-                View all my bookings
-              </Link>
+              Encrypted 256-bit SSL transaction &middot; Approved by National Bank of Ethiopia fintech guidelines
             </p>
           </div>
         )}
@@ -495,5 +442,24 @@ export default function CheckoutPage() {
 
       <AppFooter />
     </div>
+  );
+}
+
+// ─── Exported Page Wrapped in Suspense ────────────────────────────────────────
+export default function CheckoutPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#F8F5ED] flex flex-col font-body">
+          <AppHeader />
+          <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-10">
+            <CheckoutSkeleton />
+          </main>
+          <AppFooter />
+        </div>
+      }
+    >
+      <CheckoutContent />
+    </Suspense>
   );
 }

@@ -27,7 +27,7 @@ export class SandboxPaymentProvider implements PaymentProvider {
     return {
       sessionId: `sess_${input.idempotencyKey}`,
       providerPaymentId,
-      checkoutUrl: `/checkout/sandbox?session=${input.idempotencyKey}&ref=${providerPaymentId}&amount=${input.amountMinor.toString()}`,
+      checkoutUrl: `/checkout/sandbox?session=${input.idempotencyKey}&ref=${providerPaymentId}&amount=${input.amountMinor.toString()}&bookingId=${input.bookingId}&method=${input.paymentMethod}`,
       status: 'PENDING',
       mode: 'sandbox',
       metadata: {
