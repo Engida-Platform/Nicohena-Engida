@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
@@ -7,6 +7,7 @@ import { Building2, Save, HelpCircle, ArrowRight, Clock, AlertTriangle } from 'l
 import StepIndicator from '@/components/host/onboarding/StepIndicator';
 import Step1Account from '@/components/host/onboarding/Step1Account';
 import Step2ContactOtp from '@/components/host/onboarding/Step2ContactOtp';
+import Step3IdentityVerification from '@/components/host/onboarding/Step3IdentityVerification';
 import Step4HostDetails from '@/components/host/onboarding/Step4HostDetails';
 import Step5ReviewSubmit from '@/components/host/onboarding/Step5ReviewSubmit';
 import {
@@ -250,13 +251,13 @@ export default function BecomeAHostWizardPage() {
               className="flex items-center gap-1 text-xs font-semibold text-[#73776F] hover:text-[#234B36] transition"
             >
               <HelpCircle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Hosting Standards</span>
+              <span>Guidelines</span>
             </Link>
           </div>
         </div>
       </header>
 
-      {/* ── Persistent Multi-Step Progress Indicator ── */}
+      {/* ── Persistent Multi-Step Progress Indicator (5 Steps) ── */}
       <StepIndicator
         currentStep={currentStep}
         completedSteps={completedSteps}
@@ -274,7 +275,7 @@ export default function BecomeAHostWizardPage() {
           <button
             type="button"
             onClick={() => setSaveToast(null)}
-            className="ml-3 text-[#E5E0D5] hover:text-white"
+            className="text-xs text-[#E5E0D5] hover:text-white ml-2 font-bold cursor-pointer"
           >
             ✕
           </button>
@@ -307,7 +308,7 @@ export default function BecomeAHostWizardPage() {
         )}
 
         {currentStep === 3 && (
-          <Step4HostDetails
+          <Step3IdentityVerification
             data={formData}
             updateData={updateFormData}
             onBack={() => handleBackStep(2)}
@@ -316,6 +317,15 @@ export default function BecomeAHostWizardPage() {
         )}
 
         {currentStep === 4 && (
+          <Step4HostDetails
+            data={formData}
+            updateData={updateFormData}
+            onBack={() => handleBackStep(3)}
+            onContinue={() => handleNextStep(5)}
+          />
+        )}
+
+        {currentStep === 5 && (
           <Step5ReviewSubmit
             data={formData}
             updateData={updateFormData}
@@ -334,7 +344,7 @@ export default function BecomeAHostWizardPage() {
               }
             }}
             onHostProfileCreated={handleHostProfileCreated}
-            onBack={() => handleBackStep(3)}
+            onBack={() => handleBackStep(4)}
             onEditStep={(step) => setCurrentStep(step)}
           />
         )}
