@@ -345,7 +345,7 @@ export default function HostEarningsPage() {
             ENGIDA Treasury & Escrow Protection Notice
           </h3>
           <p className="leading-relaxed text-[#73776F]">
-            Guest payments are secured in provider escrow or split custody upon booking. Escrow releases automatically 24 hours after check-in, crediting your Available for Payout ledger balance. Payouts are executed daily via automated batches to verified Ethiopian bank accounts and Telebirr wallets.
+            Guest payments are secured in provider escrow or split custody upon booking. Escrow releases automatically 24 hours after checkout, crediting your Available for Payout ledger balance. Payouts are executed daily via automated batches to verified Ethiopian bank accounts and Telebirr wallets.
           </p>
         </div>
       </div>

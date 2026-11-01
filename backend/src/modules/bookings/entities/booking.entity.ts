@@ -152,6 +152,12 @@ export class Booking {
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 0, name: 'discount_amount' })
   discountAmount: number;
 
+  @Column({ type: 'jsonb', nullable: true, name: 'price_breakdown' })
+  priceBreakdown: Record<string, any> | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true, name: 'quote_version' })
+  quoteVersion: string | null;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

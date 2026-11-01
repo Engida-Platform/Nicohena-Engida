@@ -145,7 +145,8 @@ describe('PaymentsCaptureService (Server Quote Binding & Idempotent Capture)', (
   it('binds session amount strictly from server booking record, ignoring client amounts', async () => {
     mockBookingRepo.findOne.mockResolvedValue({
       id: 'booking-123',
-      userId: mockUser.id,
+      guestId: mockUser.id,
+      status: 'PENDING',
       totalPrice: 2500, // 2,500.00 ETB
       currency: 'ETB',
       property: { hostId: 'host-uuid' },
@@ -187,5 +188,104 @@ describe('PaymentsCaptureService (Server Quote Binding & Idempotent Capture)', (
 
     expect(result).toEqual({ received: true, duplicate: true });
     expect(mockLedgerService.recordTransaction).not.toHaveBeenCalled();
+  });
+
+  describe('SEC-03: Booking ownership check', () => {
+    it('rejects session creation when user is not the booking guest', async () => {
+      mockBookingRepo.findOne.mockResolvedValue({
+        id: 'booking-other',
+        guestId: 'another-user-id',
+        status: 'PENDING',
+        totalPrice: 1000,
+        currency: 'ETB',
+        property: { hostId: 'host-uuid' },
+      });
+
+      await expect(
+        service.createPaymentSession(
+          { bookingId: 'booking-other', paymentMethod: 'CHAPA', currency: 'ETB' },
+          mockUser, // mockUser.id !== 'another-user-id'
+        ),
+      ).rejects.toThrow('You do not have permission to pay for this booking');
+    });
+
+    it('allows admin to create payment session for any booking', async () => {
+      mockBookingRepo.findOne.mockResolvedValue({
+        id: 'booking-other',
+        guestId: 'another-user-id',
+        status: 'PENDING',
+        totalPrice: 1000,
+        currency: 'ETB',
+        property: { hostId: 'host-uuid' },
+      });
+
+      const adminUser = { ...mockUser, id: 'admin-id', role: 'ADMIN' as any };
+      const session = await service.createPaymentSession(
+        { bookingId: 'booking-other', paymentMethod: 'CHAPA', currency: 'ETB' },
+        adminUser,
+      );
+
+      expect(session).toBeDefined();
+    });
+
+    it('rejects session creation for cancelled booking', async () => {
+      mockBookingRepo.findOne.mockResolvedValue({
+        id: 'booking-123',
+        guestId: mockUser.id,
+        status: 'CANCELLED',
+        totalPrice: 1000,
+        currency: 'ETB',
+        property: { hostId: 'host-uuid' },
+      });
+
+      await expect(
+        service.createPaymentSession(
+          { bookingId: 'booking-123', paymentMethod: 'CHAPA', currency: 'ETB' },
+          mockUser,
+        ),
+      ).rejects.toThrow('Cannot initiate payment for a cancelled booking');
+    });
+  });
+
+  describe('SEC-05: Single active session enforcement', () => {
+    it('returns existing active session if unexpired and payment method matches', async () => {
+      mockBookingRepo.findOne.mockResolvedValue({
+        id: 'booking-123',
+        guestId: mockUser.id,
+        status: 'PENDING',
+        totalPrice: 2500,
+        currency: 'ETB',
+        property: { hostId: 'host-uuid' },
+      });
+
+      const futureDate = new Date(Date.now() + 15 * 60 * 1000);
+      mockPaymentRepo.findOne.mockResolvedValue({
+        id: 'existing-pay-id',
+        bookingId: 'booking-123',
+        status: 'INITIATED',
+        method: 'CHAPA',
+        amountMinor: '250000',
+        currency: 'ETB',
+        provider: 'CHAPA',
+        providerPaymentId: 'chapa-tx-123',
+        idempotencyKey: 'idemp-123',
+        expiresAt: futureDate,
+        metadata: {
+          sessionId: 'existing-sess-123',
+          checkoutUrl: 'https://checkout.chapa.co/pay/123',
+        },
+      });
+
+      const session = await service.createPaymentSession(
+        { bookingId: 'booking-123', paymentMethod: 'CHAPA', currency: 'ETB' },
+        mockUser,
+      );
+
+      expect(session.paymentId).toBe('existing-pay-id');
+      expect(session.sessionId).toBe('existing-sess-123');
+      expect(session.checkoutUrl).toBe('https://checkout.chapa.co/pay/123');
+      // Should not create another payment row
+      expect(mockPaymentRepo.create).not.toHaveBeenCalled();
+    });
   });
 });

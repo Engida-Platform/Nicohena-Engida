@@ -72,6 +72,7 @@ import {
 } from './dto/host-reviews-response.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
+import { BookingStatusHistory, BookingActorType } from '../bookings/entities/booking-status-history.entity';
 import { AuditService, AuditRequestContext } from '../audit/audit.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { sanitizeListingUpdatePayload } from '../properties/constants/moderation.constants';
@@ -160,6 +161,9 @@ export class HostService {
     private readonly escrowRepo?: Repository<EscrowHold>,
     @Optional()
     private readonly payoutsService?: PayoutsService,
+    @Optional()
+    @InjectRepository(BookingStatusHistory)
+    private readonly statusHistoryRepository?: Repository<BookingStatusHistory>,
   ) {}
 
   // ─────────────────────────────────────────
@@ -220,11 +224,11 @@ export class HostService {
       displayName: dto.displayName,
       bio: dto.bio || null,
       phone: dto.phone || null,
-      verificationStatus: HostVerificationStatus.VERIFIED,
+      verificationStatus: HostVerificationStatus.UNVERIFIED,
     });
 
     const saved = await this.hostProfileRepository.save(newProfile);
-    this.logger.log(`Host profile created as VERIFIED for user ${userId}`);
+    this.logger.log(`Host profile created as UNVERIFIED for user ${userId}`);
     return saved;
   }
 
@@ -1065,6 +1069,18 @@ export class HostService {
   ) {
     await this.assertHostProfile(userId, userRole);
     const hostProfile = await this.hostProfileRepository.findOne({ where: { userId } });
+
+    if (
+      process.env.HOST_VERIFICATION_REQUIRED === 'true' &&
+      hostProfile?.verificationStatus !== HostVerificationStatus.VERIFIED
+    ) {
+      throw new BadRequestException(
+        `Cannot submit listing for review: Your host profile is currently "${
+          hostProfile?.verificationStatus || 'UNVERIFIED'
+        }". Your identity must be verified by an administrator before submitting listings.`,
+      );
+    }
+
     const result = await this.listingModerationService.submitForReview(listingId, userId, userRole, notes);
     if (hostProfile && hostProfile.verificationStatus !== HostVerificationStatus.VERIFIED) {
       result.message = `Listing submitted for moderation review. Note: Your host profile is currently ${hostProfile.verificationStatus}. Your host identity must be verified before the listing can be published publicly.`;
@@ -1383,41 +1399,102 @@ export class HostService {
     if (updateResult.affected !== 1) {
       throw new ConflictException('This reservation changed while you were acting. Reload it and try again.');
     }
+    const previousStatus = booking.status;
     booking.status = newStatus;
+
+    if (newStatus === BookingStatus.CANCELLED) {
+      booking.cancelledById = hostId;
+      booking.cancelledByType = BookingActorType.HOST;
+      booking.cancelledAt = new Date();
+      booking.cancellationReason = 'Cancelled by host';
+      await this.bookingRepository.save(booking);
+    }
+
+    if (this.statusHistoryRepository) {
+      try {
+        await this.statusHistoryRepository.save(
+          this.statusHistoryRepository.create({
+            bookingId: booking.id,
+            fromStatus: previousStatus,
+            toStatus: newStatus,
+            source: BookingActorType.HOST,
+            actorId: hostId,
+            reason: `Host transition to ${newStatus}`,
+          }),
+        );
+      } catch (historyErr: unknown) {
+        this.logger.warn(`Failed to record booking status history: ${historyErr}`);
+      }
+    }
 
     if (this.notificationsService) {
       try {
         const propTitle = booking.property?.title || 'your property';
+        const refStr = booking.reference || `#${booking.id.slice(0, 8)}`;
+
         if (newStatus === BookingStatus.CONFIRMED) {
           await this.notificationsService.createNotification({
             userId: hostId,
             type: NotificationType.BOOKING_CONFIRMED,
             title: 'Reservation Confirmed',
-            message: `Reservation #${booking.id.slice(0, 8)} for "${propTitle}" has been confirmed.`,
+            message: `Reservation ${refStr} for "${propTitle}" has been confirmed.`,
             link: '/host/reservations',
             metadata: { bookingId: booking.id, propertyId: booking.property?.id },
-            idempotencyKey: `booking_${booking.id}_CONFIRMED`,
+            idempotencyKey: `booking_${booking.id}_CONFIRMED_host`,
           });
+          if (booking.guestId) {
+            await this.notificationsService.createNotification({
+              userId: booking.guestId,
+              type: NotificationType.BOOKING_CONFIRMED,
+              title: 'Reservation Confirmed!',
+              message: `Your reservation ${refStr} for "${propTitle}" has been confirmed by the host.`,
+              link: `/dashboard`,
+              metadata: { bookingId: booking.id, propertyId: booking.property?.id },
+              idempotencyKey: `booking_${booking.id}_CONFIRMED_guest`,
+            });
+          }
         } else if (newStatus === BookingStatus.CANCELLED) {
           await this.notificationsService.createNotification({
             userId: hostId,
             type: NotificationType.BOOKING_CANCELLED,
             title: 'Reservation Cancelled',
-            message: `Reservation #${booking.id.slice(0, 8)} for "${propTitle}" has been cancelled.`,
+            message: `Reservation ${refStr} for "${propTitle}" has been cancelled.`,
             link: '/host/reservations',
             metadata: { bookingId: booking.id, propertyId: booking.property?.id },
-            idempotencyKey: `booking_${booking.id}_CANCELLED`,
+            idempotencyKey: `booking_${booking.id}_CANCELLED_host`,
           });
+          if (booking.guestId) {
+            await this.notificationsService.createNotification({
+              userId: booking.guestId,
+              type: NotificationType.BOOKING_CANCELLED,
+              title: 'Reservation Cancelled by Host',
+              message: `Your reservation ${refStr} for "${propTitle}" was cancelled by the host. Any payments will be refunded.`,
+              link: `/dashboard`,
+              metadata: { bookingId: booking.id, propertyId: booking.property?.id },
+              idempotencyKey: `booking_${booking.id}_CANCELLED_guest`,
+            });
+          }
         } else if (newStatus === BookingStatus.COMPLETED) {
           await this.notificationsService.createNotification({
             userId: hostId,
             type: NotificationType.BOOKING_COMPLETED,
             title: 'Stay Completed',
-            message: `Stay for reservation #${booking.id.slice(0, 8)} at "${propTitle}" has concluded.`,
+            message: `Stay for reservation ${refStr} at "${propTitle}" has concluded.`,
             link: '/host/reservations',
             metadata: { bookingId: booking.id, propertyId: booking.property?.id },
-            idempotencyKey: `booking_${booking.id}_COMPLETED`,
+            idempotencyKey: `booking_${booking.id}_COMPLETED_host`,
           });
+          if (booking.guestId) {
+            await this.notificationsService.createNotification({
+              userId: booking.guestId,
+              type: NotificationType.BOOKING_COMPLETED,
+              title: 'Stay Concluded',
+              message: `Your stay at "${propTitle}" is complete. Leave a review to help other guests!`,
+              link: `/properties/${booking.property?.id}`,
+              metadata: { bookingId: booking.id, propertyId: booking.property?.id },
+              idempotencyKey: `booking_${booking.id}_COMPLETED_guest`,
+            });
+          }
         }
       } catch (err: unknown) {
         this.logger.warn(`Failed to dispatch reservation notification: ${err}`);

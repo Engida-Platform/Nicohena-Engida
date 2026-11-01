@@ -111,9 +111,13 @@ function PaymentSuccessContent() {
         <div className="w-20 h-20 rounded-full bg-[#EEF3EF] border-2 border-[#234B36]/30 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-[#234B36]/10">
           <span className="material-symbols-outlined text-4xl text-[#234B36]">verified</span>
         </div>
-        <h1 className="text-3xl font-black text-[#252923] tracking-tight">Payment Confirmed!</h1>
+        <h1 className="text-3xl font-black text-[#252923] tracking-tight">
+          {booking?.status === 'CONFIRMED' ? 'Reservation Confirmed!' : 'Payment Received — Request Sent!'}
+        </h1>
         <p className="text-sm text-[#73776F] mt-2 max-w-md mx-auto">
-          Your payment has been captured and your reservation is confirmed. Your funds are secured in platform escrow.
+          {booking?.status === 'CONFIRMED'
+            ? 'Your payment has been captured and your instant reservation is confirmed. Your funds are secured in platform escrow.'
+            : 'Your payment is locked safely in platform escrow. The host typically responds within 2 hours to confirm your stay.'}
         </p>
         {(booking?.reference || refCode) && (
           <div className="mt-4">
@@ -133,7 +137,7 @@ function PaymentSuccessContent() {
             <h2 className="text-base font-bold text-white">ENGIDA Escrow Guarantee Active</h2>
           </div>
           <p className="text-xs text-white/90 leading-relaxed mb-4">
-            To ensure complete peace of mind, your payment of <strong>ETB {totalETB}</strong> is held safely in our banking escrow account. The host receives payment strictly <strong>24 hours after your successful check-in</strong>.
+            To ensure complete peace of mind, your payment of <strong>ETB {totalETB}</strong> is held safely in our banking escrow account. The host receives payment strictly <strong>24 hours after your completed checkout</strong>.
           </p>
           <div className="grid grid-cols-3 gap-2 pt-3 border-t border-white/20 text-center">
             <div>

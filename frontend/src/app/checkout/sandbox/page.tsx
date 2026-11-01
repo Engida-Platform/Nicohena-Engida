@@ -38,22 +38,13 @@ function SandboxPaymentContent() {
     setProcessing(true);
     setError(null);
     try {
-      // Ingest verified test capture via backend webhook
-      await apiFetch('/payments/webhook/SANDBOX', {
+      // Ingest verified test capture via authenticated backend simulation endpoint
+      await apiFetch('/payments/sandbox/complete', {
         method: 'POST',
-        skipAuth: true,
         body: JSON.stringify({
-          event: 'charge.completed',
-          status: 'success',
-          tx_ref: ref,
-          provider_payment_id: ref,
-          bypass_signature: true,
-          data: {
-            tx_ref: ref,
-            status: 'success',
-            amount: Number(rawAmount) / 100,
-            currency: 'ETB',
-          },
+          bookingId,
+          providerPaymentId: ref,
+          txRef: ref,
         }),
       });
 

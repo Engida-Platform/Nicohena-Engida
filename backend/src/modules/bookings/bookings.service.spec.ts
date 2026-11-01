@@ -360,6 +360,32 @@ describe('BookingsService Integration Acceptance', () => {
         }),
       );
     });
+
+    it('SEC-01: creates reservation with online paymentMethod (CHAPA) as PENDING and paidAt null', async () => {
+      mockBookingRepo.createQueryBuilder = jest.fn().mockImplementation(() => createMockQb(0, mockBooking));
+      mockAvailabilityBlockRepo.createQueryBuilder = jest.fn().mockImplementation(() => createMockQb(0));
+
+      const result = await service.create(
+        {
+          propertyId: PROPERTY_ID,
+          checkInDate: '2027-04-10',
+          checkOutDate: '2027-04-15',
+          guestCount: 2,
+          paymentMethod: PaymentMethod.CHAPA,
+        },
+        GUEST_ID,
+      );
+
+      expect(result).toBeDefined();
+      expect(mockBookingRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentMethod: PaymentMethod.CHAPA,
+          paymentStatus: PaymentStatus.PENDING,
+          paymentReference: null,
+          paidAt: null,
+        }),
+      );
+    });
   });
 
   describe('Reservation Access Control & Privacy', () => {

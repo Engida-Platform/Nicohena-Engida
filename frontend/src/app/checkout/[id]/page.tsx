@@ -296,7 +296,7 @@ function CheckoutContent() {
             </p>
           )}
           <p className="text-sm text-[#73776F] mt-2">
-            Your payment is held safely in platform escrow and released to the host only 24 hours after check-in.
+            Your payment is held safely in platform escrow and released to the host only 24 hours after checkout.
           </p>
         </div>
 
@@ -408,7 +408,7 @@ function CheckoutContent() {
               <div>
                 <p className="text-xs font-bold text-[#234B36]">Protected by ENGIDA Escrow</p>
                 <p className="text-xs text-[#73776F] leading-relaxed mt-0.5">
-                  Your payment is locked in platform escrow until 24 hours after check-in. If the listing does not match or access is not provided, you receive a 100% refund.
+                  Your payment is locked in platform escrow until 24 hours after checkout. If the listing does not match or access is not provided, you receive a 100% refund.
                 </p>
               </div>
             </div>

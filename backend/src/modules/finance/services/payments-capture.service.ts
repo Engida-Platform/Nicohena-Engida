@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -14,7 +15,7 @@ import { EscrowHold, EscrowHoldStatus } from '../entities/escrow-hold.entity';
 import { CommissionSnapshot } from '../entities/commission-snapshot.entity';
 import { TaxLine, TaxType } from '../entities/tax-line.entity';
 import { Booking, BookingStatus, PaymentStatus as BookingPaymentStatus } from '../../bookings/entities/booking.entity';
-import { User } from '../../../users/entities/user.entity';
+import { User, UserRole } from '../../../users/entities/user.entity';
 import { SandboxPaymentProvider } from '../providers/sandbox-payment.provider';
 import { ChapaPaymentProvider } from '../providers/chapa-payment.provider';
 import { LedgerService } from './ledger.service';
@@ -73,6 +74,25 @@ export class PaymentsCaptureService {
       throw new NotFoundException(`Booking ${dto.bookingId} not found`);
     }
 
+    // SEC-03: Booking ownership check - only guest or admin may initiate payment
+    if (booking.guestId !== user.id && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to pay for this booking');
+    }
+
+    // SEC-03: Prevent payment on cancelled or completed bookings
+    if (booking.status === BookingStatus.CANCELLED || booking.status === BookingStatus.COMPLETED) {
+      throw new BadRequestException(`Cannot initiate payment for a ${booking.status.toLowerCase()} booking`);
+    }
+
+    // PAY-01: Update booking payment method to match user selection
+    if (dto.paymentMethod && booking.paymentMethod !== dto.paymentMethod) {
+      booking.paymentMethod = dto.paymentMethod as any;
+      if (booking.paymentStatus !== BookingPaymentStatus.PAID) {
+        booking.paymentStatus = BookingPaymentStatus.PENDING;
+      }
+      await this.bookingRepository.save(booking);
+    }
+
     // Rental cash on arrival is no longer allowed for new bookings
     if (dto.paymentMethod === 'CASH_ON_ARRIVAL') {
       throw new BadRequestException(
@@ -82,6 +102,37 @@ export class PaymentsCaptureService {
 
     if (booking.paymentStatus === BookingPaymentStatus.PAID) {
       throw new ConflictException('This booking has already been paid');
+    }
+
+    // SEC-05: Enforce single active session per booking
+    const existingActive = await this.paymentRepository.findOne({
+      where: [
+        { bookingId: booking.id, status: PaymentStatus.INITIATED },
+        { bookingId: booking.id, status: PaymentStatus.PENDING },
+      ],
+      order: { createdAt: 'DESC' },
+    });
+
+    if (existingActive) {
+      const isExpired = existingActive.expiresAt && existingActive.expiresAt.getTime() <= Date.now();
+      if (isExpired) {
+        existingActive.status = PaymentStatus.EXPIRED;
+        await this.paymentRepository.save(existingActive);
+      } else if (existingActive.method === dto.paymentMethod) {
+        return {
+          paymentId: existingActive.id,
+          sessionId: existingActive.metadata?.sessionId || existingActive.idempotencyKey,
+          checkoutUrl: existingActive.metadata?.checkoutUrl,
+          providerPaymentId: existingActive.providerPaymentId,
+          status: existingActive.status,
+          amount: booking.totalPrice,
+          currency: existingActive.currency,
+          mode: existingActive.provider === 'CHAPA' ? 'live' : 'sandbox',
+        };
+      } else {
+        existingActive.status = PaymentStatus.EXPIRED;
+        await this.paymentRepository.save(existingActive);
+      }
     }
 
     const amountMinor = toMinorUnits(booking.totalPrice);
@@ -114,6 +165,8 @@ export class PaymentsCaptureService {
       idempotencyKey,
     });
 
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
     const payment = this.paymentRepository.create({
       bookingId: booking.id,
       provider: provider.providerName,
@@ -123,7 +176,12 @@ export class PaymentsCaptureService {
       method: dto.paymentMethod,
       amountMinor: amountMinor.toString(),
       currency,
-      metadata: sessionResult.metadata || null,
+      expiresAt,
+      metadata: {
+        ...(sessionResult.metadata || {}),
+        sessionId: sessionResult.sessionId,
+        checkoutUrl: sessionResult.checkoutUrl,
+      },
     });
 
     const savedPayment = await this.paymentRepository.save(payment);
@@ -154,8 +212,8 @@ export class PaymentsCaptureService {
     }
 
     // Owner check: booking guest or admin
-    if (payment.booking?.guestId !== user.id && user.role !== 'ADMIN') {
-      throw new UnauthorizedException('You do not have access to this payment session');
+    if (payment.booking?.guestId !== user.id && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have access to this payment session');
     }
 
     return {
@@ -179,6 +237,14 @@ export class PaymentsCaptureService {
     rawBody: string | Buffer,
     headers: Record<string, string | string[] | undefined>,
   ) {
+    if (
+      providerName.toUpperCase() === 'SANDBOX' &&
+      process.env.NODE_ENV === 'production' &&
+      process.env.SANDBOX_WEBHOOKS_ENABLED !== 'true'
+    ) {
+      throw new ForbiddenException('Sandbox payment gateway is disabled in production');
+    }
+
     const provider =
       providerName.toUpperCase() === 'CHAPA'
         ? this.chapaProvider
@@ -293,9 +359,56 @@ export class PaymentsCaptureService {
         return;
       }
 
-      const booking = await bookRepo.findOne({ where: { id: payment.bookingId } });
+      const booking = await bookRepo.findOne({
+        where: { id: payment.bookingId },
+        relations: ['property'],
+      });
       if (!booking) {
         throw new NotFoundException(`Booking ${payment.bookingId} not found during capture`);
+      }
+
+      // SEC-05: Prevent duplicate captures for an already paid booking
+      if (booking.paymentStatus === BookingPaymentStatus.PAID) {
+        this.logger.warn(`Booking ${booking.id} is already marked PAID. Ignoring capture event ${ref}`);
+        event.status = ProviderEventStatus.IGNORED;
+        event.error = `Booking ${booking.id} already paid`;
+        await manager.save(event);
+        return;
+      }
+
+      // SEC-04: Validate webhook amount matches recorded payment amount
+      if (verification.amountMinor !== undefined && verification.amountMinor !== BigInt(payment.amountMinor)) {
+        this.logger.error(
+          `Payment capture amount mismatch: provider=${verification.amountMinor}, recorded=${payment.amountMinor}`,
+        );
+        event.status = ProviderEventStatus.FAILED;
+        event.error = `Amount mismatch: expected ${payment.amountMinor}, got ${verification.amountMinor}`;
+        await manager.save(event);
+        throw new BadRequestException('Payment capture amount mismatch');
+      }
+
+      // SEC-04: Validate webhook currency matches recorded payment currency
+      if (
+        verification.currency &&
+        payment.currency &&
+        verification.currency.toUpperCase() !== payment.currency.toUpperCase()
+      ) {
+        this.logger.error(
+          `Payment capture currency mismatch: provider=${verification.currency}, recorded=${payment.currency}`,
+        );
+        event.status = ProviderEventStatus.FAILED;
+        event.error = `Currency mismatch: expected ${payment.currency}, got ${verification.currency}`;
+        await manager.save(event);
+        throw new BadRequestException('Payment capture currency mismatch');
+      }
+
+      // SEC-04: Strict verification mode check
+      if (verification.amountMinor === undefined && process.env.PAYMENTS_STRICT_VERIFICATION === 'true') {
+        this.logger.error('Payment capture rejected: amount is missing in strict verification mode');
+        event.status = ProviderEventStatus.FAILED;
+        event.error = 'Missing capture amount in strict mode';
+        await manager.save(event);
+        throw new BadRequestException('Missing capture amount');
       }
 
       const capturedAt = new Date();
@@ -307,10 +420,27 @@ export class PaymentsCaptureService {
       const settings = await this.settingsService.getAllSettings();
       const amountMinor = BigInt(payment.amountMinor);
 
-      // 1. Create active EscrowHold
-      const releaseEligibleAt = new Date(
-        Date.now() + settings.escrowReleaseDelayHours * 3600 * 1000,
-      );
+      // 1. Create active EscrowHold with releaseEligibleAt calculated by trigger policy
+      const delayMs = settings.escrowReleaseDelayHours * 3600 * 1000;
+      let releaseEligibleAt: Date;
+
+      if (settings.escrowReleaseTrigger === 'CHECK_IN_PLUS_24H' && booking.checkInDate) {
+        const checkIn = new Date(`${booking.checkInDate}T15:00:00.000Z`);
+        releaseEligibleAt = isNaN(checkIn.getTime())
+          ? new Date(Date.now() + delayMs)
+          : new Date(checkIn.getTime() + delayMs);
+      } else if (settings.escrowReleaseTrigger === 'COMPLETED_PLUS_24H' && booking.status === BookingStatus.COMPLETED) {
+        releaseEligibleAt = new Date(Date.now() + delayMs);
+      } else if (booking.checkOutDate) {
+        // Default: CHECKOUT_PLUS_24H
+        const checkOut = new Date(`${booking.checkOutDate}T12:00:00.000Z`);
+        releaseEligibleAt = isNaN(checkOut.getTime())
+          ? new Date(Date.now() + delayMs)
+          : new Date(checkOut.getTime() + delayMs);
+      } else {
+        releaseEligibleAt = new Date(Date.now() + delayMs);
+      }
+
       const escrowHold = escrowRepo.create({
         bookingId: booking.id,
         paymentId: payment.id,
@@ -355,6 +485,20 @@ export class PaymentsCaptureService {
         await taxRepo.save(taxLine);
       }
 
+      if (settings.withholdingRateBps > 0) {
+        const withholdingMinor = calculateBasisPoints(hostNetMinor, settings.withholdingRateBps, 'HALF_UP');
+        const withholdingLine = taxRepo.create({
+          bookingId: booking.id,
+          type: TaxType.WITHHOLDING,
+          rateBps: settings.withholdingRateBps,
+          baseMinor: hostNetMinor.toString(),
+          amountMinor: withholdingMinor.toString(),
+          currency: payment.currency,
+          jurisdiction: settings.vatJurisdiction,
+        });
+        await taxRepo.save(withholdingLine);
+      }
+
       // 3. Post balanced double-entry capture transaction
       await this.ledgerService.recordTransaction(
         {
@@ -389,8 +533,16 @@ export class PaymentsCaptureService {
       // 4. Update booking payment summary
       booking.paymentStatus = BookingPaymentStatus.PAID;
       booking.paymentReference = payment.providerPaymentId || ref;
+      booking.paymentMethod = (payment.method as any) || booking.paymentMethod;
       booking.paidAt = capturedAt;
       booking.paymentReconciliationStatus = 'MATCHED';
+
+      // BOOK-02: Instant book confirm vs Request to book
+      if ((booking.property as any)?.instantBook === true) {
+        booking.status = BookingStatus.CONFIRMED;
+        this.logger.log(`Instant booking ${booking.id} automatically CONFIRMED upon capture`);
+      }
+
       await bookRepo.save(booking);
 
       // 5. Update provider event
@@ -423,5 +575,98 @@ export class PaymentsCaptureService {
         `Successfully captured payment ${payment.id} for booking ${booking.id}: ${amountMinor} ${payment.currency}`,
       );
     });
+  }
+
+  /**
+   * SEC-02: Authenticated simulation endpoint for sandbox checkout completion.
+   * Only enabled in non-production environments or when SANDBOX_WEBHOOKS_ENABLED is true.
+   */
+  async completeSandboxPayment(
+    dto: { bookingId: string; providerPaymentId?: string; txRef?: string },
+    user: User,
+  ) {
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.SANDBOX_WEBHOOKS_ENABLED !== 'true'
+    ) {
+      throw new ForbiddenException('Sandbox payment simulation is disabled in production');
+    }
+
+    const booking = await this.bookingRepository.findOne({
+      where: { id: dto.bookingId },
+      relations: ['property'],
+    });
+
+    if (!booking) {
+      throw new NotFoundException(`Booking ${dto.bookingId} not found`);
+    }
+
+    if (booking.guestId !== user.id && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException('You do not have permission to pay for this booking');
+    }
+
+    if (booking.paymentStatus === BookingPaymentStatus.PAID) {
+      return { success: true, bookingId: booking.id, status: 'PAID' };
+    }
+
+    let payment = await this.paymentRepository.findOne({
+      where: [
+        { bookingId: booking.id, status: PaymentStatus.INITIATED },
+        { bookingId: booking.id, status: PaymentStatus.PENDING },
+      ],
+      order: { createdAt: 'DESC' },
+    });
+
+    if (!payment) {
+      const session = await this.createPaymentSession(
+        {
+          bookingId: booking.id,
+          paymentMethod: booking.paymentMethod || 'TELEBIRR',
+        },
+        user,
+      );
+      payment = await this.paymentRepository.findOne({
+        where: { id: session.paymentId },
+      });
+    }
+
+    if (!payment) {
+      throw new BadRequestException('Could not establish payment session for sandbox capture');
+    }
+
+    const ref =
+      dto.providerPaymentId ||
+      dto.txRef ||
+      payment.providerPaymentId ||
+      payment.idempotencyKey;
+
+    const payloadObj = {
+      event: 'charge.completed',
+      status: 'success',
+      tx_ref: ref,
+      provider_payment_id: ref,
+      amount_minor: payment.amountMinor,
+      currency: payment.currency,
+      data: {
+        tx_ref: ref,
+        status: 'success',
+        amount: Number(payment.amountMinor) / 100,
+        currency: payment.currency,
+      },
+    };
+
+    const payloadStr = JSON.stringify(payloadObj);
+    const signature = this.sandboxProvider.generateSignature(payloadStr);
+
+    await this.handleWebhook('SANDBOX', payloadStr, {
+      'x-sandbox-signature': signature,
+    });
+
+    return {
+      success: true,
+      bookingId: booking.id,
+      paymentId: payment.id,
+      status: 'PAID',
+    };
   }
 }

@@ -58,6 +58,9 @@ export class Payment {
   @Column({ type: 'timestamptz', nullable: true, name: 'captured_at' })
   capturedAt: Date | null;
 
+  @Column({ type: 'timestamptz', nullable: true, name: 'expires_at' })
+  expiresAt: Date | null;
+
   @Column({ type: 'varchar', length: 50, nullable: true, name: 'failure_code' })
   failureCode: string | null;
 

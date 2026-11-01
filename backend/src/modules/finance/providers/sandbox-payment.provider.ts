@@ -20,6 +20,10 @@ export class SandboxPaymentProvider implements PaymentProvider {
   private readonly logger = new Logger(SandboxPaymentProvider.name);
   private readonly secretKey = process.env.SANDBOX_WEBHOOK_SECRET || 'engida-sandbox-secret';
 
+  generateSignature(bodyStr: string): string {
+    return createHmac('sha256', this.secretKey).update(bodyStr).digest('hex');
+  }
+
   async createSession(input: CreatePaymentSessionInput): Promise<PaymentSessionResult> {
     const providerPaymentId = `SB-PAY-${Date.now()}-${randomInt(1000, 10000)}`;
     this.logger.log(`Created sandbox payment session for booking ${input.bookingId}: ${providerPaymentId}`);
@@ -60,14 +64,14 @@ export class SandboxPaymentProvider implements PaymentProvider {
     let isValid = false;
 
     if (signature) {
-      const computed = createHmac('sha256', this.secretKey).update(bodyStr).digest('hex');
-      isValid = signature === computed || signature === 'test-signature-bypass';
+      const computed = this.generateSignature(bodyStr);
+      isValid = signature === computed || (process.env.NODE_ENV === 'test' && signature === 'test-signature-bypass');
     } else if (parsed?.sandbox_signature) {
-      const computed = createHmac('sha256', this.secretKey).update(JSON.stringify(parsed.data || parsed)).digest('hex');
-      isValid = parsed.sandbox_signature === computed || parsed.sandbox_signature === 'test-signature-bypass';
+      const computed = this.generateSignature(JSON.stringify(parsed.data || parsed));
+      isValid = parsed.sandbox_signature === computed || (process.env.NODE_ENV === 'test' && parsed.sandbox_signature === 'test-signature-bypass');
     } else {
-      // In local dev/testing without header, accept if signature_bypass property is set
-      isValid = parsed?.bypass_signature === true || process.env.NODE_ENV === 'test';
+      // In automated test environments only, accept bypass_signature
+      isValid = process.env.NODE_ENV === 'test' && parsed?.bypass_signature === true;
     }
 
     const providerEventId =
