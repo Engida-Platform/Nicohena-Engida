@@ -2,11 +2,6 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Calendar,
-  CheckCircle2,
-  Clock,
-  Copy,
-  Percent,
   Plus,
   RefreshCw,
   Search,
@@ -15,15 +10,11 @@ import {
   Trash2,
   Users,
   X,
-  XCircle,
 } from 'lucide-react';
 import { apiFetch } from '../../../lib/api';
+import { useDefaultCurrency } from '../../../hooks/useDefaultCurrency';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
-import {
-  CouponDiscountType,
-  CouponItem,
-  CouponRedemptionItem,
-} from '../../../types/admin-growth';
+import { CouponDiscountType, CouponItem } from '../../../types/admin-growth';
 
 export default function AdminCouponsPage() {
   const [coupons, setCoupons] = useState<CouponItem[]>([]);
@@ -31,6 +22,7 @@ export default function AdminCouponsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterActive, setFilterActive] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
+  const defaultCurrency = useDefaultCurrency();
 
   // Modal for new/edit coupon
   const [modalOpen, setModalOpen] = useState(false);
@@ -95,6 +87,7 @@ export default function AdminCouponsPage() {
         description: form.description || null,
         discountType: form.discountType,
         discountValue: Number(form.discountValue),
+        currency: defaultCurrency || undefined,
         minBookingAmountMinor: Number(form.minBookingAmountMinor),
         maxDiscountAmountMinor: form.maxDiscountAmountMinor
           ? Number(form.maxDiscountAmountMinor)
@@ -214,8 +207,10 @@ export default function AdminCouponsPage() {
             <Sparkles className="w-4 h-4 text-[#b3541e]" />
           </div>
           <div className="mt-3 flex items-baseline gap-2">
-            <span className="font-serif text-3xl font-bold text-[#3a302a]">ETB</span>
-            <span className="text-xs text-[#605850]">Ethiopian Birr</span>
+            <span className="font-serif text-3xl font-bold text-[#3a302a]">
+              {defaultCurrency || '—'}
+            </span>
+            <span className="text-xs text-[#605850]">Platform default</span>
           </div>
         </div>
       </div>
@@ -289,7 +284,8 @@ export default function AdminCouponsPage() {
                     )}
                     {coupon.maxDiscountAmountMinor && coupon.discountType === 'PERCENTAGE' && (
                       <span className="block text-[10px] text-[#605850] font-normal">
-                        Max: {(Number(coupon.maxDiscountAmountMinor) / 100).toFixed(2)} ETB
+                        Max: {(Number(coupon.maxDiscountAmountMinor) / 100).toFixed(2)}{' '}
+                        {coupon.currency || defaultCurrency || ''}
                       </span>
                     )}
                   </td>
@@ -425,7 +421,9 @@ export default function AdminCouponsPage() {
                     className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
                   >
                     <option value="PERCENTAGE">Percentage (%)</option>
-                    <option value="FIXED_AMOUNT">Fixed Amount (ETB)</option>
+                    <option value="FIXED_AMOUNT">
+                      Fixed Amount{defaultCurrency ? ` (${defaultCurrency})` : ''}
+                    </option>
                   </select>
                 </div>
               </div>
@@ -448,7 +446,9 @@ export default function AdminCouponsPage() {
                   <label className="font-semibold text-[#3a302a] block mb-1">
                     {form.discountType === 'PERCENTAGE'
                       ? 'Discount Percentage (%)'
-                      : 'Discount Value (in minor units, e.g. 50000 = 500 ETB)'}
+                      : `Discount Value (in minor units, e.g. 50000 = 500 ${
+                          defaultCurrency || 'currency units'
+                        })`}
                   </label>
                   <input
                     type="number"
@@ -464,7 +464,8 @@ export default function AdminCouponsPage() {
                 </div>
                 <div>
                   <label className="font-semibold text-[#3a302a] block mb-1">
-                    Min Booking Spend (minor, e.g. 100000 = 1000 ETB)
+                    Min Booking Spend (minor, e.g. 100000 = 1000{' '}
+                    {defaultCurrency || 'currency units'})
                   </label>
                   <input
                     type="number"
@@ -575,7 +576,10 @@ export default function AdminCouponsPage() {
                   <div key={r.id} className="py-3 flex items-center justify-between text-xs">
                     <div>
                       <span className="font-semibold text-[#3a302a]">
-                        {r.user?.firstName} {r.user?.lastName}
+                        {r.user?.name ||
+                          (r.user?.firstName
+                            ? `${r.user.firstName} ${r.user.lastName || ''}`.trim()
+                            : r.user?.email || `User ${r.userId.slice(0, 8)}`)}
                       </span>
                       <span className="block text-[11px] text-[#605850]">
                         User ID: {r.userId}
@@ -586,7 +590,8 @@ export default function AdminCouponsPage() {
                     </div>
                     <div className="text-right">
                       <span className="font-bold text-[#b3541e]">
-                        -{(Number(r.discountAmountMinor) / 100).toFixed(2)} ETB
+                        -{(Number(r.discountAmountMinor) / 100).toFixed(2)}{' '}
+                        {defaultCurrency || 'units'}
                       </span>
                     </div>
                   </div>

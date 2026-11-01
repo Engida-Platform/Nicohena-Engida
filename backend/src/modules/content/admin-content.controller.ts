@@ -31,6 +31,12 @@ export class AdminContentController {
 
   // ==================== FAQS ====================
 
+  @Get('faqs/categories')
+  @RequirePermissions(Permission.CONTENT_MANAGE)
+  getFaqCategories() {
+    return Object.values(FaqCategory);
+  }
+
   @Get('faqs')
   @RequirePermissions(Permission.CONTENT_MANAGE)
   async listFaqs(

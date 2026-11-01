@@ -28,8 +28,8 @@ import { OtpService } from './otp.service';
     }),
     TypeOrmModule.forFeature([RefreshToken]),
   ],
-  providers: [AuthService, JwtStrategy, OtpService],
-  controllers: [AuthController],
+  providers: [AuthService, GoogleAuthService, JwtStrategy, OtpService],
+  controllers: [AuthController, GoogleAuthController],
   exports: [AuthService, OtpService],
 })
 export class AuthModule {}

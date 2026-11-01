@@ -562,6 +562,7 @@ export class AdminFinanceService {
    */
   async exportCsv(type: string): Promise<string> {
     switch (type) {
+      case 'transactions':
       case 'payments': {
         const payments = await this.paymentRepo.find({
           relations: ['booking', 'booking.guest'],

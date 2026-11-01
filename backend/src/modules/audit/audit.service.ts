@@ -50,6 +50,11 @@ export interface PaginatedAuditLogs {
   totalPages: number;
 }
 
+export interface AuditFacets {
+  entityTypes: string[];
+  actions: string[];
+}
+
 const REDACTED = '[REDACTED]';
 const SENSITIVE_KEY = /(password|passwd|secret|token|authorization|cookie|api[_-]?key|private[_-]?key)/i;
 
@@ -121,6 +126,33 @@ export class AuditService {
       this.logger.error(`Failed to persist audit action "${input.action}": ${message}`);
       throw error;
     }
+  }
+
+  /**
+   * Distinct values actually present in the append-only log. The admin UI uses
+   * these instead of a hard-coded list so newly audited entity types and
+   * actions are filterable immediately.
+   */
+  async getFacets(): Promise<AuditFacets> {
+    const [entityRows, actionRows] = await Promise.all([
+      this.auditRepository
+        .createQueryBuilder('audit')
+        .select('DISTINCT audit.entityType', 'value')
+        .where('audit.entityType IS NOT NULL')
+        .orderBy('audit.entityType', 'ASC')
+        .getRawMany<{ value: string }>(),
+      this.auditRepository
+        .createQueryBuilder('audit')
+        .select('DISTINCT audit.action', 'value')
+        .where('audit.action IS NOT NULL')
+        .orderBy('audit.action', 'ASC')
+        .getRawMany<{ value: string }>(),
+    ]);
+
+    return {
+      entityTypes: entityRows.map((row) => row.value).filter(Boolean),
+      actions: actionRows.map((row) => row.value).filter(Boolean),
+    };
   }
 
   async list(query: AuditQuery): Promise<PaginatedAuditLogs> {

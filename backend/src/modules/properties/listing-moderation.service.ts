@@ -472,6 +472,57 @@ export class ListingModerationService {
   }
 
   /**
+   * Aggregate review counts for the moderation summary. These are computed
+   * across the whole queue, not just the current paginated page.
+   */
+  async getAdminReviewStats(): Promise<{
+    pendingTotal: number;
+    pendingInitial: number;
+    pendingEdits: number;
+    approvedTotal: number;
+    rejectedTotal: number;
+  }> {
+    const rows = await this.reviewRepository
+      .createQueryBuilder('review')
+      .select('review.status', 'status')
+      .addSelect('review.submissionType', 'submissionType')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('review.status')
+      .addGroupBy('review.submissionType')
+      .getRawMany<{
+        status: ReviewStatus;
+        submissionType: ReviewSubmissionType;
+        count: string;
+      }>();
+
+    const stats = {
+      pendingTotal: 0,
+      pendingInitial: 0,
+      pendingEdits: 0,
+      approvedTotal: 0,
+      rejectedTotal: 0,
+    };
+
+    for (const row of rows) {
+      const count = Number(row.count) || 0;
+      if (row.status === ReviewStatus.PENDING) {
+        stats.pendingTotal += count;
+        if (row.submissionType === ReviewSubmissionType.INITIAL_PUBLISH) {
+          stats.pendingInitial += count;
+        } else if (row.submissionType === ReviewSubmissionType.IMPORTANT_EDIT) {
+          stats.pendingEdits += count;
+        }
+      } else if (row.status === ReviewStatus.APPROVED) {
+        stats.approvedTotal += count;
+      } else if (row.status === ReviewStatus.REJECTED) {
+        stats.rejectedTotal += count;
+      }
+    }
+
+    return stats;
+  }
+
+  /**
    * Admin inspection of a review with comparison diff.
    */
   async getAdminReviewDetail(reviewId: string): Promise<{

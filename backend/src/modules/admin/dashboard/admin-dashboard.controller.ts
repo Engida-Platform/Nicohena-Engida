@@ -15,6 +15,12 @@ import { AdminDashboardService } from './admin-dashboard.service';
 export class AdminDashboardController {
   constructor(private readonly dashboardService: AdminDashboardService) {}
 
+  @Get('summary/fast')
+  @RequirePermissions(Permission.DASHBOARD_VIEW)
+  getSummaryFast() {
+    return this.dashboardService.getSummaryFast();
+  }
+
   @Get('summary')
   @RequirePermissions(Permission.DASHBOARD_VIEW)
   getSummary(@GetUser() actor: User) {

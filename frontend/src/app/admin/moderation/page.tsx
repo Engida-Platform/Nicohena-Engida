@@ -4,11 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
+import { useDefaultCurrency } from '../../../hooks/useDefaultCurrency';
+import type { HostProfile } from '../../../types/host';
 import type {
-  ReviewSubmissionType,
-  ReviewStatus,
-  HostProfile,
-} from '../../../types/host';
+  ReviewQueueItem,
+  AdminListingProperty,
+  ReviewDetailResponse,
+} from '../../../types/moderation';
 import {
   ShieldCheck,
   ShieldAlert,
@@ -34,71 +36,12 @@ import {
   Mail,
 } from 'lucide-react';
 
-interface ReviewQueueItem {
-  id: string;
-  propertyId: string;
-  submissionType: ReviewSubmissionType;
-  status: ReviewStatus;
-  proposedChanges: Record<string, unknown> | null;
-  submittedByHostId: string;
-  submittedAt: string;
-  reviewedByAdminId: string | null;
-  reviewedAt: string | null;
-  rejectionReason: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  property?: {
-    id: string;
-    title: string;
-    propertyType: string;
-    listingType: string;
-    pricePerNight?: number;
-    salePrice?: number;
-    city: string;
-    address: string;
-    coverImage?: string;
-    status: string;
-    adminHidden?: boolean;
-    adminHiddenReason?: string;
-  };
-  submittedByHost?: {
-    id: string;
-    fullName: string;
-    email: string;
-  };
-  reviewedByAdmin?: {
-    id: string;
-    fullName: string;
-    email: string;
-  };
-}
-
-interface AdminListingProperty {
-  id?: string;
-  title?: string;
-  propertyType?: string;
-  listingType?: string;
-  pricePerNight?: number;
-  salePrice?: number;
-  city?: string;
-  address?: string;
-  status?: string;
-  adminHidden?: boolean;
-  adminHiddenReason?: string;
-  adminHiddenAt?: string;
-  coverImage?: string;
-  maxGuests?: number;
-  bedrooms?: number;
-  description?: string;
-  images?: string[];
-  [key: string]: unknown;
-}
-
-interface ReviewDetailResponse {
-  review: ReviewQueueItem;
-  property: AdminListingProperty;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  diff: Record<string, { current: any; proposed: any }> | null;
+interface ReviewQueueStats {
+  pendingTotal: number;
+  pendingInitial: number;
+  pendingEdits: number;
+  approvedTotal: number;
+  rejectedTotal: number;
 }
 
 export default function AdminModerationPage() {
@@ -110,6 +53,7 @@ export default function AdminModerationPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportingListings, setExportingListings] = useState(false);
   const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const defaultCurrency = useDefaultCurrency();
 
   // Filters
   const [typeFilter, setTypeFilter] = useState<string>('');
@@ -196,22 +140,16 @@ export default function AdminModerationPage() {
       }
       params.append('limit', '50');
 
-      const data = await apiFetch<{
-        data: ReviewQueueItem[];
-        total: number;
-      }>(`/admin/reviews?${params.toString()}`);
+      const [data, queueStats] = await Promise.all([
+        apiFetch<{
+          data: ReviewQueueItem[];
+          total: number;
+        }>(`/admin/reviews?${params.toString()}`),
+        apiFetch<ReviewQueueStats>('/admin/reviews/stats').catch(() => null),
+      ]);
 
       setReviews(data.data || []);
-
-      // Calculate stats from data
-      const pendingItems = (data.data || []).filter((r) => r.status === 'PENDING');
-      setStats({
-        pendingTotal: pendingItems.length,
-        pendingInitial: pendingItems.filter((r) => r.submissionType === 'INITIAL_PUBLISH').length,
-        pendingEdits: pendingItems.filter((r) => r.submissionType === 'IMPORTANT_EDIT').length,
-        approvedTotal: (data.data || []).filter((r) => r.status === 'APPROVED').length,
-        rejectedTotal: (data.data || []).filter((r) => r.status === 'REJECTED').length,
-      });
+      if (queueStats) setStats(queueStats);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load review queue.');
     } finally {
@@ -1357,8 +1295,12 @@ export default function AdminModerationPage() {
                             <span className="text-[#7a6b5f] font-bold block">Nightly / Sale Price:</span>
                             <span className="text-sm font-black text-[#3a302a]">
                               {reviewDetail.property?.pricePerNight
-                                ? `${reviewDetail.property.pricePerNight} ETB / night`
-                                : `${reviewDetail.property?.salePrice || 0} ETB`}
+                                ? `${reviewDetail.property.pricePerNight}${
+                                    defaultCurrency ? ` ${defaultCurrency}` : ''
+                                  } / night`
+                                : `${reviewDetail.property?.salePrice || 0}${
+                                    defaultCurrency ? ` ${defaultCurrency}` : ''
+                                  }`}
                             </span>
                           </div>
 

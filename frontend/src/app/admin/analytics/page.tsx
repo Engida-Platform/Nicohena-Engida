@@ -18,7 +18,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { apiFetch } from '../../../lib/api';
+import { apiFetch, downloadAuthedFile } from '../../../lib/api';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import {
   AnalyticsKpi,
@@ -68,25 +68,10 @@ export default function AdminAnalyticsPage() {
   const handleExportCsv = async () => {
     setExporting(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/admin/analytics/export?period=${period}`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
+      await downloadAuthedFile(
+        `/admin/analytics/export?period=${period}`,
+        `engida-analytics-${period}-${new Date().toISOString().split('T')[0]}.csv`,
       );
-      if (!res.ok) throw new Error('Failed to download report');
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `engida-analytics-${period}-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
     } catch (err: any) {
       alert(err?.message || 'Could not export CSV');
     } finally {
@@ -234,7 +219,7 @@ export default function AdminAnalyticsPage() {
         <div className="relative overflow-hidden rounded-2xl border border-[#d8d0c8] bg-white p-5 shadow-[0_12px_24px_-18px_rgba(58,48,42,0.15)] transition-all hover:border-[#b3541e]/40">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-[#78706a]">
-              Net Revenue (12%)
+              Net Revenue ({data?.kpis.commissionRatePercent ?? 0}%)
             </span>
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#f6f0e8] text-[#b3541e]">
               <TrendingUp className="h-4 w-4" />
@@ -316,7 +301,9 @@ export default function AdminAnalyticsPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full bg-[#e08850]" />
-              <span className="text-[#3a302a]">Platform Take-Rate (12%)</span>
+              <span className="text-[#3a302a]">
+                Platform Take-Rate ({data?.kpis.commissionRatePercent ?? 0}%)
+              </span>
             </div>
           </div>
         </div>

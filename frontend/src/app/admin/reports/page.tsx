@@ -22,6 +22,7 @@ import {
 import { apiFetch } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import AdminDialog from '../../../components/admin/AdminDialog';
 import {
   ADMIN_PERMISSIONS,
   REPORT_REASON_LABELS,
@@ -74,57 +75,7 @@ function targetLabel(target: AdminReport['target']): string {
   return target.propertyTitle || 'Guest review';
 }
 
-interface ModalProps {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-  wide?: boolean;
-}
 
-function Modal({ open, onClose, title, description, children, footer, wide }: ModalProps) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <button
-        type="button"
-        aria-label="Close dialog"
-        className="absolute inset-0 bg-[#2f2722]/55 backdrop-blur-[1px]"
-        onClick={onClose}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="report-dialog-title"
-        className={`relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl ${
-          wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'
-        }`}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-[#d8d0c8] px-5 py-4">
-          <div>
-            <h2 id="report-dialog-title" className="text-base font-bold text-[#3a302a]">
-              {title}
-            </h2>
-            {description && <p className="mt-0.5 text-xs text-[#7a6b5f]">{description}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-[#7a6b5f] hover:bg-[#efe7dc] hover:text-[#6c5d52]"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
-        {footer && <div className="border-t border-[#d8d0c8] bg-[#f6f0e8]/80 px-5 py-3.5">{footer}</div>}
-      </div>
-    </div>
-  );
-}
 
 function TargetIcon({ target }: { target: AdminReportTarget | null }) {
   if (target?.type === 'LISTING') {
@@ -604,12 +555,12 @@ export default function AdminReportsPage() {
         </>
       )}
 
-      <Modal
+      <AdminDialog
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         title="Report details"
         description="Reporter context, target state and resolution history."
-        wide
+        width="lg"
         footer={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
@@ -806,14 +757,15 @@ export default function AdminReportsPage() {
             </div>
           </div>
         ) : null}
-      </Modal>
+      </AdminDialog>
 
-      <Modal
+      <AdminDialog
         open={Boolean(statusTarget && nextStatus)}
         onClose={() => setStatusTarget(null)}
         title={
           nextStatus ? `Move report to ${REPORT_STATUS_LABELS[nextStatus]}` : 'Update report'
         }
+        width="md"
         description={
           statusTarget ? `${REPORT_REASON_LABELS[statusTarget.reason]} · ${targetLabel(statusTarget.target)}` : undefined
         }
@@ -896,7 +848,7 @@ export default function AdminReportsPage() {
             </p>
           )}
         </div>
-      </Modal>
+      </AdminDialog>
 
       {toast && (
         <div

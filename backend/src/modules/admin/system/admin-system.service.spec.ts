@@ -29,8 +29,11 @@ describe('AdminSystemService', () => {
       query: jest.fn().mockImplementation((q: string) => {
         if (q === 'SELECT 1') return Promise.resolve([{ '?column?': 1 }]);
         return Promise.resolve([
-          { total_minor: 100000, direction: 'DEBIT' },
-          { total_minor: 100000, direction: 'CREDIT' },
+          {
+            total_debit_minor: '100000',
+            total_credit_minor: '100000',
+            total_entries: '2',
+          },
         ]);
       }),
     };

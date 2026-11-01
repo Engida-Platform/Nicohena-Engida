@@ -3,7 +3,18 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiFetch, setAccessToken } from '../lib/api';
 import type { HostProfile } from '../types/host';
-import type { AdminRole, Permission } from '../types/admin';
+import { getEffectivePermissions, type AdminRole, type Permission } from '../types/admin';
+
+function enrichUser(u: User | null): User | null {
+  if (!u) return null;
+  if (u.role === 'ADMIN' && (!u.permissions || u.permissions.length === 0)) {
+    return {
+      ...u,
+      permissions: getEffectivePermissions(u),
+    };
+  }
+  return u;
+}
 
 export interface User {
   id: string;
@@ -38,8 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // First attempt to get active user using stored token or silent refresh
       const userData = await apiFetch<User>('/auth/me');
-      setUser(userData);
-      return userData;
+      const enriched = enrichUser(userData);
+      setUser(enriched);
+      return enriched;
     } catch {
       setUser(null);
       return null;
@@ -59,8 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       skipAuth: true,
     });
     setAccessToken(response.accessToken);
-    setUser(response.user);
-    return response.user;
+    const enriched = enrichUser(response.user);
+    setUser(enriched);
+    return enriched as User;
   };
 
   const register = async (name: string, email: string, password: string) => {

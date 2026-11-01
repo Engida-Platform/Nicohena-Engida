@@ -16,6 +16,7 @@ import AdminDialog from '../../../components/admin/AdminDialog';
 import AdminEmptyState from '../../../components/admin/AdminEmptyState';
 import AdminStatusBadge from '../../../components/admin/AdminStatusBadge';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
+import { useDefaultCurrency } from '../../../hooks/useDefaultCurrency';
 import { useAuth } from '../../../context/AuthContext';
 import { ADMIN_PERMISSIONS, can } from '../../../types/admin';
 import {
@@ -53,31 +54,22 @@ import {
 
 const PAGE_SIZE = 30;
 
-const CASE_TYPES: CaseType[] = [
-  'COMPLAINT',
-  'DISPUTE',
-  'SAFETY',
-  'SUPPORT',
-  'CANCELLATION',
-];
-const CASE_CATEGORIES: CaseCategory[] = [
-  'BOOKING',
-  'LISTING',
-  'ACCOUNT',
-  'REVIEW',
-  'PAYMENT',
-  'OTHER',
-];
-const CASE_PRIORITIES: CasePriority[] = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
-const CASE_SEVERITIES: CaseSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-const CASE_STATUSES: CaseStatus[] = [
-  'OPEN',
-  'IN_PROGRESS',
-  'WAITING_ON_REQUESTER',
-  'WAITING_ON_INTERNAL',
-  'RESOLVED',
-  'CLOSED',
-];
+interface CaseMetadata {
+  types: CaseType[];
+  categories: CaseCategory[];
+  priorities: CasePriority[];
+  severities: CaseSeverity[];
+  statuses: CaseStatus[];
+}
+
+const EMPTY_CASE_METADATA: CaseMetadata = {
+  types: [],
+  categories: [],
+  priorities: [],
+  severities: [],
+  statuses: [],
+};
+
 type StatusFilter = 'all' | CaseStatus;
 type ToastState = { message: string; tone: 'success' | 'danger' } | null;
 
@@ -90,6 +82,7 @@ export default function AdminCasesPage() {
   const canManage = can(user?.permissions, ADMIN_PERMISSIONS.CASES_MANAGE);
   const canCompensate = can(user?.permissions, ADMIN_PERMISSIONS.CASES_COMPENSATE);
 
+  const [caseMetadata, setCaseMetadata] = useState<CaseMetadata>(EMPTY_CASE_METADATA);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -160,7 +153,8 @@ export default function AdminCasesPage() {
   const [compensationOpen, setCompensationOpen] = useState(false);
   const [compensationAmount, setCompensationAmount] = useState('');
   const [compensationNote, setCompensationNote] = useState('');
-  const [compensationCurrency, setCompensationCurrency] = useState('ETB');
+  const defaultCurrency = useDefaultCurrency();
+  const [compensationCurrency, setCompensationCurrency] = useState('');
   const [compensationDecision, setCompensationDecision] = useState<'approve' | 'reject' | null>(null);
   const [compensationDecisionNote, setCompensationDecisionNote] = useState('');
 
@@ -199,6 +193,9 @@ export default function AdminCasesPage() {
     void apiFetch<CannedResponse[]>('/admin/cases/canned-responses')
       .then(setCannedResponses)
       .catch(() => undefined);
+    void apiFetch<CaseMetadata>('/admin/cases/metadata')
+      .then(setCaseMetadata)
+      .catch(() => setCaseMetadata(EMPTY_CASE_METADATA));
   }, []);
 
   useEffect(() => {
@@ -330,13 +327,45 @@ export default function AdminCasesPage() {
     (updated: AdminCaseDetail) => {
       setDetail(updated);
       setSelectedId(updated.id);
-      void loadList();
-      void apiFetch<CannedResponse[]>('/admin/cases/canned-responses')
-        .then(setCannedResponses)
-        .catch(() => undefined);
+      setResult((current) => {
+        if (!current) return current;
+        const exists = current.data.some((c) => c.id === updated.id);
+        if (!exists) {
+          void loadList();
+          return current;
+        }
+        return {
+          ...current,
+          data: current.data.map((item) =>
+            item.id === updated.id
+              ? {
+                  ...item,
+                  status: updated.status,
+                  priority: updated.priority,
+                  severity: updated.severity,
+                  category: updated.category,
+                  assignee: updated.assignee,
+                  updatedAt: updated.updatedAt,
+                  firstResponseDueAt: updated.firstResponseDueAt,
+                  resolutionDueAt: updated.resolutionDueAt,
+                }
+              : item,
+          ),
+        };
+      });
     },
     [loadList],
   );
+
+  // Periodic queue refresh every 60s when the window is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void loadList();
+      }
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, [loadList]);
 
   const refresh = async () => {
     await loadList();
@@ -662,7 +691,7 @@ export default function AdminCasesPage() {
   const openCompensation = () => {
     setCompensationAmount('');
     setCompensationNote('');
-    setCompensationCurrency('ETB');
+    setCompensationCurrency(defaultCurrency);
     setCompensationOpen(true);
   };
 
@@ -676,7 +705,7 @@ export default function AdminCasesPage() {
           method: 'POST',
           body: JSON.stringify({
             amount: compensationAmount.trim(),
-            currency: compensationCurrency,
+            currency: compensationCurrency || defaultCurrency,
             note: compensationNote.trim(),
           }),
         },
@@ -803,7 +832,7 @@ export default function AdminCasesPage() {
   const counts = result?.counts;
   const statusFilters: Array<{ value: StatusFilter; label: string; count: number }> = [
     { value: 'all', label: 'All cases', count: result?.total ?? 0 },
-    ...CASE_STATUSES.map((value) => ({
+    ...caseMetadata.statuses.map((value) => ({
       value: value as StatusFilter,
       label: CASE_STATUS_LABELS[value],
       count: counts?.[value] ?? 0,
@@ -924,7 +953,7 @@ export default function AdminCasesPage() {
           aria-label="Filter by case type"
         >
           <option value="all">All types</option>
-          {CASE_TYPES.map((value) => (
+          {caseMetadata.types.map((value) => (
             <option key={value} value={value}>{CASE_TYPE_LABELS[value]}</option>
           ))}
         </select>
@@ -1133,7 +1162,7 @@ export default function AdminCasesPage() {
               value={newCaseType}
               onChange={(event) => setNewCaseType(event.target.value as CaseType)}
             >
-              {CASE_TYPES.map((value) => (
+              {caseMetadata.types.map((value) => (
                 <option key={value} value={value}>{CASE_TYPE_LABELS[value]}</option>
               ))}
             </select>
@@ -1146,7 +1175,7 @@ export default function AdminCasesPage() {
               value={newCaseCategory}
               onChange={(event) => setNewCaseCategory(event.target.value as CaseCategory)}
             >
-              {CASE_CATEGORIES.map((value) => (
+              {caseMetadata.categories.map((value) => (
                 <option key={value} value={value}>{CASE_CATEGORY_LABELS[value]}</option>
               ))}
             </select>
@@ -1159,7 +1188,7 @@ export default function AdminCasesPage() {
               value={newCasePriority}
               onChange={(event) => setNewCasePriority(event.target.value as CasePriority)}
             >
-              {CASE_PRIORITIES.map((value) => (
+              {caseMetadata.priorities.map((value) => (
                 <option key={value} value={value}>{CASE_PRIORITY_LABELS[value]}</option>
               ))}
             </select>
@@ -1172,7 +1201,7 @@ export default function AdminCasesPage() {
               value={newCaseSeverity}
               onChange={(event) => setNewCaseSeverity(event.target.value as CaseSeverity)}
             >
-              {CASE_SEVERITIES.map((value) => (
+              {caseMetadata.severities.map((value) => (
                 <option key={value} value={value}>{CASE_SEVERITY_LABELS[value]}</option>
               ))}
             </select>
@@ -1447,7 +1476,7 @@ export default function AdminCasesPage() {
               value={editCategory}
               onChange={(event) => setEditCategory(event.target.value as CaseCategory)}
             >
-              {CASE_CATEGORIES.map((value) => (
+              {caseMetadata.categories.map((value) => (
                 <option key={value} value={value}>{CASE_CATEGORY_LABELS[value]}</option>
               ))}
             </select>
@@ -1460,7 +1489,7 @@ export default function AdminCasesPage() {
               value={editPriority}
               onChange={(event) => setEditPriority(event.target.value as CasePriority)}
             >
-              {CASE_PRIORITIES.map((value) => (
+              {caseMetadata.priorities.map((value) => (
                 <option key={value} value={value}>{CASE_PRIORITY_LABELS[value]}</option>
               ))}
             </select>
@@ -1473,7 +1502,7 @@ export default function AdminCasesPage() {
               value={editSeverity}
               onChange={(event) => setEditSeverity(event.target.value as CaseSeverity)}
             >
-              {CASE_SEVERITIES.map((value) => (
+              {caseMetadata.severities.map((value) => (
                 <option key={value} value={value}>{CASE_SEVERITY_LABELS[value]}</option>
               ))}
             </select>
@@ -1601,7 +1630,7 @@ export default function AdminCasesPage() {
             <input
               id="compensation-currency"
               className="admin-input"
-              value={compensationCurrency}
+              value={compensationCurrency || defaultCurrency}
               onChange={(event) => setCompensationCurrency(event.target.value.toUpperCase())}
               maxLength={10}
             />

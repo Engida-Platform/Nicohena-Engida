@@ -34,20 +34,12 @@ import {
 
 type ActiveTab = 'categories' | 'destinations' | 'amenities';
 
-const AMENITY_CATEGORIES: AmenityCategory[] = [
-  'ESSENTIALS',
-  'KITCHEN',
-  'SAFETY',
-  'OUTDOOR',
-  'WELLNESS',
-  'SERVICES',
-];
-
 export default function AdminCategoriesPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('categories');
   const [categories, setCategories] = useState<PropertyCategory[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [amenities, setAmenities] = useState<AmenityItem[]>([]);
+  const [amenityCategories, setAmenityCategories] = useState<AmenityCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -97,14 +89,16 @@ export default function AdminCategoriesPage() {
     try {
       setLoading(true);
       setError(null);
-      const [cats, dests, amens] = await Promise.all([
+      const [cats, dests, amens, amenityCats] = await Promise.all([
         apiFetch<PropertyCategory[]>('/admin/catalog/categories'),
         apiFetch<Destination[]>('/admin/catalog/destinations'),
         apiFetch<AmenityItem[]>('/admin/catalog/amenities'),
+        apiFetch<AmenityCategory[]>('/admin/catalog/amenities/categories').catch(() => []),
       ]);
       setCategories(cats);
       setDestinations(dests);
       setAmenities(amens);
+      setAmenityCategories(amenityCats);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load catalog data');
     } finally {
@@ -529,7 +523,7 @@ export default function AdminCategoriesPage() {
               >
                 All Categories
               </button>
-              {AMENITY_CATEGORIES.map((cat) => (
+              {amenityCategories.map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setSelectedAmenityCategory(cat)}
@@ -956,7 +950,7 @@ export default function AdminCategoriesPage() {
                   }
                   className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
                 >
-                  {AMENITY_CATEGORIES.map((cat) => (
+                  {amenityCategories.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
                     </option>

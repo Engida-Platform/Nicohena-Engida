@@ -41,6 +41,13 @@ import {
   UpdateCaseDto,
   UploadCaseAttachmentDto,
 } from './dto/admin-cases.dto';
+import {
+  CaseCategory,
+  CasePriority,
+  CaseSeverity,
+  CaseStatus,
+  CaseType,
+} from './entities/case.entity';
 
 @Controller('admin/cases')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -85,6 +92,18 @@ export class AdminCasesController {
   @RequirePermissions(Permission.CASES_VIEW)
   cannedResponses() {
     return this.adminCasesService.listCannedResponses();
+  }
+
+  @Get('metadata')
+  @RequirePermissions(Permission.CASES_VIEW)
+  metadata() {
+    return {
+      types: Object.values(CaseType),
+      categories: Object.values(CaseCategory),
+      priorities: Object.values(CasePriority),
+      severities: Object.values(CaseSeverity),
+      statuses: Object.values(CaseStatus),
+    };
   }
 
   @Post('canned-responses')

@@ -30,9 +30,11 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import AdminDialog from '../../../components/admin/AdminDialog';
 import {
   ADMIN_PERMISSIONS,
   ADMIN_ROLE_OPTIONS,
@@ -83,62 +85,10 @@ function hostStatusLabel(status: string): string {
   return status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, ' ');
 }
 
-interface ModalProps {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-  footer?: React.ReactNode;
-  wide?: boolean;
-}
-
-function Modal({ open, onClose, title, description, children, footer, wide }: ModalProps) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <button
-        type="button"
-        aria-label="Close dialog"
-        className="absolute inset-0 bg-[#2f2722]/55 backdrop-blur-[1px]"
-        onClick={onClose}
-      />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-dialog-title"
-        className={`relative flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl ${
-          wide ? 'sm:max-w-3xl' : 'sm:max-w-lg'
-        }`}
-      >
-        <div className="flex items-start justify-between gap-4 border-b border-[#d8d0c8] px-5 py-4">
-          <div>
-            <h2 id="admin-dialog-title" className="text-base font-bold text-[#3a302a]">
-              {title}
-            </h2>
-            {description && <p className="mt-0.5 text-xs text-[#7a6b5f]">{description}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-[#7a6b5f] hover:bg-[#efe7dc] hover:text-[#6c5d52]"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
-        {footer && (
-          <div className="border-t border-[#d8d0c8] bg-[#f6f0e8]/80 px-5 py-3.5">{footer}</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function AdminUsersPage() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const canViewUsers = can(user?.permissions, ADMIN_PERMISSIONS.USERS_VIEW);
   const canManageUsers = can(user?.permissions, ADMIN_PERMISSIONS.USERS_MANAGE);
   const canManageAdmins = can(user?.permissions, ADMIN_PERMISSIONS.ADMINS_MANAGE);
@@ -192,18 +142,33 @@ export default function AdminUsersPage() {
   const [createdAdmin, setCreatedAdmin] = useState<AdminUser | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const roleParam = params.get('role');
-    const activeParam = params.get('isActive');
+    const roleParam = searchParams.get('role');
+    const activeParam = searchParams.get('isActive');
+    const pageParam = searchParams.get('page');
 
     setFilters((current) => ({
       ...current,
       role: roleParam === 'ADMIN' || roleParam === 'USER' ? roleParam : 'all',
       status:
         activeParam === 'false' ? 'suspended' : activeParam === 'true' ? 'active' : 'all',
+      page: pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1,
     }));
     setReady(true);
-  }, []);
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const params = new URLSearchParams();
+    if (filters.role !== 'all') params.set('role', filters.role);
+    if (filters.status !== 'all') {
+      params.set('isActive', filters.status === 'active' ? 'true' : 'false');
+    }
+    if (filters.page > 1) {
+      params.set('page', String(filters.page));
+    }
+    const target = params.toString() ? `/admin/users?${params.toString()}` : '/admin/users';
+    router.replace(target, { scroll: false });
+  }, [filters.role, filters.status, filters.page, ready, router]);
 
   useEffect(() => {
     if (!ready) return;
@@ -822,12 +787,12 @@ export default function AdminUsersPage() {
         </>
       )}
 
-      <Modal
+      <AdminDialog
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         title="Account details"
         description="Profile, host status and activity counts."
-        wide
+        width="lg"
         footer={
           <div className="flex flex-wrap items-center justify-end gap-2">
             <button
@@ -997,9 +962,9 @@ export default function AdminUsersPage() {
             )}
           </div>
         ) : null}
-      </Modal>
+      </AdminDialog>
 
-      <Modal
+      <AdminDialog
         open={Boolean(statusTarget)}
         onClose={() => setStatusTarget(null)}
         title={statusTarget?.isActive ? 'Suspend account' : 'Reactivate account'}
@@ -1082,9 +1047,9 @@ export default function AdminUsersPage() {
             </p>
           )}
         </div>
-      </Modal>
+      </AdminDialog>
 
-      <Modal
+      <AdminDialog
         open={Boolean(roleTarget)}
         onClose={() => setRoleTarget(null)}
         title="Admin access"
@@ -1170,9 +1135,9 @@ export default function AdminUsersPage() {
             </p>
           )}
         </div>
-      </Modal>
+      </AdminDialog>
 
-      <Modal
+      <AdminDialog
         open={createOpen}
         onClose={() => {
           setCreateOpen(false);
@@ -1329,7 +1294,7 @@ export default function AdminUsersPage() {
             )}
           </form>
         )}
-      </Modal>
+      </AdminDialog>
 
       {toast && (
         <div

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   Download,
   Landmark,
   Receipt,
@@ -13,6 +14,8 @@ import {
   Wallet,
   FileCheck,
   CheckCircle2,
+  X,
+  RefreshCw,
 } from 'lucide-react';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import { useAuth } from '../../../context/AuthContext';
@@ -46,29 +49,45 @@ export default function AdminFinancePage() {
   const [activeTab, setActiveTab] = useState<FinanceTabKey>('overview');
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     setSummaryLoading(true);
+    setSummaryError(null);
     try {
       const data = await apiFetch<FinanceSummary>('/admin/finance/summary');
       setSummary(data);
-    } catch {
-      // Summary fallback
+    } catch (err: unknown) {
+      setSummaryError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to refresh treasury summary. Queues and indicators may be out of date.',
+      );
     } finally {
       setSummaryLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchSummary();
-  }, []);
+  }, [fetchSummary]);
+
+  // Periodic polling when visible to keep counters and queue badges accurate
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void fetchSummary();
+      }
+    }, 90_000);
+    return () => clearInterval(interval);
+  }, [fetchSummary]);
 
   const handleExportCsv = async () => {
     setExporting(true);
     try {
       await downloadAuthedFile(
-        '/admin/finance/export/transactions',
+        '/admin/finance/exports/ledger.csv',
         `engida-finance-ledger-${new Date().toISOString().slice(0, 10)}.csv`,
       );
     } catch (err: any) {
@@ -147,6 +166,38 @@ export default function AdminFinancePage() {
         }
       />
 
+      {/* Summary Error Alert */}
+      {summaryError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-3 rounded-2xl border border-[#ecd0c9] bg-[#f8e9e5] px-4 py-3 text-xs text-[#8f4035] shadow-xs"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#a24b3e]" strokeWidth={1.8} />
+            <p className="truncate font-medium">{summaryError}</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void fetchSummary()}
+              disabled={summaryLoading}
+              className="inline-flex items-center gap-1 rounded-lg border border-[#ecd0c9] bg-white px-2.5 py-1 text-xs font-bold text-[#8f4035] hover:bg-[#f3dcd6] cursor-pointer"
+            >
+              <RefreshCw className={`h-3 w-3 ${summaryLoading ? 'animate-spin' : ''}`} />
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={() => setSummaryError(null)}
+              className="rounded-lg p-1 text-[#8f4035] hover:bg-[#ecd0c9]/50 cursor-pointer"
+              aria-label="Dismiss error"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Finance Tab Bar */}
       <div className="bg-white border border-[#d8d0c8] rounded-2xl p-1.5 shadow-xs overflow-x-auto">
         <nav className="flex space-x-1 min-w-max">
@@ -182,24 +233,40 @@ export default function AdminFinancePage() {
         </nav>
       </div>
 
-      {/* Active Tab Panel */}
+      {/* Active Tab Panel with tab state retention */}
       <div>
-        {activeTab === 'overview' && (
+        <div className={activeTab === 'overview' ? 'block' : 'hidden'}>
           <OverviewTab
             summary={summary}
             loading={summaryLoading}
             onRefresh={fetchSummary}
             onNavigateTab={(tab) => setActiveTab(tab as FinanceTabKey)}
           />
-        )}
-        {activeTab === 'payments' && <PaymentsTab />}
-        {activeTab === 'escrow' && <EscrowTab />}
-        {activeTab === 'refunds' && <RefundsTab />}
-        {activeTab === 'payouts' && <PayoutsTab />}
-        {activeTab === 'accounts' && <AccountsTab />}
-        {activeTab === 'ledger' && <LedgerTab />}
-        {activeTab === 'reconciliation' && <ReconciliationTab />}
-        {activeTab === 'settings' && <SettingsTab onRefreshSummary={fetchSummary} />}
+        </div>
+        <div className={activeTab === 'payments' ? 'block' : 'hidden'}>
+          <PaymentsTab />
+        </div>
+        <div className={activeTab === 'escrow' ? 'block' : 'hidden'}>
+          <EscrowTab />
+        </div>
+        <div className={activeTab === 'refunds' ? 'block' : 'hidden'}>
+          <RefundsTab />
+        </div>
+        <div className={activeTab === 'payouts' ? 'block' : 'hidden'}>
+          <PayoutsTab />
+        </div>
+        <div className={activeTab === 'accounts' ? 'block' : 'hidden'}>
+          <AccountsTab />
+        </div>
+        <div className={activeTab === 'ledger' ? 'block' : 'hidden'}>
+          <LedgerTab />
+        </div>
+        <div className={activeTab === 'reconciliation' ? 'block' : 'hidden'}>
+          <ReconciliationTab />
+        </div>
+        <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
+          <SettingsTab onRefreshSummary={fetchSummary} />
+        </div>
       </div>
     </div>
   );

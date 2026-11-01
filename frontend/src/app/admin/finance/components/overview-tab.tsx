@@ -189,7 +189,7 @@ export default function OverviewTab({
               {formatMinor(metrics?.heldInEscrowMinor)}
             </div>
             <p className="text-[11px] text-[#73776f] mt-1 font-medium">
-              Custody funds awaiting check-in + 24h
+              Custody funds awaiting escrow release
             </p>
           </div>
         </div>

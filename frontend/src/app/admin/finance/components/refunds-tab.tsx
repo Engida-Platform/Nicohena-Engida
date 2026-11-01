@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
 import { useAuth } from '../../../../context/AuthContext';
-import type { RefundListItem } from '../../../../types/admin-finance';
+import type { FinanceSettingItem, RefundListItem } from '../../../../types/admin-finance';
 import { formatMinor, formatDateTime } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
 import AdminDialog from '../../../../components/admin/AdminDialog';
@@ -25,6 +25,7 @@ export default function RefundsTab() {
   const [refunds, setRefunds] = useState<RefundListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [refundThresholdMinor, setRefundThresholdMinor] = useState<string | null>(null);
 
   // Modals state
   const [showProposeModal, setShowProposeModal] = useState(false);
@@ -60,6 +61,24 @@ export default function RefundsTab() {
   useEffect(() => {
     fetchRefunds();
   }, [statusFilter]);
+
+  useEffect(() => {
+    let active = true;
+    apiFetch<FinanceSettingItem[]>('/admin/finance/settings')
+      .then((settings) => {
+        if (!active) return;
+        const threshold = settings.find(
+          (setting) => setting.key === 'finance.refund_dual_approval_threshold_minor',
+        );
+        setRefundThresholdMinor(threshold?.value || null);
+      })
+      .catch(() => {
+        if (active) setRefundThresholdMinor(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleProposeRefund = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,7 +314,14 @@ export default function RefundsTab() {
           open={showProposeModal}
           onClose={() => setShowProposeModal(false)}
           title="Propose Policy Refund"
-          description="Initiate an auditable refund request. Amounts exceeding ETB 5,000.00 require dual administrator approval."
+          description={
+            refundThresholdMinor
+              ? `Initiate an auditable refund request. Amounts of ${formatMinor(
+                  refundThresholdMinor,
+                  'ETB',
+                )} or more require dual administrator approval.`
+              : 'Initiate an auditable refund request. Refunds above the configured dual-approval threshold require a second administrator.'
+          }
         >
           <form onSubmit={handleProposeRefund} className="space-y-4 text-xs">
             {modalError && (
@@ -321,7 +347,7 @@ export default function RefundsTab() {
 
             <div>
               <label className="block font-bold text-[#3a302a] mb-1">
-                Refund Amount in ETB (Leave blank for policy auto-computation)
+                Refund Amount (Leave blank for policy auto-computation)
               </label>
               <input
                 type="number"

@@ -121,7 +121,7 @@ export function CaseQueueRow({
   now,
   onSelect,
 }: CaseQueueRowProps) {
-  const overdue = supportCase.overdue && new Date(supportCase.resolutionDueAt) < now;
+  const overdue = supportCase.overdue || (Boolean(supportCase.resolutionDueAt) && new Date(supportCase.resolutionDueAt) < now);
   const waiting =
     supportCase.status === 'WAITING_ON_REQUESTER' ||
     supportCase.status === 'WAITING_ON_INTERNAL';

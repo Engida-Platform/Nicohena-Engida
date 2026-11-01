@@ -266,7 +266,7 @@ export default function PayoutsTab() {
           <div className="space-y-4 text-xs">
             <p className="leading-relaxed text-[#605850]">
               {actionType === 'APPROVE'
-                ? 'Authorizing this payout certifies that all escrow holds have cleared the 24h post check-in policy and will trigger automated provider transfer to destination •••• ' + actionPayout.accountLast4 + '.'
+                ? 'Authorizing this payout certifies that all escrow holds have cleared the configured release policy and will trigger automated provider transfer to destination •••• ' + actionPayout.accountLast4 + '.'
                 : 'Retrying will re-query the provider transfer API or attempt a new transfer instruction.'}
             </p>
 

@@ -3,6 +3,7 @@
 import React, { FormEvent, useEffect, useState } from 'react';
 import {
   AlertTriangle,
+  CalendarRange,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -25,15 +26,28 @@ import {
 
 const PAGE_SIZE = 25;
 
-const ENTITY_TYPES = [
-  { value: '', label: 'All entities' },
-  { value: 'user', label: 'User account' },
-  { value: 'property', label: 'Listing' },
-  { value: 'listing_review', label: 'Listing review' },
-  { value: 'host_profile', label: 'Host profile' },
-  { value: 'review', label: 'Guest review' },
-  { value: 'report', label: 'Report' },
-];
+interface AuditFacets {
+  entityTypes: string[];
+  actions: string[];
+}
+
+const ENTITY_TYPE_LABELS: Record<string, string> = {
+  user: 'User account',
+  property: 'Listing',
+  listing_review: 'Listing review',
+  host_profile: 'Host profile',
+  review: 'Guest review',
+  report: 'Report',
+};
+
+function entityTypeLabel(value: string): string {
+  if (ENTITY_TYPE_LABELS[value]) return ENTITY_TYPE_LABELS[value];
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
 
 interface Filters {
   action: string;
@@ -100,7 +114,32 @@ export default function AdminAuditPage() {
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
 
+  const [entityTypes, setEntityTypes] = useState<string[]>([]);
+  const [actionOptions, setActionOptions] = useState<string[]>([]);
+
   const [selected, setSelected] = useState<AuditLogEntry | null>(null);
+
+  useEffect(() => {
+    if (!canViewAudit) return;
+    let cancelled = false;
+
+    apiFetch<AuditFacets>('/admin/audit-logs/facets')
+      .then((facets) => {
+        if (cancelled) return;
+        setEntityTypes(facets.entityTypes || []);
+        setActionOptions(facets.actions || []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEntityTypes([]);
+          setActionOptions([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [canViewAudit, refreshTick]);
 
   useEffect(() => {
     if (!canViewAudit) {
@@ -153,6 +192,23 @@ export default function AdminAuditPage() {
     setApplied({ ...draft });
   };
 
+  const setQuickRange = (range: 'today' | '7d' | '30d') => {
+    const now = new Date();
+    const toStr = now.toISOString().slice(0, 10);
+    let fromStr = toStr;
+    if (range === '7d') {
+      const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      fromStr = d.toISOString().slice(0, 10);
+    } else if (range === '30d') {
+      const d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      fromStr = d.toISOString().slice(0, 10);
+    }
+    const nextFilters = { ...draft, from: fromStr, to: toStr };
+    setDraft(nextFilters);
+    setApplied(nextFilters);
+    setPage(1);
+  };
+
   const clearFilters = () => {
     setDraft(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
@@ -197,6 +253,7 @@ export default function AdminAuditPage() {
                 </label>
                 <input
                   id="audit-action"
+                  list="audit-action-options"
                   value={draft.action}
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, action: event.target.value }))
@@ -204,6 +261,11 @@ export default function AdminAuditPage() {
                   placeholder="e.g. user.suspend"
                   className="mt-1 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
                 />
+                <datalist id="audit-action-options">
+                  {actionOptions.map((action) => (
+                    <option key={action} value={action} />
+                  ))}
+                </datalist>
               </div>
 
               <div>
@@ -218,11 +280,17 @@ export default function AdminAuditPage() {
                   }
                   className="mt-1 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
                 >
-                  {ENTITY_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
+                  <option value="">All entities</option>
+                  {entityTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {entityTypeLabel(type)}
                     </option>
                   ))}
+                  {draft.entityType && !entityTypes.includes(draft.entityType) && (
+                    <option value={draft.entityType}>
+                      {entityTypeLabel(draft.entityType)}
+                    </option>
+                  )}
                 </select>
               </div>
 
@@ -241,11 +309,37 @@ export default function AdminAuditPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-1">
-                <div>
-                  <label htmlFor="audit-from" className="text-xs font-bold text-[#6c5d52]">
-                    From
+              <div className="md:col-span-2 xl:col-span-1">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="audit-from" className="flex items-center gap-1.5 text-xs font-bold text-[#6c5d52]">
+                    <CalendarRange className="h-3.5 w-3.5 text-[#b3541e]" />
+                    Date range
                   </label>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setQuickRange('today')}
+                      className="rounded-full border border-[#d8d0c8] bg-[#f6f0e8] px-2 py-0.5 text-[10px] font-semibold text-[#6c5d52] hover:border-[#b3541e] hover:text-[#b3541e] cursor-pointer transition"
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickRange('7d')}
+                      className="rounded-full border border-[#d8d0c8] bg-[#f6f0e8] px-2 py-0.5 text-[10px] font-semibold text-[#6c5d52] hover:border-[#b3541e] hover:text-[#b3541e] cursor-pointer transition"
+                    >
+                      7d
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQuickRange('30d')}
+                      className="rounded-full border border-[#d8d0c8] bg-[#f6f0e8] px-2 py-0.5 text-[10px] font-semibold text-[#6c5d52] hover:border-[#b3541e] hover:text-[#b3541e] cursor-pointer transition"
+                    >
+                      30d
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-1 grid grid-cols-2 gap-2">
                   <input
                     id="audit-from"
                     type="date"
@@ -253,13 +347,8 @@ export default function AdminAuditPage() {
                     onChange={(event) =>
                       setDraft((current) => ({ ...current, from: event.target.value }))
                     }
-                    className="mt-1 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-2.5 text-xs text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                    className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-2.5 text-xs text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
                   />
-                </div>
-                <div>
-                  <label htmlFor="audit-to" className="text-xs font-bold text-[#6c5d52]">
-                    To
-                  </label>
                   <input
                     id="audit-to"
                     type="date"
@@ -267,7 +356,7 @@ export default function AdminAuditPage() {
                     onChange={(event) =>
                       setDraft((current) => ({ ...current, to: event.target.value }))
                     }
-                    className="mt-1 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-2.5 text-xs text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                    className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-2.5 text-xs text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
                   />
                 </div>
               </div>

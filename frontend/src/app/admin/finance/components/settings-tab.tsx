@@ -12,8 +12,15 @@ import {
   Info,
 } from 'lucide-react';
 import { apiFetch } from '../../../../lib/api';
+import { formatMinor } from '../../../../lib/finance-format';
 import type { FinanceSettingItem } from '../../../../types/admin-finance';
 import AdminDialog from '../../../../components/admin/AdminDialog';
+
+function formatBps(value: string | undefined): string {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '—';
+  return `${(numeric / 100).toFixed(2)}%`;
+}
 
 export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: () => void }) {
   const [settings, setSettings] = useState<FinanceSettingItem[]>([]);
@@ -106,8 +113,10 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             },
             {
               key: 'finance.auto_release_enabled',
-              title: 'Automated 24h Escrow Release Job',
-              desc: 'When enabled, single-runner cron releases escrow holds exactly 24 hours post check-in.',
+              title: 'Automated Escrow Release Job',
+              desc: values['finance.escrow_release_delay_hours']
+                ? `When enabled, the single-runner cron releases escrow holds using the "${values['finance.escrow_release_trigger'] || 'configured'}" trigger plus ${values['finance.escrow_release_delay_hours']} hours.`
+                : 'When enabled, the single-runner cron releases escrow holds according to the configured trigger and delay.',
             },
           ].map((flag) => {
             const isEnabled = values[flag.key] === 'true';
@@ -168,7 +177,7 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
-                value={values['finance.platform_commission_bps'] || '1000'}
+                value={values['finance.platform_commission_bps'] ?? ''}
                 onChange={(e) =>
                   setValues({ ...values, 'finance.platform_commission_bps': e.target.value })
                 }
@@ -187,7 +196,11 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
               </button>
             </div>
             <span className="text-[10px] text-[#73776f]">
-              1000 bps = 10.00% commission on room booking total
+              {values['finance.platform_commission_bps']
+                ? `${values['finance.platform_commission_bps']} bps = ${formatBps(
+                    values['finance.platform_commission_bps'],
+                  )} commission on room booking total`
+                : 'No commission rate is configured yet.'}
             </span>
           </div>
 
@@ -198,7 +211,7 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
-                value={values['finance.vat_rate_bps'] || '1500'}
+                value={values['finance.vat_rate_bps'] ?? ''}
                 onChange={(e) =>
                   setValues({ ...values, 'finance.vat_rate_bps': e.target.value })
                 }
@@ -214,7 +227,11 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
               </button>
             </div>
             <span className="text-[10px] text-[#73776f]">
-              1500 bps = 15.00% VAT applied to commission
+              {values['finance.vat_rate_bps']
+                ? `${values['finance.vat_rate_bps']} bps = ${formatBps(
+                    values['finance.vat_rate_bps'],
+                  )} VAT applied to commission`
+                : 'No VAT rate is configured yet.'}
             </span>
           </div>
 
@@ -225,7 +242,7 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
-                value={values['finance.refund_dual_approval_threshold_minor'] || '500000'}
+                value={values['finance.refund_dual_approval_threshold_minor'] ?? ''}
                 onChange={(e) =>
                   setValues({
                     ...values,
@@ -247,7 +264,14 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
               </button>
             </div>
             <span className="text-[10px] text-[#73776f]">
-              500,000 minor = ETB 5,000.00. Amounts &gt;= this require dual approval.
+              {values['finance.refund_dual_approval_threshold_minor']
+                ? `${Number(
+                    values['finance.refund_dual_approval_threshold_minor'],
+                  ).toLocaleString('en-US')} minor = ${formatMinor(
+                    values['finance.refund_dual_approval_threshold_minor'],
+                    'ETB',
+                  )}. Amounts >= this require dual approval.`
+                : 'No refund dual-approval threshold is configured yet.'}
             </span>
           </div>
 
@@ -258,7 +282,7 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
             <div className="flex gap-2">
               <input
                 type="number"
-                value={values['finance.payout_dual_approval_threshold_minor'] || '1000000'}
+                value={values['finance.payout_dual_approval_threshold_minor'] ?? ''}
                 onChange={(e) =>
                   setValues({
                     ...values,
@@ -280,7 +304,14 @@ export default function SettingsTab({ onRefreshSummary }: { onRefreshSummary: ()
               </button>
             </div>
             <span className="text-[10px] text-[#73776f]">
-              1,000,000 minor = ETB 10,000.00. Payouts &gt;= this require dual approval.
+              {values['finance.payout_dual_approval_threshold_minor']
+                ? `${Number(
+                    values['finance.payout_dual_approval_threshold_minor'],
+                  ).toLocaleString('en-US')} minor = ${formatMinor(
+                    values['finance.payout_dual_approval_threshold_minor'],
+                    'ETB',
+                  )}. Payouts >= this require dual approval.`
+                : 'No payout dual-approval threshold is configured yet.'}
             </span>
           </div>
         </div>

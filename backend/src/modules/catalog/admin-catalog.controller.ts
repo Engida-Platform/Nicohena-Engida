@@ -15,6 +15,7 @@ import { SuperAdminBypassGuard } from '../admin/rbac/super-admin-bypass.guard';
 import { RequirePermissions } from '../admin/rbac/permissions.decorator';
 import { Permission } from '../admin/rbac/permissions';
 import { AdminCatalogService } from './admin-catalog.service';
+import { AmenityCategory } from '../amenities/entities/amenity.entity';
 import {
   CreateAmenityDto,
   CreateCategoryDto,
@@ -89,6 +90,12 @@ export class AdminCatalogController {
   }
 
   // ==================== AMENITIES ====================
+
+  @Get('amenities/categories')
+  @RequirePermissions(Permission.CATALOG_MANAGE)
+  getAmenityCategories() {
+    return Object.values(AmenityCategory);
+  }
 
   @Get('amenities')
   @RequirePermissions(Permission.CATALOG_MANAGE)

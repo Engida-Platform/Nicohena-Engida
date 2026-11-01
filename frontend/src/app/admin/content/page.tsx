@@ -25,18 +25,11 @@ import {
 
 type ContentTab = 'faqs' | 'policies' | 'banner';
 
-const FAQ_CATEGORIES: FaqCategory[] = [
-  'GENERAL',
-  'BOOKING',
-  'PAYMENTS',
-  'HOSTING',
-  'SAFETY',
-];
-
 export default function AdminContentPage() {
   const [activeTab, setActiveTab] = useState<ContentTab>('faqs');
   const [faqs, setFaqs] = useState<FaqItemRecord[]>([]);
   const [blocks, setBlocks] = useState<ContentBlockRecord[]>([]);
+  const [faqCategories, setFaqCategories] = useState<FaqCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,12 +61,14 @@ export default function AdminContentPage() {
     try {
       setLoading(true);
       setError(null);
-      const [faqData, blockData] = await Promise.all([
+      const [faqData, blockData, categoryData] = await Promise.all([
         apiFetch<FaqItemRecord[]>('/admin/content/faqs'),
         apiFetch<ContentBlockRecord[]>('/admin/content/blocks'),
+        apiFetch<FaqCategory[]>('/admin/content/faqs/categories').catch(() => []),
       ]);
       setFaqs(faqData);
       setBlocks(blockData);
+      setFaqCategories(categoryData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load content items');
     } finally {
@@ -396,7 +391,7 @@ export default function AdminContentPage() {
                   }
                   className="w-full px-3 py-2 border border-[#d8d0c8] rounded-lg bg-[#faf5ee] focus:outline-none focus:ring-1 focus:ring-[#b3541e]"
                 >
-                  {FAQ_CATEGORIES.map((c) => (
+                  {faqCategories.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>

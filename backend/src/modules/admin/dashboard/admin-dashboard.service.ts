@@ -35,6 +35,60 @@ export class AdminDashboardService {
     private readonly auditService: AuditService,
   ) {}
 
+  async getSummaryFast() {
+    const [
+      pendingListingReviews,
+      pendingHostVerifications,
+      openReports,
+      pendingBookings,
+      openCases,
+      overdueCases,
+      unassignedCases,
+    ] = await Promise.all([
+      this.listingReviewRepository.count({ where: { status: ReviewStatus.PENDING } }),
+      this.hostProfileRepository.count({
+        where: { verificationStatus: HostVerificationStatus.PENDING },
+      }),
+      this.reportRepository.count({
+        where: {
+          status: In([ReportStatus.OPEN, ReportStatus.INVESTIGATING]),
+        },
+      }),
+      this.bookingRepository.count({
+        where: { status: BookingStatus.PENDING },
+      }),
+      this.caseRepository.count({
+        where: {
+          status: Not(In([CaseStatus.RESOLVED, CaseStatus.CLOSED])),
+        },
+      }),
+      this.caseRepository.count({
+        where: {
+          status: Not(In([CaseStatus.RESOLVED, CaseStatus.CLOSED])),
+          resolutionDueAt: LessThan(new Date()),
+        },
+      }),
+      this.caseRepository.count({
+        where: {
+          status: Not(In([CaseStatus.RESOLVED, CaseStatus.CLOSED])),
+          assigneeId: IsNull(),
+        },
+      }),
+    ]);
+
+    return {
+      counts: {
+        pendingListingReviews,
+        pendingHostVerifications,
+        openReports,
+        pendingBookings,
+        openCases,
+        overdueCases,
+        unassignedCases,
+      },
+    };
+  }
+
   async getSummary(actor: User) {
     const canViewAudit = hasPermission(actor, Permission.AUDIT_VIEW);
     const [

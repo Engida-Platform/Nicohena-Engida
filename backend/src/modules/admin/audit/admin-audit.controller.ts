@@ -72,6 +72,12 @@ export class QueryAuditLogsDto {
 export class AdminAuditController {
   constructor(private readonly auditService: AuditService) {}
 
+  @Get('facets')
+  @RequirePermissions(Permission.AUDIT_VIEW)
+  getFacets() {
+    return this.auditService.getFacets();
+  }
+
   @Get()
   @RequirePermissions(Permission.AUDIT_VIEW)
   list(@Query() query: QueryAuditLogsDto) {

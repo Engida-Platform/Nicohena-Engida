@@ -7,6 +7,7 @@ import { User } from '../../../users/entities/user.entity';
 import { HostProfile } from '../../../users/entities/host-profile.entity';
 import { PropertyCategory } from '../../catalog/entities/property-category.entity';
 import { Destination } from '../../catalog/entities/destination.entity';
+import { FinanceSettingsService } from '../../finance/services/finance-settings.service';
 
 export type AnalyticsPeriod = '7d' | '30d' | '90d' | 'ytd' | '1y';
 
@@ -14,6 +15,8 @@ export interface AnalyticsKpi {
   grossBookingValueEtb: number;
   netRevenueEtb: number;
   hostPayoutsEtb: number;
+  /** Configured platform commission rate used for the revenue calculation. */
+  commissionRatePercent: number;
   totalBookings: number;
   confirmedBookings: number;
   cancellationRatePercent: number;
@@ -84,6 +87,7 @@ export class AdminAnalyticsService {
     private readonly categoryRepository: Repository<PropertyCategory>,
     @InjectRepository(Destination)
     private readonly destinationRepository: Repository<Destination>,
+    private readonly financeSettingsService: FinanceSettingsService,
   ) {}
 
   private getPeriodDates(period: AnalyticsPeriod): {
@@ -132,6 +136,13 @@ export class AdminAnalyticsService {
   async getOverview(period: AnalyticsPeriod = '30d'): Promise<AnalyticsOverviewResult> {
     const { start, end, previousStart, previousEnd } = this.getPeriodDates(period);
 
+    // The commission rate is configured in finance settings, so analytics always
+    // reflects the same take-rate that is used for real ledger postings.
+    const financeSettings = await this.financeSettingsService.getAllSettings();
+    const commissionRateBps = financeSettings.commissionRateBps;
+    const commissionRate = commissionRateBps / 10000;
+    const commissionRatePercent = commissionRateBps / 100;
+
     // Fetch current bookings and previous period bookings for growth calculation
     const [currentBookings, previousBookings, activeListings, activeHosts, categories, destinations] =
       await Promise.all([
@@ -173,8 +184,7 @@ export class AdminAnalyticsService {
       // Price is stored as number or string in booking entity
       const price = Number(b.totalPrice) || 0;
       currentGbvMinor += price;
-      // 12% standard commission take rate
-      currentRevenueMinor += Math.round(price * 0.12);
+      currentRevenueMinor += Math.round(price * commissionRate);
 
       if (b.status === BookingStatus.CONFIRMED || b.status === BookingStatus.COMPLETED) {
         confirmedCount++;
@@ -203,7 +213,7 @@ export class AdminAnalyticsService {
     for (const b of previousBookings) {
       const price = Number(b.totalPrice) || 0;
       prevGbvMinor += price;
-      prevRevenueMinor += Math.round(price * 0.12);
+      prevRevenueMinor += Math.round(price * commissionRate);
     }
 
     const calcGrowth = (curr: number, prev: number) => {
@@ -214,7 +224,7 @@ export class AdminAnalyticsService {
     const totalBookings = currentBookings.length;
     const gbvEtb = Math.round(currentGbvMinor);
     const revenueEtb = Math.round(currentRevenueMinor);
-    const hostPayoutsEtb = Math.round(gbvEtb * 0.88);
+    const hostPayoutsEtb = Math.max(gbvEtb - revenueEtb, 0);
     const cancellationRate = totalBookings > 0 ? Math.round((cancelledCount / totalBookings) * 1000) / 10 : 0;
     const adr = totalNights > 0 ? Math.round(gbvEtb / totalNights) : 0;
     const alos = confirmedCount > 0 ? Math.round((totalNights / confirmedCount) * 10) / 10 : 0;
@@ -238,7 +248,7 @@ export class AdminAnalyticsService {
       if (bucket) {
         const price = Number(b.totalPrice) || 0;
         bucket.gbv += price;
-        bucket.rev += Math.round(price * 0.12);
+        bucket.rev += Math.round(price * commissionRate);
         bucket.bookings++;
         if (b.status === BookingStatus.CANCELLED) {
           bucket.cancels++;
@@ -361,6 +371,7 @@ export class AdminAnalyticsService {
         grossBookingValueEtb: gbvEtb,
         netRevenueEtb: revenueEtb,
         hostPayoutsEtb: hostPayoutsEtb,
+        commissionRatePercent,
         totalBookings,
         confirmedBookings: confirmedCount,
         cancellationRatePercent: cancellationRate,
@@ -393,6 +404,7 @@ export class AdminAnalyticsService {
     lines.push('--- CORE EXECUTIVE KPIS ---');
     lines.push('Metric,Value');
     lines.push(`Gross Booking Value (ETB),${data.kpis.grossBookingValueEtb}`);
+    lines.push(`Platform Commission Rate (%),${data.kpis.commissionRatePercent}`);
     lines.push(`Net Platform Take-Rate Revenue (ETB),${data.kpis.netRevenueEtb}`);
     lines.push(`Disbursed Host Payouts (ETB),${data.kpis.hostPayoutsEtb}`);
     lines.push(`Total Bookings,${data.kpis.totalBookings}`);

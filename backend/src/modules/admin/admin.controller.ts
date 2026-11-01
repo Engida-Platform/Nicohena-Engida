@@ -52,6 +52,16 @@ export class AdminController {
   }
 
   /**
+   * GET /admin/reviews/stats
+   * Aggregate queue counts for the moderation summary cards.
+   */
+  @Get('reviews/stats')
+  @RequirePermissions(Permission.LISTINGS_REVIEW)
+  async getReviewStats() {
+    return this.listingModerationService.getAdminReviewStats();
+  }
+
+  /**
    * GET /admin/reviews/:id
    * Detailed view of a submission including proposed changes diff against live values.
    */

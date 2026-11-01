@@ -7,6 +7,7 @@ import { User } from '../../../users/entities/user.entity';
 import { HostProfile } from '../../../users/entities/host-profile.entity';
 import { PropertyCategory } from '../../catalog/entities/property-category.entity';
 import { Destination } from '../../catalog/entities/destination.entity';
+import { FinanceSettingsService } from '../../finance/services/finance-settings.service';
 
 describe('AdminAnalyticsService', () => {
   let service: AdminAnalyticsService;
@@ -16,6 +17,7 @@ describe('AdminAnalyticsService', () => {
   let hostProfileRepo: any;
   let categoryRepo: any;
   let destinationRepo: any;
+  let financeSettingsService: { getAllSettings: jest.Mock };
 
   const mockBookings: any[] = [
     {
@@ -73,6 +75,25 @@ describe('AdminAnalyticsService', () => {
         { id: 'dest-2', name: 'Bishoftu', region: 'Oromia / Rift Valley', isActive: true },
       ]),
     };
+    financeSettingsService = {
+      getAllSettings: jest.fn().mockResolvedValue({
+        commissionRateBps: 1500,
+        commissionRounding: 'HALF_UP',
+        vatRateBps: 1500,
+        vatJurisdiction: 'ET',
+        withholdingRateBps: 0,
+        refundDualApprovalThresholdMinor: '500000',
+        payoutDualApprovalThresholdMinor: '1000000',
+        escrowReleaseTrigger: 'CHECKOUT',
+        escrowReleaseDelayHours: 24,
+        payoutSchedule: 'DAILY',
+        payoutCutoffTime: '02:00',
+        liveCaptureEnabled: false,
+        liveRefundsEnabled: false,
+        livePayoutsEnabled: false,
+        autoReleaseEnabled: true,
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -101,6 +122,10 @@ describe('AdminAnalyticsService', () => {
           provide: getRepositoryToken(Destination),
           useValue: destinationRepo,
         },
+        {
+          provide: FinanceSettingsService,
+          useValue: financeSettingsService,
+        },
       ],
     }).compile();
 
@@ -116,7 +141,9 @@ describe('AdminAnalyticsService', () => {
       const res = await service.getOverview('30d');
 
       expect(res.kpis.grossBookingValueEtb).toBe(15000);
-      expect(res.kpis.netRevenueEtb).toBe(1800);
+      expect(res.kpis.netRevenueEtb).toBe(2250);
+      expect(res.kpis.hostPayoutsEtb).toBe(12750);
+      expect(res.kpis.commissionRatePercent).toBe(15);
       expect(res.kpis.totalBookings).toBe(2);
       expect(res.kpis.confirmedBookings).toBe(1);
       expect(res.kpis.cancellationRatePercent).toBe(50);

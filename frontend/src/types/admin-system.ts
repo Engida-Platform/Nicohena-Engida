@@ -6,6 +6,7 @@ export interface AnalyticsKpi {
   grossBookingValueEtb: number;
   netRevenueEtb: number;
   hostPayoutsEtb: number;
+  commissionRatePercent: number;
   totalBookings: number;
   confirmedBookings: number;
   cancellationRatePercent: number;

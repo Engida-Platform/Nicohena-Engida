@@ -288,22 +288,20 @@ export class AdminSystemService {
 
       if (jobName === 'ledger-invariant-check') {
         // Query debit/credit sums in ledger entries
-        const result = await this.dataSource.query(`
+        const [sumResult] = await this.dataSource.query(`
           SELECT
-            COALESCE(SUM(amount_minor), 0) AS total_minor,
-            direction
+            COALESCE(SUM(debit_minor), 0)::text AS total_debit_minor,
+            COALESCE(SUM(credit_minor), 0)::text AS total_credit_minor,
+            COUNT(*)::text AS total_entries
           FROM ledger_entries
-          GROUP BY direction
         `);
 
-        let debit = 0;
-        let credit = 0;
-        for (const row of result) {
-          if (row.direction === 'DEBIT') debit = Number(row.total_minor);
-          if (row.direction === 'CREDIT') credit = Number(row.total_minor);
-        }
+        const debit = Number(sumResult?.total_debit_minor || 0);
+        const credit = Number(sumResult?.total_credit_minor || 0);
+        const totalEntries = Number(sumResult?.total_entries || 0);
 
         counts = {
+          totalEntries,
           totalDebitMinor: debit,
           totalCreditMinor: credit,
           discrepancyMinor: Math.abs(debit - credit),

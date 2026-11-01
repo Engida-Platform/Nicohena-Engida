@@ -18,6 +18,7 @@ import { PermissionsGuard } from './rbac/permissions.guard';
 import { ListingModerationModule } from '../properties/listing-moderation.module';
 import { HostModule } from '../host/host.module';
 import { AuditModule } from '../audit/audit.module';
+import { FinanceModule } from '../finance/finance.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { User } from '../../users/entities/user.entity';
 import { HostProfile } from '../../users/entities/host-profile.entity';
@@ -66,6 +67,7 @@ import { AdminSystemService } from './system/admin-system.service';
     ListingModerationModule,
     HostModule,
     AuditModule,
+    FinanceModule,
     NotificationsModule,
     AdminBookingsModule,
     AdminCasesModule,

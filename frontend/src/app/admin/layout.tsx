@@ -17,6 +17,8 @@ import {
   MapPin,
   Menu,
   MessagesSquare,
+  PanelLeftClose,
+  PanelLeftOpen,
   ScrollText,
   ShieldCheck,
   Sliders,
@@ -28,110 +30,146 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import {
   ADMIN_PERMISSIONS,
-  can,
-  canAny,
+  ALL_ADMIN_PERMISSIONS,
   formatAdminRole,
+  getEffectivePermissions,
   type Permission,
 } from '../../types/admin';
 
-interface NavItem {
+export interface NavItem {
   href: string;
   label: string;
+  shortLabel: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   permission?: Permission;
   anyOf?: Permission[];
 }
 
-const NAV_ITEMS: NavItem[] = [
+export interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+export const NAV_SECTIONS: NavSection[] = [
   {
-    href: '/admin',
-    label: 'Overview',
-    icon: LayoutDashboard,
-    permission: ADMIN_PERMISSIONS.DASHBOARD_VIEW,
+    title: 'Operations',
+    items: [
+      {
+        href: '/admin',
+        label: 'Overview',
+        shortLabel: 'Overview',
+        icon: LayoutDashboard,
+        permission: ADMIN_PERMISSIONS.DASHBOARD_VIEW,
+      },
+      {
+        href: '/admin/bookings',
+        label: 'Bookings',
+        shortLabel: 'Bookings',
+        icon: CalendarRange,
+        permission: ADMIN_PERMISSIONS.BOOKINGS_VIEW,
+      },
+      {
+        href: '/admin/cases',
+        label: 'Support cases',
+        shortLabel: 'Cases',
+        icon: MessagesSquare,
+        permission: ADMIN_PERMISSIONS.CASES_VIEW,
+      },
+      {
+        href: '/admin/moderation',
+        label: 'Moderation',
+        shortLabel: 'Moderation',
+        icon: ClipboardCheck,
+        anyOf: [ADMIN_PERMISSIONS.LISTINGS_REVIEW, ADMIN_PERMISSIONS.HOSTS_VERIFY],
+      },
+      {
+        href: '/admin/reports',
+        label: 'Reports',
+        shortLabel: 'Reports',
+        icon: Flag,
+        permission: ADMIN_PERMISSIONS.REPORTS_VIEW,
+      },
+    ],
   },
   {
-    href: '/admin/analytics',
-    label: 'Analytics & BI',
-    icon: BarChart3,
-    permission: ADMIN_PERMISSIONS.ANALYTICS_VIEW,
+    title: 'Management & Growth',
+    items: [
+      {
+        href: '/admin/users',
+        label: 'Users & admins',
+        shortLabel: 'Users',
+        icon: Users,
+        permission: ADMIN_PERMISSIONS.USERS_VIEW,
+      },
+      {
+        href: '/admin/reviews',
+        label: 'Guest reviews',
+        shortLabel: 'Reviews',
+        icon: Star,
+        permission: ADMIN_PERMISSIONS.REVIEWS_VIEW,
+      },
+      {
+        href: '/admin/finance',
+        label: 'Finance & Escrow',
+        shortLabel: 'Finance',
+        icon: Landmark,
+        permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
+      },
+      {
+        href: '/admin/analytics',
+        label: 'Analytics & BI',
+        shortLabel: 'Analytics',
+        icon: BarChart3,
+        permission: ADMIN_PERMISSIONS.ANALYTICS_VIEW,
+      },
+      {
+        href: '/admin/coupons',
+        label: 'Coupons & Discounts',
+        shortLabel: 'Coupons',
+        icon: Tag,
+        permission: ADMIN_PERMISSIONS.COUPONS_MANAGE,
+      },
+    ],
   },
   {
-    href: '/admin/finance',
-    label: 'Finance & Escrow',
-    icon: Landmark,
-    permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
-  },
-  {
-    href: '/admin/bookings',
-    label: 'Bookings',
-    icon: CalendarRange,
-    permission: ADMIN_PERMISSIONS.BOOKINGS_VIEW,
-  },
-  {
-    href: '/admin/cases',
-    label: 'Support cases',
-    icon: MessagesSquare,
-    permission: ADMIN_PERMISSIONS.CASES_VIEW,
-  },
-  {
-    href: '/admin/users',
-    label: 'Users & admins',
-    icon: Users,
-    permission: ADMIN_PERMISSIONS.USERS_VIEW,
-  },
-  {
-    href: '/admin/moderation',
-    label: 'Moderation',
-    icon: ClipboardCheck,
-    anyOf: [ADMIN_PERMISSIONS.LISTINGS_REVIEW, ADMIN_PERMISSIONS.HOSTS_VERIFY],
-  },
-  {
-    href: '/admin/reviews',
-    label: 'Guest reviews',
-    icon: Star,
-    permission: ADMIN_PERMISSIONS.REVIEWS_VIEW,
-  },
-  {
-    href: '/admin/reports',
-    label: 'Reports',
-    icon: Flag,
-    permission: ADMIN_PERMISSIONS.REPORTS_VIEW,
-  },
-  {
-    href: '/admin/categories',
-    label: 'Categories & Locations',
-    icon: MapPin,
-    permission: ADMIN_PERMISSIONS.CATALOG_MANAGE,
-  },
-  {
-    href: '/admin/coupons',
-    label: 'Coupons & Discounts',
-    icon: Tag,
-    permission: ADMIN_PERMISSIONS.COUPONS_MANAGE,
-  },
-  {
-    href: '/admin/content',
-    label: 'Content & CMS',
-    icon: FileText,
-    permission: ADMIN_PERMISSIONS.CONTENT_MANAGE,
-  },
-  {
-    href: '/admin/settings',
-    label: 'Platform Settings',
-    icon: Sliders,
-    permission: ADMIN_PERMISSIONS.SETTINGS_VIEW,
-  },
-  {
-    href: '/admin/system',
-    label: 'System Health',
-    icon: Activity,
-    permission: ADMIN_PERMISSIONS.SYSTEM_VIEW,
-  },
-  {
-    href: '/admin/audit',
-    label: 'Audit log',
-    icon: ScrollText,
-    permission: ADMIN_PERMISSIONS.AUDIT_VIEW,
+    title: 'System & Catalog',
+    items: [
+      {
+        href: '/admin/categories',
+        label: 'Categories & Locations',
+        shortLabel: 'Catalog',
+        icon: MapPin,
+        permission: ADMIN_PERMISSIONS.CATALOG_MANAGE,
+      },
+      {
+        href: '/admin/content',
+        label: 'Content & CMS',
+        shortLabel: 'Content',
+        icon: FileText,
+        permission: ADMIN_PERMISSIONS.CONTENT_MANAGE,
+      },
+      {
+        href: '/admin/settings',
+        label: 'Platform Settings',
+        shortLabel: 'Settings',
+        icon: Sliders,
+        permission: ADMIN_PERMISSIONS.SETTINGS_VIEW,
+      },
+      {
+        href: '/admin/system',
+        label: 'System Health',
+        shortLabel: 'System',
+        icon: Activity,
+        permission: ADMIN_PERMISSIONS.SYSTEM_VIEW,
+      },
+      {
+        href: '/admin/audit',
+        label: 'Audit log',
+        shortLabel: 'Audit',
+        icon: ScrollText,
+        permission: ADMIN_PERMISSIONS.AUDIT_VIEW,
+      },
+    ],
   },
 ];
 
@@ -140,6 +178,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  // Restore collapsed sidebar preference from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('engida_admin_nav_collapsed');
+      if (saved === 'true') {
+        setCollapsed(true);
+      }
+    } catch {
+      // LocalStorage unavailable
+    }
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('engida_admin_nav_collapsed', String(next));
+      } catch {
+        // Ignore write failures
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -161,17 +224,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
   }, [mobileOpen]);
 
-  const visibleNav = useMemo(
-    () =>
-      NAV_ITEMS.filter((item) => {
-        if (item.permission) return can(user?.permissions, item.permission);
-        if (item.anyOf) return canAny(user?.permissions, item.anyOf);
-        return true;
+  const effectivePermissions = useMemo(() => {
+    return getEffectivePermissions(user);
+  }, [user]);
+
+  // Robust visibility resolver:
+  // If an administrator is logged in, show all sections matching their role permissions.
+  // If permission filtering would result in zero navigation items (e.g., transitional
+  // or legacy session state), gracefully fall back to displaying all sections so that
+  // navigation is NEVER blank or broken.
+  const visibleSections = useMemo(() => {
+    const isSuperOrUnrestricted =
+      !user?.adminRole ||
+      user.adminRole === 'SUPER_ADMIN' ||
+      effectivePermissions.length >= ALL_ADMIN_PERMISSIONS.length;
+
+    if (isSuperOrUnrestricted) {
+      return NAV_SECTIONS;
+    }
+
+    const filtered = NAV_SECTIONS.map((section) => ({
+      ...section,
+      items: section.items.filter((item) => {
+        if (!item.permission && !item.anyOf) return true;
+        if (effectivePermissions.length === 0) return true;
+        if (item.permission) return effectivePermissions.includes(item.permission);
+        if (item.anyOf) return item.anyOf.some((p) => effectivePermissions.includes(p));
+        return false;
       }),
-    [user?.permissions],
+    })).filter((section) => section.items.length > 0);
+
+    return filtered.length > 0 ? filtered : NAV_SECTIONS;
+  }, [user, effectivePermissions]);
+
+  const allVisibleItems = useMemo(
+    () => visibleSections.flatMap((s) => s.items),
+    [visibleSections],
   );
 
-  const activeItem = visibleNav
+  const activeItem = allVisibleItems
     .filter((item) => (item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href)))
     .sort((a, b) => b.href.length - a.href.length)[0];
 
@@ -224,115 +315,203 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     .map((part) => part[0]?.toUpperCase())
     .join('');
 
-  const sidebar = (
-    <div className="flex h-full flex-col border-r border-[#d8d0c8] bg-[#f2ece4]">
-      <div className="px-6 pb-6 pt-7">
+  // Reusable sidebar navigation render
+  const renderSidebarContent = (isCollapsedMode = false) => (
+    <div className="flex h-full min-h-0 flex-col border-r border-[#d8d0c8] bg-[#f2ece4] select-none">
+      {/* Brand Header */}
+      <div className={`px-4 pt-5 pb-3 shrink-0 flex items-center ${isCollapsedMode ? 'justify-center' : 'justify-between'}`}>
         <Link
           href="/admin"
           onClick={() => setMobileOpen(false)}
-          className="group inline-flex flex-col items-start"
+          className="group inline-flex items-center gap-2.5 transition-opacity hover:opacity-90"
+          title="Engida Operations Console"
         >
-          <span className="font-headline text-[2rem] font-bold leading-none tracking-[-0.03em] text-[#c2652a] transition-colors group-hover:text-[#e08850]">
-            Engida
-          </span>
-          <span className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] text-[#6c5d52]">
-            Operations
-          </span>
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#c2652a] text-white shadow-[0_4px_12px_-2px_rgba(194,101,42,0.45)]">
+            <span className="font-headline text-lg font-bold">E</span>
+          </div>
+          {!isCollapsedMode && (
+            <div className="flex flex-col">
+              <span className="font-headline text-xl font-bold leading-none tracking-[-0.02em] text-[#3a302a] group-hover:text-[#c2652a] transition-colors">
+                Engida
+              </span>
+              <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6c5d52]">
+                Operations
+              </span>
+            </div>
+          )}
         </Link>
+
+        {/* Desktop Collapse / Expand Trigger */}
+        {!isCollapsedMode && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="hidden md:inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#d8d0c8] bg-white/70 text-[#605850] hover:bg-white hover:text-[#3a302a] transition-colors cursor-pointer shadow-2xs"
+            title="Collapse sidebar (Ctrl+[)"
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" strokeWidth={1.8} />
+          </button>
+        )}
       </div>
 
-      <div className="px-3">
-        <div className="mb-3 flex items-center gap-3 px-3">
-          <span className="h-px flex-1 bg-[#d8d0c8]" />
-          <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6c5d52]">
-            Workspace
-          </span>
-        </div>
-        <nav className="space-y-1" aria-label="Admin console">
-          {visibleNav.map((item) => {
-            const Icon = item.icon;
-            const active =
-              item.href === '/admin' ? pathname === item.href : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                aria-current={active ? 'page' : undefined}
-                className={`group flex items-center gap-3 rounded-xl px-3.5 py-3 text-[13px] font-semibold transition-all duration-200 ${
-                  active
-                    ? 'bg-[#b3541e] text-white shadow-[0_10px_24px_-16px_rgba(179,84,30,0.85)]'
-                    : 'text-[#605850] hover:bg-[#eae2da] hover:text-[#3a302a]'
-                }`}
-              >
-                <Icon
-                  className={`h-[18px] w-[18px] shrink-0 ${
-                    active
-                      ? 'text-white'
-                      : 'text-[#6c5d52] transition-colors group-hover:text-[#b3541e]'
-                  }`}
-                  strokeWidth={1.8}
-                />
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                {active ? <span className="h-1.5 w-1.5 rounded-full bg-white/80" /> : null}
-              </Link>
-            );
-          })}
-        </nav>
+      {/* Navigation Sections */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-2.5 py-2 space-y-4">
+        {visibleSections.map((section, sIdx) => (
+          <div key={section.title} className="space-y-1">
+            {!isCollapsedMode ? (
+              <div className="px-2.5 pt-2 pb-1 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#78706a]">
+                  {section.title}
+                </span>
+                <span className="text-[10px] font-medium text-[#9d938b] tabular-nums">
+                  {section.items.length}
+                </span>
+              </div>
+            ) : sIdx > 0 ? (
+              <div className="my-2 mx-auto w-6 h-px bg-[#d8d0c8]" />
+            ) : null}
+
+            <nav className="space-y-0.5" aria-label={section.title}>
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active =
+                  item.href === '/admin'
+                    ? pathname === item.href
+                    : pathname.startsWith(item.href);
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
+                    aria-current={active ? 'page' : undefined}
+                    title={isCollapsedMode ? item.label : undefined}
+                    className={`group relative flex items-center rounded-xl text-[13px] font-semibold transition-all duration-150 ${
+                      isCollapsedMode
+                        ? 'h-10 w-10 mx-auto justify-center'
+                        : 'gap-3 px-3 py-2.5 w-full'
+                    } ${
+                      active
+                        ? 'bg-[#b3541e] text-white shadow-[0_6px_16px_-6px_rgba(179,84,30,0.7)]'
+                        : 'text-[#605850] hover:bg-[#eae2da] hover:text-[#3a302a]'
+                    }`}
+                  >
+                    <Icon
+                      className={`h-[18px] w-[18px] shrink-0 transition-colors ${
+                        active
+                          ? 'text-white'
+                          : 'text-[#6c5d52] group-hover:text-[#b3541e]'
+                      }`}
+                      strokeWidth={1.8}
+                    />
+
+                    {!isCollapsedMode && (
+                      <>
+                        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        {active && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-white/90 shadow-xs" />
+                        )}
+                      </>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+        ))}
       </div>
 
-      <div className="mt-auto p-4">
-        <div className="rounded-xl border border-[#d8d0c8] bg-white/60 p-3">
-          <div className="flex items-center gap-3 px-1 py-1">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eae2da] text-xs font-bold text-[#3a302a]">
+      {/* User Profile & Actions Footer */}
+      <div className="mt-auto p-2.5 shrink-0 border-t border-[#d8d0c8]/70 bg-[#ece6dc]/60">
+        {isCollapsedMode ? (
+          <div className="flex flex-col items-center gap-2 py-1">
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d8d0c8] bg-white text-[#605850] hover:bg-[#faf5ee] hover:text-[#3a302a] transition-colors cursor-pointer shadow-2xs"
+              title="Expand sidebar"
+              aria-label="Expand sidebar"
+            >
+              <PanelLeftOpen className="h-4 w-4" strokeWidth={1.8} />
+            </button>
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eae2da] text-xs font-bold text-[#3a302a] border border-[#d8d0c8]"
+              title={`${user.name} (${roleLabel})`}
+            >
               {initials || 'A'}
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-[13px] font-semibold text-[#3a302a]">{user.name}</p>
-              <p className="mt-0.5 truncate text-xs text-[#78706a]">{roleLabel}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center justify-between border-t border-[#e6ddd2] pt-3">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 rounded-md px-1 py-1 text-xs font-semibold text-[#605850] transition-colors hover:text-[#b3541e]"
-            >
-              <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={1.8} />
-              View marketplace
-            </Link>
             <button
               type="button"
               onClick={() => logout()}
-              className="inline-flex items-center gap-1.5 rounded-md px-1 py-1 text-xs font-semibold text-[#605850] transition-colors hover:text-[#9a3f33]"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#605850] hover:bg-[#f7e5dc] hover:text-[#9a3f33] transition-colors cursor-pointer"
+              title="Sign out"
+              aria-label="Sign out"
             >
               <LogOut className="h-3.5 w-3.5" strokeWidth={1.8} />
-              Sign out
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-xl border border-[#d8d0c8] bg-white/80 p-2.5 shadow-2xs">
+            <div className="flex items-center gap-2.5 px-1 py-0.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#eae2da] text-xs font-bold text-[#3a302a] border border-[#d8d0c8]">
+                {initials || 'A'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-[#3a302a]">{user.name}</p>
+                <p className="truncate text-[11px] text-[#78706a]">{roleLabel}</p>
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-center justify-between border-t border-[#e6ddd2] pt-2 px-0.5">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold text-[#605850] hover:text-[#b3541e] transition-colors"
+              >
+                <ArrowUpRight className="h-3 w-3" strokeWidth={1.8} />
+                Marketplace
+              </Link>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold text-[#605850] hover:text-[#9a3f33] transition-colors cursor-pointer"
+              >
+                <LogOut className="h-3 w-3" strokeWidth={1.8} />
+                Sign out
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 
   return (
     <div className="admin-shell min-h-screen bg-[#faf5ee] text-[#3a302a]">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[17rem] lg:block">{sidebar}</aside>
+      {/* Desktop / Tablet Sidebar (Visible md and up) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-40 hidden md:block transition-[width] duration-200 ease-in-out ${
+          collapsed ? 'w-16' : 'w-64'
+        }`}
+      >
+        {renderSidebarContent(collapsed)}
+      </aside>
 
+      {/* Mobile Drawer (Visible < md when opened) */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+        <div className="fixed inset-0 z-50 md:hidden">
           <button
             type="button"
             aria-label="Close admin navigation"
-            className="absolute inset-0 bg-[#2f2722]/55 backdrop-blur-[2px]"
+            className="absolute inset-0 bg-[#2f2722]/55 backdrop-blur-[2px] cursor-pointer"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="relative h-full w-[17rem] max-w-[86vw] shadow-[20px_0_60px_-30px_rgba(58,48,42,0.5)]">
-            {sidebar}
+          <div className="relative h-full w-72 max-w-[85vw] bg-[#f2ece4] shadow-[20px_0_60px_-30px_rgba(58,48,42,0.5)] animate-in slide-in-from-left duration-200">
+            {renderSidebarContent(false)}
           </div>
           <button
             type="button"
             onClick={() => setMobileOpen(false)}
-            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8d0c8] bg-[#faf5ee] text-[#3a302a] shadow-sm"
+            className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#d8d0c8] bg-[#faf5ee] text-[#3a302a] shadow-sm cursor-pointer z-10 hover:bg-white transition-colors"
             aria-label="Close menu"
           >
             <X className="h-4 w-4" />
@@ -340,18 +519,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       )}
 
-      <div className="lg:pl-[17rem]">
+      {/* Main Content Area */}
+      <div
+        className={`transition-[padding] duration-200 ease-in-out ${
+          collapsed ? 'md:pl-16' : 'md:pl-64'
+        }`}
+      >
         <header className="sticky top-0 z-30 border-b border-[#d8d0c8] bg-[#faf5ee]/90 backdrop-blur-xl">
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-10">
+          <div className="flex h-16 items-center gap-3 px-4 sm:px-6 md:px-8 lg:px-10">
+            {/* Mobile Menu Trigger */}
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d8d0c8] bg-white/60 text-[#3a302a] transition-colors hover:bg-[#f2ece4] lg:hidden"
-              aria-label="Open admin navigation"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#d8d0c8] bg-white/80 px-2.5 text-[#3a302a] transition-colors hover:bg-[#f2ece4] md:hidden cursor-pointer shadow-xs"
+              aria-label="Open admin navigation menu"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4 text-[#b3541e]" />
+              <span className="text-xs font-bold text-[#3a302a]">Menu</span>
             </button>
 
+            {/* Desktop Expand Icon (Shown when sidebar is collapsed) */}
+            {collapsed && (
+              <button
+                type="button"
+                onClick={toggleCollapsed}
+                className="hidden md:inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#d8d0c8] bg-white/80 text-[#605850] hover:text-[#3a302a] hover:bg-[#f2ece4] transition-colors cursor-pointer shadow-2xs"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <PanelLeftOpen className="h-4 w-4 text-[#b3541e]" />
+              </button>
+            )}
+
+            {/* Breadcrumb / Section indicator */}
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
               <span className="hidden text-xs font-semibold text-[#6c5d52] sm:inline">Admin</span>
               <span className="hidden text-[#c9bdb1] sm:inline">/</span>
@@ -360,6 +560,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </span>
             </div>
 
+            {/* Header Right Actions */}
             <div className="flex items-center gap-2.5">
               <div className="hidden items-center gap-2 rounded-full border border-[#d8d0c8] bg-white/65 px-3 py-1.5 sm:flex">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#b3541e]" />
@@ -372,14 +573,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               >
                 <ArrowUpRight className="h-4 w-4" strokeWidth={1.8} />
               </Link>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#3a302a] text-xs font-bold text-[#faf5ee]">
+              <div
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#3a302a] text-xs font-bold text-[#faf5ee]"
+                title={`${user.name} (${user.email})`}
+              >
                 {initials || 'A'}
               </div>
             </div>
           </div>
         </header>
 
-        <main className="px-4 py-7 sm:px-6 lg:px-10 lg:py-9">
+        <main className="px-4 py-7 sm:px-6 md:px-8 lg:px-10 lg:py-9">
           <div className="mx-auto max-w-[1440px]">{children}</div>
         </main>
       </div>
