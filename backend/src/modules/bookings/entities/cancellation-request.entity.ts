@@ -32,6 +32,7 @@ export enum CancellationRequestSource {
 @Entity('booking_cancellation_requests')
 @Index('idx_booking_cancellation_requests_booking', ['bookingId', 'createdAt'])
 @Index('idx_booking_cancellation_requests_status', ['status', 'createdAt'])
+@Index('idx_booking_cancellation_requests_idempotency', ['bookingId', 'idempotencyKey'], { unique: true })
 export class CancellationRequest {
   @PrimaryGeneratedColumn('uuid')
   id: string;

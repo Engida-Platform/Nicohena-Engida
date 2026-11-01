@@ -21,6 +21,7 @@ import AdminDialog from '../../../components/admin/AdminDialog';
 import AdminEmptyState from '../../../components/admin/AdminEmptyState';
 import AdminPagination from '../../../components/admin/AdminPagination';
 import AdminStatusBadge from '../../../components/admin/AdminStatusBadge';
+import AdminNoAccess from '../../../components/admin/AdminNoAccess';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
 import { useAuth } from '../../../context/AuthContext';
 import { ADMIN_PERMISSIONS, can } from '../../../types/admin';
@@ -119,12 +120,16 @@ function initials(name: string | null | undefined): string {
 
 export default function AdminBookingsPage() {
   const { user } = useAuth();
+  const canView = can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_VIEW);
   const canManage = can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_MANAGE);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [paymentStatus, setPaymentStatus] = useState<PaymentFilter>('all');
+  const [city, setCity] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(1);
 
   const [result, setResult] = useState<AdminBookingsResponse | null>(null);
@@ -137,6 +142,7 @@ export default function AdminBookingsPage() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const deepLinkBookingRef = useRef<string | null>(null);
+  const detailRequestIdRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<DetailTab>('stay');
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
 
@@ -176,12 +182,16 @@ export default function AdminBookingsPage() {
     if (debouncedSearch) params.set('q', debouncedSearch);
     if (status !== 'all') params.set('status', status);
     if (paymentStatus !== 'all') params.set('paymentStatus', paymentStatus);
+    if (city.trim()) params.set('city', city.trim());
+    if (fromDate) params.set('from', fromDate);
+    if (toDate) params.set('to', toDate);
     params.set('page', String(page));
     params.set('limit', String(PAGE_SIZE));
     return params.toString();
-  }, [debouncedSearch, status, paymentStatus, page]);
+  }, [debouncedSearch, status, paymentStatus, city, fromDate, toDate, page]);
 
   const loadList = useCallback(async () => {
+    if (!canView) return;
     await Promise.resolve();
     setLoading(true);
     setListError(null);
@@ -193,9 +203,10 @@ export default function AdminBookingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [listQuery]);
+  }, [listQuery, canView]);
 
   useEffect(() => {
+    if (!canView) return;
     let active = true;
     const timer = window.setTimeout(() => {
       if (active) void loadList();
@@ -204,9 +215,10 @@ export default function AdminBookingsPage() {
       active = false;
       window.clearTimeout(timer);
     };
-  }, [loadList]);
+  }, [loadList, canView]);
 
   const loadDetail = useCallback(async (id: string) => {
+    detailRequestIdRef.current = id;
     setDetailLoading(true);
     setDetailError(null);
     try {
@@ -214,13 +226,19 @@ export default function AdminBookingsPage() {
         apiFetch<AdminBookingDetail>(`/admin/bookings/${id}`),
         apiFetch<CancellationPreview>(`/admin/bookings/${id}/cancellation-preview`).catch(() => null),
       ]);
-      setDetail(booking);
-      setPreview(cancellation);
+      if (detailRequestIdRef.current === id) {
+        setDetail(booking);
+        setPreview(cancellation);
+      }
     } catch (error) {
-      setDetailError(error instanceof Error ? error.message : 'The reservation record could not be loaded');
-      setDetail(null);
+      if (detailRequestIdRef.current === id) {
+        setDetailError(error instanceof Error ? error.message : 'The reservation record could not be loaded');
+        setDetail(null);
+      }
     } finally {
-      setDetailLoading(false);
+      if (detailRequestIdRef.current === id) {
+        setDetailLoading(false);
+      }
     }
   }, []);
 
@@ -291,11 +309,15 @@ export default function AdminBookingsPage() {
     if (!statusAction || !detail) return;
     setSubmitting(true);
     try {
-      const updated = await apiFetch<AdminBookingDetail>(`/admin/bookings/${detail.id}/status`, {
-        method: 'POST',
-        body: JSON.stringify({ status: statusAction.status, reason: statusReason.trim() }),
-      });
+      const [updated, updatedPreview] = await Promise.all([
+        apiFetch<AdminBookingDetail>(`/admin/bookings/${detail.id}/status`, {
+          method: 'POST',
+          body: JSON.stringify({ status: statusAction.status, reason: statusReason.trim() }),
+        }),
+        apiFetch<CancellationPreview>(`/admin/bookings/${detail.id}/cancellation-preview`).catch(() => null),
+      ]);
       setDetail(updated);
+      setPreview(updatedPreview);
       setStatusAction(null);
       setStatusReason('');
       setToast({ message: `Reservation updated to ${BOOKING_STATUS_LABELS[statusAction.status].toLowerCase()}.`, tone: 'success' });
@@ -415,6 +437,10 @@ export default function AdminBookingsPage() {
   const pendingCancellation = detail?.cancellationRequests.find((request) => request.status === 'REQUESTED');
   const counts = result?.counts;
 
+  const totalStays = counts
+    ? Object.values(counts).reduce((sum, n) => sum + n, 0)
+    : result?.total ?? 0;
+
   const detailPanel = detail ? (
     <BookingDetail
       detail={detail}
@@ -422,6 +448,7 @@ export default function AdminBookingsPage() {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       canManage={canManage}
+      canViewCases={can(user?.permissions, ADMIN_PERMISSIONS.CASES_VIEW)}
       pendingCancellation={pendingCancellation}
       onStatusAction={setStatusAction}
       onRecordCancellation={openCancellation}
@@ -430,14 +457,23 @@ export default function AdminBookingsPage() {
         setDecisionNote(request.decisionNote || '');
       }}
       onAddBlock={() => {
-        setBlockStart(detail.checkInDate);
-        setBlockEnd(detail.checkOutDate);
+        setBlockStart('');
+        setBlockEnd('');
         setBlockReason('');
         setBlockOpen(true);
       }}
       onRemoveBlock={removeBlock}
     />
   ) : null;
+
+  if (!canView) {
+    return (
+      <AdminNoAccess
+        area="Bookings & Stays"
+        required={[ADMIN_PERMISSIONS.BOOKINGS_VIEW]}
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -481,8 +517,8 @@ export default function AdminBookingsPage() {
         </div>
       </section>
 
-      <div className="admin-toolbar">
-        <div className="admin-search">
+      <div className="admin-toolbar flex flex-wrap items-center gap-2">
+        <div className="admin-search min-w-[14rem] flex-1">
           <Search />
           <input
             className="admin-input"
@@ -492,8 +528,44 @@ export default function AdminBookingsPage() {
             aria-label="Search reservations"
           />
         </div>
+        <input
+          className="admin-input w-auto min-w-[7rem]"
+          value={city}
+          onChange={(event) => {
+            setCity(event.target.value);
+            setPage(1);
+          }}
+          placeholder="Filter city"
+          aria-label="Filter by city"
+        />
+        <div className="flex items-center gap-1.5 text-xs text-[#78706a]">
+          <span className="whitespace-nowrap">From:</span>
+          <input
+            type="date"
+            className="admin-input w-auto py-1 text-xs"
+            value={fromDate}
+            onChange={(event) => {
+              setFromDate(event.target.value);
+              setPage(1);
+            }}
+            aria-label="Check-in from date"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 text-xs text-[#78706a]">
+          <span className="whitespace-nowrap">To:</span>
+          <input
+            type="date"
+            className="admin-input w-auto py-1 text-xs"
+            value={toDate}
+            onChange={(event) => {
+              setToDate(event.target.value);
+              setPage(1);
+            }}
+            aria-label="Check-in to date"
+          />
+        </div>
         <select
-          className="admin-select w-auto min-w-[9.5rem]"
+          className="admin-select w-auto min-w-[8.5rem]"
           value={paymentStatus}
           onChange={(event) => {
             setPaymentStatus(event.target.value as PaymentFilter);
@@ -506,11 +578,28 @@ export default function AdminBookingsPage() {
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
+        {search || status !== 'all' || paymentStatus !== 'all' || city || fromDate || toDate ? (
+          <button
+            type="button"
+            className="admin-btn admin-btn-secondary text-xs"
+            onClick={() => {
+              setSearch('');
+              setStatus('all');
+              setPaymentStatus('all');
+              setCity('');
+              setFromDate('');
+              setToDate('');
+              setPage(1);
+            }}
+          >
+            Clear filters
+          </button>
+        ) : null}
       </div>
 
       <div className="admin-filter-row" role="group" aria-label="Booking status filters">
         {([
-          ['all', 'All stays', result?.total ?? 0],
+          ['all', 'All stays', totalStays],
           ['PENDING', 'Awaiting host', counts?.PENDING ?? 0],
           ['CONFIRMED', 'Confirmed', counts?.CONFIRMED ?? 0],
           ['COMPLETED', 'Completed', counts?.COMPLETED ?? 0],
@@ -652,7 +741,7 @@ export default function AdminBookingsPage() {
               copy="Try a different search term or clear the status filter. New guest requests will appear here immediately."
               icon={<CalendarDays className="h-4 w-4" />}
               action={
-                status !== 'all' || paymentStatus !== 'all' || search ? (
+                status !== 'all' || paymentStatus !== 'all' || search || city || fromDate || toDate ? (
                   <button
                     type="button"
                     className="admin-btn admin-btn-secondary"
@@ -660,6 +749,10 @@ export default function AdminBookingsPage() {
                       setSearch('');
                       setStatus('all');
                       setPaymentStatus('all');
+                      setCity('');
+                      setFromDate('');
+                      setToDate('');
+                      setPage(1);
                     }}
                   >
                     Clear filters
@@ -677,8 +770,31 @@ export default function AdminBookingsPage() {
               <div className="admin-skeleton h-4 w-1/2" />
               <div className="admin-skeleton mt-6 h-48 w-full" />
             </div>
+          ) : detailError ? (
+            <div className="p-6">
+              <div className="rounded-xl border border-[#f1d0cb] bg-[#faebe8] p-4 text-sm text-[#9a3f33]">
+                <p className="font-medium">{detailError}</p>
+                {selectedId && (
+                  <button
+                    type="button"
+                    onClick={() => void loadDetail(selectedId)}
+                    className="admin-btn admin-btn-secondary mt-3 inline-flex items-center gap-1.5 text-xs"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Retry
+                  </button>
+                )}
+              </div>
+            </div>
           ) : detail ? (
-            detailPanel
+            <div className="relative">
+              {detailLoading && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#9a6a1f]" />
+                </div>
+              )}
+              {detailPanel}
+            </div>
           ) : (
             <AdminEmptyState
               title="Select a reservation"
@@ -931,6 +1047,7 @@ interface BookingDetailProps {
   preview: CancellationPreview | null;
   activeTab: DetailTab;
   canManage: boolean;
+  canViewCases?: boolean;
   pendingCancellation?: CancellationRequest;
   onTabChange: (tab: DetailTab) => void;
   onStatusAction: (action: StatusAction) => void;
@@ -945,6 +1062,7 @@ function BookingDetail({
   preview,
   activeTab,
   canManage,
+  canViewCases = true,
   pendingCancellation,
   onTabChange,
   onStatusAction,
@@ -976,14 +1094,22 @@ function BookingDetail({
             const action = STATUS_ACTIONS[next];
             if (!action) return null;
             const primary = next === 'CONFIRMED';
+            const todayStr = new Date().toISOString().slice(0, 10);
+            const isBeforeCheckout = next === 'COMPLETED' && detail.checkOutDate > todayStr;
+            const isDisabled = !canManage || isBeforeCheckout;
+            const tooltip = !canManage
+              ? 'Your role cannot change reservations'
+              : isBeforeCheckout
+                ? `Stay cannot be marked complete before check-out date (${detail.checkOutDate})`
+                : undefined;
             return (
               <button
                 key={next}
                 type="button"
                 className={`admin-btn h-8 min-h-8 px-2.5 text-[11px] ${primary ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
                 onClick={() => onStatusAction(action)}
-                disabled={!canManage}
-                title={canManage ? undefined : 'Your role cannot change reservations'}
+                disabled={isDisabled}
+                title={tooltip}
               >
                 {next === 'CANCELLED' ? <Ban className="h-3 w-3" /> : next === 'COMPLETED' ? <CheckCircle2 className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
                 {action.title}
@@ -1079,32 +1205,34 @@ function BookingDetail({
               ) : null}
             </section>
 
-            <section className="border-t border-[#d8d0c8] pt-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="admin-meta-label">Linked cases</p>
-                <a href="/admin/cases" className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#b3541e]">Open desk</a>
-              </div>
-              {detail.cases.length ? (
-                <ul className="mt-2 space-y-2">
-                  {detail.cases.map((linked) => (
-                    <li key={linked.id} className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <a
-                          href={`/admin/cases?case=${linked.id}`}
-                          className="truncate text-xs font-bold text-[#3a302a] hover:text-[#b3541e]"
-                        >
-                          {linked.number}
-                        </a>
-                        <p className="truncate text-xs text-[#78706a]">{linked.subject}</p>
-                      </div>
-                      <AdminStatusBadge label={CASE_STATUS_LABELS[linked.status]} tone={linked.status === 'OPEN' ? 'warning' : linked.status === 'CLOSED' ? 'neutral' : 'accent'} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-2 text-xs text-[#78706a]">No support case is linked to this stay.</p>
-              )}
-            </section>
+            {canViewCases ? (
+              <section className="border-t border-[#d8d0c8] pt-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="admin-meta-label">Linked cases</p>
+                  <a href="/admin/cases" className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#b3541e]">Open desk</a>
+                </div>
+                {detail.cases && detail.cases.length ? (
+                  <ul className="mt-2 space-y-2">
+                    {detail.cases.map((linked) => (
+                      <li key={linked.id} className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <a
+                            href={`/admin/cases?case=${linked.id}`}
+                            className="truncate text-xs font-bold text-[#3a302a] hover:text-[#b3541e]"
+                          >
+                            {linked.number}
+                          </a>
+                          <p className="truncate text-xs text-[#78706a]">{linked.subject}</p>
+                        </div>
+                        <AdminStatusBadge label={CASE_STATUS_LABELS[linked.status]} tone={linked.status === 'OPEN' ? 'warning' : linked.status === 'CLOSED' ? 'neutral' : 'accent'} />
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs text-[#78706a]">No support case is linked to this stay.</p>
+                )}
+              </section>
+            ) : null}
           </div>
         ) : null}
 
@@ -1168,14 +1296,20 @@ function BookingDetail({
                 <p className="mt-1 text-[10px] text-[#78706a]">
                   Recorded by {pendingCancellation.requestedBy?.name || 'admin'} · {shortDateTime(pendingCancellation.createdAt)}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <button type="button" className="admin-btn admin-btn-primary h-8 min-h-8 px-2.5 text-[11px]" onClick={() => onDecision(pendingCancellation, 'approve')}>
-                    Approve
-                  </button>
-                  <button type="button" className="admin-btn admin-btn-secondary h-8 min-h-8 px-2.5 text-[11px]" onClick={() => onDecision(pendingCancellation, 'reject')}>
-                    Decline
-                  </button>
-                </div>
+                {canManage ? (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <button type="button" className="admin-btn admin-btn-primary h-8 min-h-8 px-2.5 text-[11px]" onClick={() => onDecision(pendingCancellation, 'approve')}>
+                      Approve
+                    </button>
+                    <button type="button" className="admin-btn admin-btn-secondary h-8 min-h-8 px-2.5 text-[11px]" onClick={() => onDecision(pendingCancellation, 'reject')}>
+                      Decline
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-[11px] text-[#78706a]">
+                    Requires <span className="font-mono text-[#4a4036]">bookings.manage</span> to decide.
+                  </p>
+                )}
               </section>
             ) : canManage && detail.status !== 'CANCELLED' && detail.status !== 'COMPLETED' ? (
               <button type="button" className="admin-btn admin-btn-secondary w-full" onClick={onRecordCancellation}>

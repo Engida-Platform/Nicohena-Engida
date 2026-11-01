@@ -59,6 +59,11 @@ export class QueryAdminCasesDto {
   assigneeId?: string;
 
   @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  unassigned?: boolean;
+
+  @IsOptional()
   @IsUUID()
   bookingId?: string;
 

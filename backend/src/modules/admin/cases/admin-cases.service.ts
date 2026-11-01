@@ -961,7 +961,7 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
     );
     await this.auditService.record({
       actor,
-      action: `case.compensation_${decision}d`,
+      action: decision === 'approve' ? 'case.compensation_approved' : 'case.compensation_rejected',
       entityType: 'case',
       entityId: id,
       after: {
@@ -1133,22 +1133,29 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
 
     let updated = 0;
     for (const supportCase of candidates) {
-      let changed = false;
+      let firstResponseBreached = false;
+      let resolutionBreached = false;
       if (
         !supportCase.firstResponseBreachedAt &&
         !supportCase.firstRespondedAt &&
         supportCase.firstResponseDueAt < now
       ) {
         supportCase.firstResponseBreachedAt = now;
-        changed = true;
+        firstResponseBreached = true;
       }
       if (!supportCase.resolutionBreachedAt && isResolutionOverdue(supportCase, now)) {
         supportCase.resolutionBreachedAt = now;
-        changed = true;
+        resolutionBreached = true;
       }
+      const changed = firstResponseBreached || resolutionBreached;
       if (changed && !supportCase.escalatedAt) {
         supportCase.escalatedAt = now;
-        supportCase.escalationReason = 'Resolution SLA breached; escalated automatically';
+        supportCase.escalationReason =
+          firstResponseBreached && resolutionBreached
+            ? 'First response and resolution SLAs breached; escalated automatically'
+            : firstResponseBreached
+              ? 'First response SLA breached; escalated automatically'
+              : 'Resolution SLA breached; escalated automatically';
         await this.recordEvent(
           supportCase.id,
           'SLA_ESCALATED',
@@ -1346,7 +1353,9 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
     if (dto.severity) {
       qb.andWhere('supportCase.severity = :severity', { severity: dto.severity });
     }
-    if (dto.assigneeId) {
+    if (dto.unassigned) {
+      qb.andWhere('supportCase.assigneeId IS NULL');
+    } else if (dto.assigneeId) {
       qb.andWhere('supportCase.assigneeId = :assigneeId', {
         assigneeId: dto.assigneeId,
       });
@@ -1401,7 +1410,13 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
     const unassignedQb = this.caseRepository
       .createQueryBuilder('supportCase')
       .leftJoin('supportCase.booking', 'booking');
-    this.applyFilters(unassignedQb, { ...dto, status: undefined, overdue: undefined });
+    this.applyFilters(unassignedQb, {
+      ...dto,
+      status: undefined,
+      overdue: undefined,
+      unassigned: undefined,
+      assigneeId: undefined,
+    });
     unassignedQb
       .andWhere('supportCase.assigneeId IS NULL')
       .andWhere('supportCase.status NOT IN (:...terminal)', {

@@ -86,8 +86,11 @@ export class AdminBookingsController {
 
   @Get(':id')
   @RequirePermissions(Permission.BOOKINGS_VIEW)
-  detail(@Param('id', ParseUUIDPipe) id: string) {
-    return this.adminBookingsService.detail(id);
+  detail(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser() actor: User,
+  ) {
+    return this.adminBookingsService.detail(id, actor);
   }
 
   @Get(':id/cancellation-preview')

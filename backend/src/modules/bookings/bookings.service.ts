@@ -298,9 +298,21 @@ export class BookingsService {
     updateDto: UpdateBookingStatusDto,
     userId: string,
     userRole: UserRole,
-    options?: { actor?: User; reason?: string; source?: BookingActorType },
+    options?: {
+      actor?: User;
+      reason?: string;
+      source?: BookingActorType;
+      manager?: EntityManager;
+    },
   ): Promise<Booking> {
-    const booking = await this.bookingRepository.findOne({
+    const bookingRepo = options?.manager
+      ? options.manager.getRepository(Booking)
+      : this.bookingRepository;
+    const historyRepo = options?.manager
+      ? options.manager.getRepository(BookingStatusHistory)
+      : this.statusHistoryRepository;
+
+    const booking = await bookingRepo.findOne({
       where: { id },
       relations: ['property'],
     });
@@ -349,7 +361,7 @@ export class BookingsService {
       }
     }
 
-    const updateResult = await this.bookingRepository.update(
+    const updateResult = await bookingRepo.update(
       { id, status: booking.status },
       {
         status: updateDto.status,
@@ -382,8 +394,8 @@ export class BookingsService {
           : BookingActorType.GUEST);
 
     try {
-      await this.statusHistoryRepository?.save(
-        this.statusHistoryRepository.create({
+      await historyRepo?.save(
+        historyRepo.create({
           bookingId: id,
           fromStatus: booking.status,
           toStatus: updateDto.status,
@@ -404,29 +416,77 @@ export class BookingsService {
       );
     }
 
-    if (this.notificationsService && booking.property?.hostId) {
+    if (this.notificationsService) {
       try {
         const propTitle = booking.property?.title || 'your property';
-        if (updateDto.status === BookingStatus.CANCELLED) {
-          await this.notificationsService.createNotification({
-            userId: booking.property.hostId,
-            type: NotificationType.BOOKING_CANCELLED,
-            title: 'Reservation Cancelled',
-            message: `Reservation ${booking.reference || `#${booking.id.slice(0, 8)}`} for "${propTitle}" has been cancelled.`,
-            link: '/host/reservations',
-            metadata: { bookingId: id, propertyId: booking.property.id },
-            idempotencyKey: `booking_${id}_CANCELLED`,
-          });
-        } else if (updateDto.status === BookingStatus.CONFIRMED) {
-          await this.notificationsService.createNotification({
-            userId: booking.property.hostId,
-            type: NotificationType.BOOKING_CONFIRMED,
-            title: 'Reservation Confirmed',
-            message: `Reservation ${booking.reference || `#${booking.id.slice(0, 8)}`} for "${propTitle}" has been confirmed.`,
-            link: '/host/reservations',
-            metadata: { bookingId: id, propertyId: booking.property.id },
-            idempotencyKey: `booking_${id}_CONFIRMED`,
-          });
+        const refStr = booking.reference || `#${booking.id.slice(0, 8)}`;
+
+        if (booking.property?.hostId) {
+          if (updateDto.status === BookingStatus.CANCELLED) {
+            await this.notificationsService.createNotification({
+              userId: booking.property.hostId,
+              type: NotificationType.BOOKING_CANCELLED,
+              title: 'Reservation Cancelled',
+              message: `Reservation ${refStr} for "${propTitle}" has been cancelled.`,
+              link: '/host/reservations',
+              metadata: { bookingId: id, propertyId: booking.property.id },
+              idempotencyKey: `booking_${id}_CANCELLED_host`,
+            });
+          } else if (updateDto.status === BookingStatus.CONFIRMED) {
+            await this.notificationsService.createNotification({
+              userId: booking.property.hostId,
+              type: NotificationType.BOOKING_CONFIRMED,
+              title: 'Reservation Confirmed',
+              message: `Reservation ${refStr} for "${propTitle}" has been confirmed.`,
+              link: '/host/reservations',
+              metadata: { bookingId: id, propertyId: booking.property.id },
+              idempotencyKey: `booking_${id}_CONFIRMED_host`,
+            });
+          } else if (updateDto.status === BookingStatus.COMPLETED) {
+            await this.notificationsService.createNotification({
+              userId: booking.property.hostId,
+              type: NotificationType.BOOKING_COMPLETED,
+              title: 'Reservation Completed',
+              message: `Reservation ${refStr} for "${propTitle}" has been marked complete.`,
+              link: '/host/reservations',
+              metadata: { bookingId: id, propertyId: booking.property.id },
+              idempotencyKey: `booking_${id}_COMPLETED_host`,
+            });
+          }
+        }
+
+        if (booking.guestId) {
+          if (updateDto.status === BookingStatus.CANCELLED) {
+            await this.notificationsService.createNotification({
+              userId: booking.guestId,
+              type: NotificationType.BOOKING_CANCELLED,
+              title: 'Reservation Cancelled',
+              message: `Your reservation ${refStr} at "${propTitle}" has been cancelled.`,
+              link: `/bookings/${id}`,
+              metadata: { bookingId: id, propertyId: booking.property?.id },
+              idempotencyKey: `booking_${id}_CANCELLED_guest`,
+            });
+          } else if (updateDto.status === BookingStatus.CONFIRMED) {
+            await this.notificationsService.createNotification({
+              userId: booking.guestId,
+              type: NotificationType.BOOKING_CONFIRMED,
+              title: 'Reservation Confirmed',
+              message: `Your reservation ${refStr} at "${propTitle}" has been confirmed!`,
+              link: `/bookings/${id}`,
+              metadata: { bookingId: id, propertyId: booking.property?.id },
+              idempotencyKey: `booking_${id}_CONFIRMED_guest`,
+            });
+          } else if (updateDto.status === BookingStatus.COMPLETED) {
+            await this.notificationsService.createNotification({
+              userId: booking.guestId,
+              type: NotificationType.BOOKING_COMPLETED,
+              title: 'Reservation Completed',
+              message: `Your stay at "${propTitle}" is complete. We hope you had a great time!`,
+              link: `/bookings/${id}`,
+              metadata: { bookingId: id, propertyId: booking.property?.id },
+              idempotencyKey: `booking_${id}_COMPLETED_guest`,
+            });
+          }
         }
       } catch (notifErr: unknown) {
         this.logger.warn(`Failed to dispatch booking status notification: ${notifErr}`);
