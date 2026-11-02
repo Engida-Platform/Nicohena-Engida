@@ -104,6 +104,15 @@ export default function NotificationsPage() {
       <AppHeader />
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12">
+        <div className="mb-4">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#73776F] hover:text-[#234B36] transition group cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-1">arrow_back</span>
+            <span>Back to Explore Stays</span>
+          </Link>
+        </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-[#E5E0D5]">
           <div>
             <h1 className="text-2xl font-black text-[#252923] tracking-tight">

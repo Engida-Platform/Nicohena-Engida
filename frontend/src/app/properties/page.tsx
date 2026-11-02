@@ -372,6 +372,15 @@ function PropertiesSearchContent() {
       <AppHeader />
 
       <main className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-6 lg:px-10 py-8">
+        <div className="mb-4">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#73776F] hover:text-[#234B36] transition group cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-1">arrow_back</span>
+            <span>Back to Home</span>
+          </Link>
+        </div>
 
         {/* ── Page Header ── */}
         <div className="mb-8">
@@ -408,7 +417,7 @@ function PropertiesSearchContent() {
           <button
             type="button"
             onClick={() => setAiSearchOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-3 rounded-xl bg-[#234B36] hover:bg-[#2D5E43] text-white text-sm font-semibold shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 px-4 py-3 rounded-xl bg-white border border-[#234B36]/40 hover:bg-[#EEF3EF] hover:border-[#234B36] text-[#234B36] text-sm font-bold shadow-xs transition active:scale-95 cursor-pointer shrink-0"
           >
             <span className="material-symbols-outlined text-lg text-[#D87836]">auto_awesome</span>
             <span className="hidden sm:inline">Search with AI</span>

@@ -1,5 +1,8 @@
 'use client';
 
+import AppHeader from '@/components/layout/AppHeader';
+import AppFooter from '@/components/layout/AppFooter';
+
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -191,7 +194,18 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <main className="mx-auto min-h-[70vh] w-full max-w-5xl px-4 py-10 sm:px-6">
+      <div className="min-h-screen bg-[#F8F5ED] flex flex-col font-body text-[#252923]">
+        <AppHeader />
+        <main className="flex-1 mx-auto min-h-[70vh] w-full max-w-5xl px-4 py-8 sm:px-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-[#73776F] hover:text-[#234B36] transition mb-6 group cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-1">
+              arrow_back
+            </span>
+            <span>Back to Explore Stays</span>
+          </Link>
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2.5">
@@ -601,6 +615,8 @@ export default function DashboardPage() {
           bookingId={activeAssistantBookingId}
         />
       </main>
+        <AppFooter />
+      </div>
     </ProtectedRoute>
   );
 }

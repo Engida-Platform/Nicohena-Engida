@@ -45,12 +45,21 @@ export default function AppHeader() {
 
         {/* Right Navigation */}
         <div className="flex items-center gap-3 sm:gap-4">
-          <Link
-            href="/become-a-host"
-            className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg bg-[#EEF3EF] text-[#252923] font-semibold text-sm hover:bg-[#234B36] hover:text-white transition-all duration-200 active:scale-95 shadow-xs font-body"
-          >
-            Become a Host
-          </Link>
+          {user?.hostProfile || (user as any)?.role === 'HOST' ? (
+            <Link
+              href="/host/dashboard"
+              className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg bg-[#234B36] text-white font-semibold text-sm hover:bg-[#1a3828] transition-all duration-200 active:scale-95 shadow-xs font-body"
+            >
+              Host Dashboard
+            </Link>
+          ) : (
+            <Link
+              href="/become-a-host"
+              className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg bg-[#EEF3EF] text-[#252923] font-semibold text-sm hover:bg-[#234B36] hover:text-white transition-all duration-200 active:scale-95 shadow-xs font-body"
+            >
+              Become a Host
+            </Link>
+          )}
 
           <button
             type="button"

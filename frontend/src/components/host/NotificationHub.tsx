@@ -1,7 +1,8 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Bell,
   CheckCheck,
@@ -317,19 +318,23 @@ export default function NotificationHub({
         </button>
       )}
 
-      {/* ── Modal / Drawer Panel ── */}
+      {/* ── Modal / Docked Popover Panel ── */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop */}
+        <>
+          {/* Subtle click-outside backdrop without heavy blur */}
           <div
-            className="fixed inset-0 bg-[#1A2E21]/40 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 z-40 bg-black/10 transition-opacity"
             onClick={() => setIsOpen(false)}
           />
 
-          {/* Panel */}
+          {/* Panel: anchored popover card beside sidebar or under icon */}
           <div
             ref={panelRef}
-            className="relative w-full max-w-md bg-[#F8F5ED] h-full shadow-2xl flex flex-col border-l border-[#E5E0D5] z-10 animate-in slide-in-from-right duration-200"
+            className={`fixed z-50 bg-[#FAF8F2] rounded-2xl shadow-2xl border border-[#E5E0D5] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
+              variant === 'sidebar-item'
+                ? 'left-4 bottom-4 sm:left-68 sm:bottom-6 w-[calc(100vw-2rem)] sm:w-[430px] max-h-[82vh] sm:max-h-[620px]'
+                : 'right-4 top-16 sm:right-6 sm:top-14 w-[calc(100vw-2rem)] sm:w-[400px] max-h-[80vh] sm:max-h-[580px]'
+            }`}
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-[#E5E0D5] flex items-center justify-between bg-[#EEF3EF]/60">
@@ -543,12 +548,19 @@ export default function NotificationHub({
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-3 border-t border-[#E5E0D5] bg-[#EEF3EF]/40 flex items-center justify-between text-xs text-[#73776F]">
-              <span className="text-[11px] font-medium">ENGIDA Host Hub</span>
+            <div className="px-5 py-3 border-t border-[#E5E0D5] bg-[#EEF3EF]/60 flex items-center justify-between text-xs text-[#73776F]">
+              <Link
+                href="/notifications"
+                onClick={() => setIsOpen(false)}
+                className="text-[11px] font-bold text-[#234B36] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>View Full Notification History</span>
+                <ExternalLink className="w-3 h-3" />
+              </Link>
               <span className="text-[11px] text-[#73776F]">Auto-refreshed</span>
             </div>
           </div>
-        </div>
+        </>
       )}
     </>
   );

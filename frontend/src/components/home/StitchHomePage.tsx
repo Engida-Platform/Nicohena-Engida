@@ -492,7 +492,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
 
           {/* Right Actions: Become a Host & User Profile */}
           <div className="flex items-center gap-4">
-            {user?.hostProfile ? (
+            {user?.hostProfile || (user as any)?.role === 'HOST' ? (
               <Link
                 href="/host/dashboard"
                 className="hidden sm:inline-flex items-center px-4 py-2 rounded-lg bg-[#234B36] text-white font-semibold text-sm hover:bg-[#2D5E43] transition-all duration-200 active:scale-95 shadow-sm hover:shadow"
@@ -719,7 +719,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                 </span>
               </button>
 
-              {/* SEARCH BUTTON */}
+              {/* UNIFIED SEARCH BUTTON */}
               <button
                 type="button"
                 aria-label="Search"
@@ -729,22 +729,24 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                   const el = document.getElementById('listings-grid');
                   if (el) el.scrollIntoView({ behavior: 'smooth' });
                 }}
-                className="search-btn search-glow w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0 bg-[#234B36] hover:bg-[#2D5E43] shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ml-1 relative overflow-hidden cursor-pointer"
+                className="search-btn search-glow w-12 h-12 rounded-full flex items-center justify-center text-white shrink-0 bg-[#234B36] hover:bg-[#1a3828] shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ml-1 relative overflow-hidden cursor-pointer"
               >
-                <span className="material-symbols-outlined text-xl font-bold transition-transform duration-300 hover:rotate-90">
+                <span className="material-symbols-outlined text-xl font-bold">
                   search
                 </span>
               </button>
+            </div>
 
-              {/* AI NATURAL LANGUAGE SEARCH BUTTON */}
+            {/* Enterprise AI Conversational Search Banner */}
+            <div className="absolute -bottom-9 flex items-center justify-center w-full">
               <button
                 type="button"
                 onClick={() => setAiSearchModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[#234B36]/30 bg-[#FAF8F2] hover:bg-[#EEF3EF] text-[#234B36] text-xs font-semibold shadow-2xs hover:scale-105 active:scale-95 transition-all duration-200 ml-1 cursor-pointer"
-                title="Search with AI natural language"
+                className="group inline-flex items-center gap-2 px-4 py-1 rounded-full bg-white/95 hover:bg-white border border-[#E5E0D5] hover:border-[#234B36]/40 shadow-xs hover:shadow-sm transition-all duration-200 active:scale-95 cursor-pointer text-xs"
               >
-                <span className="material-symbols-outlined text-sm text-[#D87836]">auto_awesome</span>
-                <span className="hidden sm:inline">AI Search</span>
+                <span className="material-symbols-outlined text-sm text-[#D87836] transition-transform group-hover:rotate-12">auto_awesome</span>
+                <span className="text-[#73776F]">Looking for something specific?</span>
+                <span className="font-semibold text-[#234B36] underline group-hover:text-[#D87836] transition-colors">Try AI Conversational Search →</span>
               </button>
             </div>
 

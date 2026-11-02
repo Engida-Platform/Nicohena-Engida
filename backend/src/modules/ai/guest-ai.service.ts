@@ -782,7 +782,8 @@ export class GuestAiService {
           answer: `The nightly rate for ${targetProperty.title} is ${Number(targetProperty.pricePerNight).toLocaleString()} ETB. Maximum occupancy is ${targetProperty.maxGuests} guests with ${targetProperty.bedrooms} bedrooms.`,
           category: 'PROPERTY',
           actionSuggestions: [
-            { label: 'Proceed to Checkout', href: `/checkout/${targetProperty.id}` },
+            { label: 'View & Reserve Stay', href: `/properties/${targetProperty.id}` },
+            { label: 'Chat with Host', href: `/messages?propertyId=${targetProperty.id}` },
           ],
         };
       }
@@ -793,7 +794,7 @@ export class GuestAiService {
         category: 'PROPERTY',
         actionSuggestions: [
           { label: 'View Details', href: `/properties/${targetProperty.id}` },
-          { label: 'Book Now', href: `/checkout/${targetProperty.id}` },
+          { label: 'Chat with Host', href: `/messages?propertyId=${targetProperty.id}` },
         ],
       };
     }

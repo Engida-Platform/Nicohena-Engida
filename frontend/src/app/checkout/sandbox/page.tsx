@@ -79,6 +79,15 @@ function SandboxPaymentContent() {
 
   return (
     <main className="flex-1 max-w-xl mx-auto w-full px-4 py-12">
+      <div className="mb-4">
+        <button
+          onClick={handleSimulateCancel}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#73776F] hover:text-[#234B36] transition cursor-pointer group"
+        >
+          <span className="material-symbols-outlined text-sm group-hover:-translate-x-1 transition-transform">arrow_back</span>
+          <span>Back to Checkout</span>
+        </button>
+      </div>
       {/* Dev Environment Notice */}
       <div className="mb-6 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
         <span className="material-symbols-outlined text-amber-600 text-base">developer_mode</span>

@@ -802,12 +802,21 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                     </span>
                   </div>
                   <p className="mt-1 text-sm text-[#605850]">
-                    {property.details} &middot; Superhost since {property.host.joinedYear}
                   </p>
                 </div>
               </div>
-
-              
+              <button
+                type="button"
+                onClick={() => {
+                  setHostMessage('');
+                  setMessageSent(false);
+                  setMessageModalOpen(true);
+                }}
+                className="self-start sm:self-center inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#234B36] text-[#234B36] bg-[#EEF3EF] hover:bg-[#234B36] hover:text-white text-xs font-bold transition-all shadow-2xs active:scale-95 cursor-pointer shrink-0"
+              >
+                <span className="material-symbols-outlined text-base">chat</span>
+                <span>Chat with Host</span>
+              </button>
             </div>
 
             {/* Highlights List */}
@@ -1050,10 +1059,10 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                       setMessageSent(false);
                       setMessageModalOpen(true);
                     }}
-                    className="w-full mt-3 py-1.5 text-xs font-medium text-[#73776F] hover:text-[#234B36] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                    className="w-full mt-3 py-3 rounded-xl border border-[#234B36] text-[#234B36] bg-[#FAF8F2] hover:bg-[#EEF3EF] text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98"
                   >
-                    <span className="material-symbols-outlined text-sm">chat</span>
-                    <span>Have questions? Contact host / broker</span>
+                    <span className="material-symbols-outlined text-base">chat</span>
+                    <span>Chat with Host / Broker</span>
                   </button>
 
                   {/* Reassurance Badge */}
@@ -1172,10 +1181,10 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                       setMessageSent(false);
                       setMessageModalOpen(true);
                     }}
-                    className="w-full mt-2.5 text-xs font-medium text-[#73776F] hover:text-[#234B36] transition-colors cursor-pointer flex items-center justify-center gap-1.5 hover:underline"
+                    className="w-full mt-3 py-3 rounded-xl border border-[#234B36] text-[#234B36] bg-[#FAF8F2] hover:bg-[#EEF3EF] text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98"
                   >
-                    <span className="material-symbols-outlined text-sm">mail</span>
-                    <span>Contact host about this property</span>
+                    <span className="material-symbols-outlined text-base">chat</span>
+                    <span>Chat with Host</span>
                   </button>
 
                   {isBookingSuccess && (
