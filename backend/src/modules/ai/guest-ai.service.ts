@@ -418,9 +418,12 @@ export class GuestAiService {
         reason = `Highly rated ${prop.propertyType.toLowerCase()} in ${prop.city} with outstanding guest satisfaction.`;
       }
 
+      // Normalize deterministic points to a realistic 50-99 score
+      const normalizedScore = Math.min(99, Math.max(50, Math.round((score / 140) * 100)));
+
       return {
         property: prop,
-        score,
+        score: normalizedScore,
         reason,
         matchTags,
       };

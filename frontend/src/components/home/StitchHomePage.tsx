@@ -1405,17 +1405,8 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                       )}
 
                       {/* Floating Badge (Isolated on Top Left) */}
-                      <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none flex flex-col gap-1 items-start">
-                        {aiRecommendations[property.id] && aiRecommendations[property.id].score >= 70 && (
-                          <span
-                            title={aiRecommendations[property.id].reason}
-                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-white font-bold text-[10px] uppercase tracking-wider bg-[#234B36] shadow-sm backdrop-blur-xs"
-                          >
-                            <span className="material-symbols-outlined text-[11px] text-[#D87836]">auto_awesome</span>
-                            <span>{aiRecommendations[property.id].score}% Match</span>
-                          </span>
-                        )}
-                        {property.badge && (!aiRecommendations[property.id] || property.badge === 'For Sale') && (
+                      {property.badge && (
+                        <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-white font-semibold text-[10px] uppercase tracking-wider shadow-sm transition-transform duration-200 group-hover:scale-105 ${
                               property.badge === 'Superhost'
@@ -1427,8 +1418,8 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                           >
                             {property.badge}
                           </span>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Top Right Action Cluster: Compare & Wishlist */}
                       <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
