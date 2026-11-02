@@ -18,6 +18,9 @@ export interface FinanceSettingsDto {
   refundTier2ThresholdMinor: string; // Tier1-2: Single Finance Manager (e.g., $50-$200 / 5000-20000 ETB)
   refundTier3ThresholdMinor: string; // Tier2-3: Two Finance Managers (e.g., $200-$1000 / 20000-100000 ETB)
   // Above Tier3: Requires Super Admin
+  // Compensation limits per agent (in minor units)
+  compensationDailyLimitMinor: string; // Per agent per day (e.g., $500 / 50000 ETB)
+  compensationMonthlyLimitMinor: string; // Per agent per month (e.g., $5000 / 500000 ETB)
   escrowReleaseTrigger: string;
   escrowReleaseDelayHours: number;
   payoutSchedule: string;
@@ -57,6 +60,9 @@ export class FinanceSettingsService {
       refundTier1ThresholdMinor: map.get('finance.refund_tier1_threshold_minor') || '5000', // ~$50 / 5000 ETB
       refundTier2ThresholdMinor: map.get('finance.refund_tier2_threshold_minor') || '20000', // ~$200 / 20000 ETB
       refundTier3ThresholdMinor: map.get('finance.refund_tier3_threshold_minor') || '100000', // ~$1000 / 100000 ETB
+      // Compensation limits (default: $500/day, $5000/month at ~100 ETB/$1)
+      compensationDailyLimitMinor: map.get('finance.compensation_daily_limit_minor') || '50000', // ~$500 / 50000 ETB
+      compensationMonthlyLimitMinor: map.get('finance.compensation_monthly_limit_minor') || '500000', // ~$5000 / 500000 ETB
       escrowReleaseTrigger: map.get('finance.escrow_release_trigger') || 'COMPLETED_PLUS_24H',
       escrowReleaseDelayHours: parseInt(map.get('finance.escrow_release_delay_hours') || '24', 10),
       payoutSchedule: map.get('finance.payout_schedule') || 'DAILY_0200_ADDIS',
