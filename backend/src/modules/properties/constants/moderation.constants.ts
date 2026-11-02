@@ -64,6 +64,8 @@ export const MINOR_LISTING_FIELDS = [
   'parkingSpaces',
   'amenityIds',
   'isAvailable',
+  'categoryId',
+  'destinationId',
 ] as const;
 
 export type MinorListingField = (typeof MINOR_LISTING_FIELDS)[number];

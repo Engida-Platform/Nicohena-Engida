@@ -155,3 +155,20 @@ export class AdminCouponsController {
     return this.couponsService.rejectCoupon(id, actor, body.reason, { ipAddress, userAgent });
   }
 }
+
+@ApiTags('Coupons')
+@Controller('coupons')
+export class PublicCouponsController {
+  constructor(private readonly couponsService: AdminCouponsService) {}
+
+  @Post('validate')
+  @ApiOperation({ summary: 'Validate promotional coupon code for guest checkout' })
+  @ApiResponse({ status: 200, description: 'Coupon validation and discount calculation' })
+  async validateCoupon(
+    @Body() dto: ValidateCouponDto,
+    @Req() req: any,
+  ) {
+    const userId = req.user?.id;
+    return this.couponsService.validateCoupon(dto, userId);
+  }
+}

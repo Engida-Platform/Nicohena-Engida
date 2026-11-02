@@ -57,6 +57,8 @@ export class PropertiesService {
       .leftJoin('host.hostProfile', 'hostProfile')
       .leftJoinAndSelect('property.amenities', 'amenities')
       .leftJoinAndSelect('property.rooms', 'rooms')
+      .leftJoinAndSelect('property.category', 'category')
+      .leftJoinAndSelect('property.destination', 'destination')
       .where('property.isAvailable = :available', { available: true });
 
     // Public discovery must never reveal drafts, paused, archived, or sold listings, listings hidden by admin, or listings from unverified/revoked hosts.
@@ -67,6 +69,40 @@ export class PropertiesService {
     // Listing type filter (RENTAL or SALE)
     if (query.listingType) {
       qb.andWhere('property.listingType = :listingType', { listingType: query.listingType });
+    }
+
+    // Dynamic Category filter (supports slug, UUID, or legacy propertyType)
+    if (query.category) {
+      const catParam = query.category.trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(catParam);
+      if (isUuid) {
+        qb.andWhere('(category.id = :catId OR property.propertyType = :catUpper)', {
+          catId: catParam,
+          catUpper: catParam.toUpperCase(),
+        });
+      } else {
+        qb.andWhere('(LOWER(category.slug) = :catSlug OR LOWER(property.propertyType) = :catLower)', {
+          catSlug: catParam.toLowerCase(),
+          catLower: catParam.toLowerCase(),
+        });
+      }
+    }
+
+    // Dynamic Destination filter (supports slug, UUID, or city match)
+    if (query.destination) {
+      const destParam = query.destination.trim();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(destParam);
+      if (isUuid) {
+        qb.andWhere('(destination.id = :destId OR LOWER(property.city) LIKE LOWER(:destLike))', {
+          destId: destParam,
+          destLike: `%${destParam}%`,
+        });
+      } else {
+        qb.andWhere('(LOWER(destination.slug) = :destSlug OR LOWER(destination.name) LIKE LOWER(:destLike) OR LOWER(property.city) LIKE LOWER(:destLike))', {
+          destSlug: destParam.toLowerCase(),
+          destLike: `%${destParam}%`,
+        });
+      }
     }
 
     // Location filters
@@ -140,6 +176,8 @@ export class PropertiesService {
       .leftJoinAndSelect('property.amenities', 'amenity')
       .leftJoinAndSelect('property.rooms', 'room')
       .leftJoinAndSelect('property.availabilityBlocks', 'availabilityBlock')
+      .leftJoinAndSelect('property.category', 'category')
+      .leftJoinAndSelect('property.destination', 'destination')
       .leftJoin('property.host', 'host')
       .leftJoin('host.hostProfile', 'hostProfile');
 

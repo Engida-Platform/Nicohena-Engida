@@ -172,6 +172,8 @@ interface FormState {
   coverImage: string;
   images: string[];
   amenityIds: string[];
+  categoryId?: string;
+  destinationId?: string;
 }
 
 const INITIAL_FORM_STATE: FormState = {
@@ -199,6 +201,8 @@ const INITIAL_FORM_STATE: FormState = {
   coverImage: '',
   images: [],
   amenityIds: [],
+  categoryId: '',
+  destinationId: '',
 };
 
 export default function CreateListingPage() {
@@ -216,6 +220,8 @@ export default function CreateListingPage() {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [copilotMode, setCopilotMode] = useState<CopilotMode>('both');
   const [amenitiesCatalog, setAmenitiesCatalog] = useState<{ id: string; name: string }[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [catalogDestinations, setCatalogDestinations] = useState<Array<{ id: string; name: string; city: string }>>([]);
 
   // Restore draft state from sessionStorage
   useEffect(() => {
@@ -243,7 +249,7 @@ export default function CreateListingPage() {
     }
   }, [form, isDirty]);
 
-  // Load amenities catalog
+  // Load catalog data & amenities catalog
   useEffect(() => {
     let ignore = false;
     apiFetch<{ id: string; name: string }[]>('/amenities')
@@ -253,6 +259,23 @@ export default function CreateListingPage() {
         }
       })
       .catch(() => {});
+
+    apiFetch<Array<{ id: string; name: string }>>('/catalog/categories', { skipAuth: true })
+      .then((data) => {
+        if (!ignore && Array.isArray(data)) {
+          setCatalogCategories(data);
+        }
+      })
+      .catch(() => {});
+
+    apiFetch<Array<{ id: string; name: string; city: string }>>('/catalog/destinations', { skipAuth: true })
+      .then((data) => {
+        if (!ignore && Array.isArray(data)) {
+          setCatalogDestinations(data);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       ignore = true;
     };
@@ -512,6 +535,8 @@ export default function CreateListingPage() {
         ...(form.coverImage?.trim() ? { coverImage: form.coverImage.trim() } : {}),
         ...(form.images && form.images.length > 0 ? { images: form.images } : {}),
         ...(form.amenityIds && form.amenityIds.length > 0 ? { amenityIds: form.amenityIds } : {}),
+        ...(form.categoryId?.trim() ? { categoryId: form.categoryId.trim() } : {}),
+        ...(form.destinationId?.trim() ? { destinationId: form.destinationId.trim() } : {}),
       };
 
       if (form.listingType === 'RENTAL') {
@@ -849,6 +874,30 @@ export default function CreateListingPage() {
                   </div>
                 </div>
 
+                {/* Marketplace Category Selection */}
+                {catalogCategories.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-[#EEF3EF]">
+                    <label className="block text-sm font-bold text-[#252923]">
+                      Marketplace Category <span className="text-xs text-[#73776F] font-normal">(Optional — links your listing directly to curated guest discovery categories)</span>
+                    </label>
+                    <select
+                      value={form.categoryId || ''}
+                      onChange={(e) => {
+                        setForm((prev) => ({ ...prev, categoryId: e.target.value }));
+                        setIsDirty(true);
+                      }}
+                      className="w-full max-w-md px-3.5 py-2.5 rounded-xl border border-[#E5E0D5] bg-white text-sm text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] cursor-pointer"
+                    >
+                      <option value="">Auto-assign from Property Architecture</option>
+                      {catalogCategories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="p-4 rounded-xl bg-[#F8F5ED] border border-[#E5E0D5] text-xs text-[#73776F] flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-[#234B36] shrink-0" />
                   <span>
@@ -996,6 +1045,32 @@ export default function CreateListingPage() {
                       className="w-full px-3 py-2 rounded-xl border border-[#E5E0D5] text-sm font-medium text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] transition"
                     />
                   </div>
+
+                  {/* Destination Link */}
+                  {catalogDestinations.length > 0 && (
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label htmlFor="destinationId" className="block text-xs font-bold text-[#252923]">
+                        Curated Destination <span className="text-[#73776F] font-normal">(Optional — showcases listing in tourism &amp; regional discovery hub)</span>
+                      </label>
+                      <select
+                        id="destinationId"
+                        name="destinationId"
+                        value={form.destinationId || ''}
+                        onChange={(e) => {
+                          setForm((prev) => ({ ...prev, destinationId: e.target.value }));
+                          setIsDirty(true);
+                        }}
+                        className="w-full px-3 py-2 rounded-xl border border-[#E5E0D5] bg-white text-sm font-medium text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] cursor-pointer"
+                      >
+                        <option value="">None / Standard City Listing</option>
+                        {catalogDestinations.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name} ({d.city})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

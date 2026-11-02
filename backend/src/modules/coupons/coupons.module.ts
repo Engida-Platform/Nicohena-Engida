@@ -3,7 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Coupon } from './entities/coupon.entity';
 import { CouponRedemption } from './entities/coupon-redemption.entity';
 import { AdminCouponsService } from './admin-coupons.service';
-import { AdminCouponsController } from './admin-coupons.controller';
+import { AdminCouponsController, PublicCouponsController } from './admin-coupons.controller';
 import { FinanceModule } from '../finance/finance.module';
 import { AuditModule } from '../audit/audit.module';
 
@@ -13,7 +13,7 @@ import { AuditModule } from '../audit/audit.module';
     FinanceModule,
     AuditModule,
   ],
-  controllers: [AdminCouponsController],
+  controllers: [AdminCouponsController, PublicCouponsController],
   providers: [AdminCouponsService],
   exports: [AdminCouponsService],
 })

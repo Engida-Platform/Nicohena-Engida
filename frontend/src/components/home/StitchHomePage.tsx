@@ -161,7 +161,7 @@ export const ETHIOPIAN_FALLBACK_PROPERTIES: PropertyListing[] = [
   },
 ];
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { id: 'all', label: 'All Stays', icon: 'apps' },
   { id: 'apartment', label: 'Apartments', icon: 'apartment' },
   { id: 'villa', label: 'Villas', icon: 'villa' },
@@ -171,6 +171,21 @@ const CATEGORIES = [
   { id: 'for-sale', label: 'For Sale', icon: 'real_estate_agent' },
   { id: 'bole', label: 'Bole Central', icon: 'location_city' },
 ];
+
+const mapCategoryIcon = (icon?: string): string => {
+  if (!icon) return 'apartment';
+  const clean = icon.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean.includes('building') || clean.includes('apartment')) return 'apartment';
+  if (clean.includes('villa') || clean.includes('mansion')) return 'villa';
+  if (clean.includes('castle')) return 'castle';
+  if (clean.includes('tree') || clean.includes('nature') || clean.includes('cabin')) return 'forest';
+  if (clean.includes('wave') || clean.includes('water') || clean.includes('lake') || clean.includes('beach')) return 'water';
+  if (clean.includes('home') || clean.includes('house')) return 'home';
+  if (clean.includes('bed') || clean.includes('studio') || clean.includes('room')) return 'bed';
+  if (clean.includes('sale') || clean.includes('tag')) return 'real_estate_agent';
+  if (clean.includes('city') || clean.includes('urban')) return 'location_city';
+  return icon;
+};
 
 interface StitchHomePageProps {
   onNavigateTab?: (tab: string) => void;
@@ -323,7 +338,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               currency: 'ETB',
               totalBeforeTaxes: price * 5,
               images: p.images && p.images.length > 0 ? p.images : [cover],
-              category: p.propertyType?.toLowerCase() || 'apartment',
+              category:
+                typeof p.category === 'object' && p.category?.slug
+                  ? p.category.slug
+                  : typeof p.category === 'string'
+                  ? p.category
+                  : p.propertyType?.toLowerCase() || 'apartment',
               propertyType: p.propertyType,
               instantBook: true,
               isSuperhost: true,
@@ -347,6 +367,27 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       .then((data) => {
         if (Array.isArray(data) && data.length > 0) {
           setPopularDestinations(data.map((d) => d.name));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Dynamic categories from catalog
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+
+  useEffect(() => {
+    apiFetch<Array<{ id: string; name: string; slug: string; icon?: string }>>('/catalog/categories', { skipAuth: true })
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const dynamicCats = [
+            { id: 'all', label: 'All Stays', icon: 'apps' },
+            ...data.map((c) => ({
+              id: c.slug || c.name.toLowerCase(),
+              label: c.name,
+              icon: mapCategoryIcon(c.icon),
+            })),
+          ];
+          setCategories(dynamicCats);
         }
       })
       .catch(() => {});
@@ -1112,7 +1153,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-4">
             {/* Horizontal Categories Scroller */}
             <div className="flex items-center gap-6 overflow-x-auto no-scrollbar scroll-smooth flex-1 py-1">
-              {CATEGORIES.map((cat) => {
+              {categories.map((cat) => {
                 const isActive = selectedCategory === cat.id;
                 return (
                   <button
@@ -1297,7 +1338,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               {/* Category chip */}
               {selectedCategory !== 'all' && (
                 <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
-                  <span>Category: {CATEGORIES.find((c) => c.id === selectedCategory)?.label || selectedCategory}</span>
+                  <span>Category: {categories.find((c) => c.id === selectedCategory)?.label || selectedCategory}</span>
                   <button
                     type="button"
                     aria-label="Remove category filter"

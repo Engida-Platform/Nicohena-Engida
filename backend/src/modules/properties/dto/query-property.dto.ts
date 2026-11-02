@@ -19,6 +19,16 @@ export class QueryPropertyDto {
   @IsEnum(PropertyType)
   propertyType?: PropertyType;
 
+  @ApiPropertyOptional({ example: 'eco-lodge', description: 'Filter by dynamic category slug or ID' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ example: 'hawassa', description: 'Filter by dynamic destination slug or ID' })
+  @IsOptional()
+  @IsString()
+  destination?: string;
+
   @ApiPropertyOptional({ enum: ListingType, example: ListingType.RENTAL, description: 'Listing type (RENTAL or SALE)' })
   @IsOptional()
   @IsEnum(ListingType)
