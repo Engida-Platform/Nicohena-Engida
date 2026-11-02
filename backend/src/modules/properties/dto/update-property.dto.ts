@@ -86,6 +86,16 @@ export class UpdatePropertyDto {
   @Min(0)
   @IsOptional()
   @Type(() => Number)
+  cleaningFee?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  instantBook?: boolean;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
   salePrice?: number;
 
   @IsInt()

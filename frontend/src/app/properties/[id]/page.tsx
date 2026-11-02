@@ -1051,20 +1051,6 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                     <span>Schedule Private Viewing</span>
                   </button>
 
-                  {/* Secondary Clean Action: Contact Host / Broker */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHostMessage(`Hello ${property.host.name}, I would like to inquire about the purchase terms and title deed documentation for ${property.title}.`);
-                      setMessageSent(false);
-                      setMessageModalOpen(true);
-                    }}
-                    className="w-full mt-3 py-3 rounded-xl border border-[#234B36] text-[#234B36] bg-[#FAF8F2] hover:bg-[#EEF3EF] text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                  >
-                    <span className="material-symbols-outlined text-base">chat</span>
-                    <span>Chat with Host / Broker</span>
-                  </button>
-
                   {/* Reassurance Badge */}
                   <div className="mt-5 p-3.5 rounded-2xl bg-[#EEF3EF] border border-[#234B36]/20 flex items-center gap-2.5">
                     <span className="material-symbols-outlined text-[#234B36] text-xl">verified_user</span>
@@ -1171,20 +1157,6 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                         <span className="material-symbols-outlined text-base">arrow_forward</span>
                       </>
                     )}
-                  </button>
-
-                  {/* Secondary Action: Contact Host */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHostMessage('');
-                      setMessageSent(false);
-                      setMessageModalOpen(true);
-                    }}
-                    className="w-full mt-3 py-3 rounded-xl border border-[#234B36] text-[#234B36] bg-[#FAF8F2] hover:bg-[#EEF3EF] text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98"
-                  >
-                    <span className="material-symbols-outlined text-base">chat</span>
-                    <span>Chat with Host</span>
                   </button>
 
                   {isBookingSuccess && (

@@ -9,6 +9,7 @@ import {
   Min,
   Max,
   MaxLength,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PropertyType, ListingType } from '../../properties/entities/property.entity';
@@ -36,6 +37,16 @@ export class CreateHostListingDto {
   @IsOptional()
   @Type(() => Number)
   pricePerNight?: number;
+
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @IsOptional()
+  @Type(() => Number)
+  cleaningFee?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  instantBook?: boolean;
 
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
