@@ -737,18 +737,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               </button>
             </div>
 
-            {/* Enterprise AI Conversational Search Banner */}
-            <div className="absolute -bottom-9 flex items-center justify-center w-full">
-              <button
-                type="button"
-                onClick={() => setAiSearchModalOpen(true)}
-                className="group inline-flex items-center gap-2 px-4 py-1 rounded-full bg-white/95 hover:bg-white border border-[#E5E0D5] hover:border-[#234B36]/40 shadow-xs hover:shadow-sm transition-all duration-200 active:scale-95 cursor-pointer text-xs"
-              >
-                <span className="material-symbols-outlined text-sm text-[#D87836] transition-transform group-hover:rotate-12">auto_awesome</span>
-                <span className="text-[#73776F]">Looking for something specific?</span>
-                <span className="font-semibold text-[#234B36] underline group-hover:text-[#D87836] transition-colors">Try AI Conversational Search →</span>
-              </button>
-            </div>
+
 
             {/* Interactive Search Popover */}
             {searchPopoverOpen && (
@@ -885,8 +874,19 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               })}
             </div>
 
-            {/* Action Controls: Filters & Sort */}
-            <div className="hidden sm:flex items-center gap-2 shrink-0 pl-4 border-l border-[#E5E0D5]/40">
+            {/* Action Controls: AI Search, Filters & Sort */}
+            <div className="flex items-center gap-2 shrink-0 pl-4 border-l border-[#E5E0D5]/40">
+              <button
+                type="button"
+                onClick={() => setAiSearchModalOpen(true)}
+                className="ai-search-action-btn flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-linear-to-r from-white to-[#FAF8F2] border border-[#D87836]/40 hover:border-[#D87836] text-[#252923] hover:text-[#234B36] shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(216,120,54,0.15)] active:scale-95 transition-all duration-200 cursor-pointer"
+                title="Search using conversational Ethiopian AI"
+              >
+                <span className="material-symbols-outlined text-base text-[#D87836] transition-transform duration-200 hover:rotate-12">
+                  auto_awesome
+                </span>
+                <span className="text-xs sm:text-sm font-semibold text-[#234B36]">AI Search</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(true)}
