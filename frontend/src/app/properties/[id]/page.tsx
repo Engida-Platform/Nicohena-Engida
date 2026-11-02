@@ -404,8 +404,17 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
             // Non-fatal
           });
       })
-      .catch(() => {
-        // Graceful error state if property fails to load
+      .catch(async () => {
+        try {
+          const res = await apiFetch<{ data: Property[] } | Property[]>('/properties?limit=1', { skipAuth: true });
+          const items = Array.isArray(res) ? res : (res as any).data;
+          if (items && items.length > 0 && items[0].id) {
+            router.replace(`/properties/${items[0].id}`);
+            return;
+          }
+        } catch {
+          // ignore
+        }
         setNotFound(true);
       })
       .finally(() => {
