@@ -79,6 +79,7 @@ interface PulseItem {
 
 export default function AdminOverviewPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [summary, setSummary] = useState<AdminDashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -378,8 +379,8 @@ export default function AdminOverviewPage() {
     ].filter((action) => can(user?.permissions, action.permission));
   }, [user?.permissions]);
 
-  const displayValue = (value: number) => {
-    if (!summary) return '—';
+  const displayValue = (value: number | undefined) => {
+    if (!summary || value === undefined) return '—';
     return value.toLocaleString();
   };
 
