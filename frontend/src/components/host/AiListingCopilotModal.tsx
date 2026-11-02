@@ -250,7 +250,7 @@ export default function AiListingCopilotModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/55 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/55 backdrop-blur-sm"
       onClick={handleBackdropClick}
     >
       <div

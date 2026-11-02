@@ -450,8 +450,8 @@ export class GuestAiService {
    * highlights tradeoffs, and produces a grounded decision recommendation.
    */
   async compareProperties(dto: ComparePropertiesDto) {
-    if (!dto.propertyIds || dto.propertyIds.length < 2 || dto.propertyIds.length > 4) {
-      throw new BadRequestException('Please provide between 2 and 4 properties to compare');
+    if (!dto.propertyIds || dto.propertyIds.length < 2 || dto.propertyIds.length > 3) {
+      throw new BadRequestException('Please provide between 2 and 3 properties to compare');
     }
 
     const properties = await this.propertyRepo

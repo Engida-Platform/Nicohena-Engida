@@ -117,7 +117,7 @@ export default function PropertyPublicMapInner({
   const googleMapsViewUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Location Header with 1-Click Google Maps Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -158,28 +158,30 @@ export default function PropertyPublicMapInner({
         </div>
       </div>
 
-      {/* Interactive Map Canvas */}
-      <div className="relative rounded-2xl overflow-hidden border border-[#E5E0D5] shadow-sm">
+      {/* Interactive Map Canvas with Isolated Stacking Context */}
+      <div className="isolate relative rounded-2xl overflow-hidden border border-[#E5E0D5] shadow-sm">
         <div ref={mapContainerRef} className="w-full h-80 z-0" />
 
         {/* Verification & Privacy Badge */}
-        <div className="absolute top-3 left-3 z-[400] bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-[#E5E0D5] shadow-md flex items-center gap-1.5">
+        <div className="absolute top-3 left-3 z-10 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-[#E5E0D5] shadow-xs flex items-center gap-1.5">
           <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
           <span className="text-[11px] font-bold text-[#252923]">
             {showExactPin ? 'Verified Property Location' : 'Approximate Neighborhood Area'}
           </span>
         </div>
+      </div>
 
-        {/* Floating Proximity Strip */}
-        <div className="absolute bottom-3 left-3 right-3 z-[400] bg-white/95 backdrop-blur-xs p-2.5 rounded-xl border border-[#E5E0D5] shadow-md flex items-center justify-between text-xs text-[#73776F]">
-          <span className="flex items-center gap-1.5 font-medium text-[#252923]">
-            <Compass className="w-3.5 h-3.5 text-[#234B36]" />
-            Coordinates: {lat.toFixed(4)}°N, {lng.toFixed(4)}°E
-          </span>
-          <span className="text-[11px] font-semibold text-[#234B36]">
-            Tap map to explore neighborhood
+      {/* Clean Coordinates & Location Metadata Footer (below map canvas, never floating or overriding modals) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 px-1 text-xs text-[#73776F]">
+        <div className="flex items-center gap-1.5 font-medium text-[#252923]">
+          <Compass className="w-3.5 h-3.5 text-[#234B36] shrink-0" />
+          <span>
+            Coordinates: <span className="font-mono font-semibold">{lat.toFixed(4)}°N, {lng.toFixed(4)}°E</span>
           </span>
         </div>
+        <span className="text-[11px] text-[#73776F]">
+          Exact location verified by ENGIDA title inspection
+        </span>
       </div>
     </div>
   );

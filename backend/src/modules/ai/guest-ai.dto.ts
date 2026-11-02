@@ -67,7 +67,7 @@ export class GuestRecommendationsDto {
 export class ComparePropertiesDto {
   @IsArray()
   @ArrayMinSize(2)
-  @ArrayMaxSize(4)
+  @ArrayMaxSize(3)
   @IsUUID('4', { each: true })
   propertyIds: string[];
 

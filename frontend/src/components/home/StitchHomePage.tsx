@@ -191,8 +191,8 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       if (prev.includes(id)) {
         return prev.filter((item) => item !== id);
       }
-      if (prev.length >= 4) {
-        alert('You can compare up to 4 properties at a time.');
+      if (prev.length >= 3) {
+        alert('You can compare up to 3 properties at a time.');
         return prev;
       }
       return [...prev, id];
@@ -1215,7 +1215,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       {/* ============================================================ */}
       {/* Language & Currency Modal */}
       {currencyModalOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in-up">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in-up"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setCurrencyModalOpen(false);
+          }}
+        >
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-[#E5E0D5]">
             <div className="flex items-center justify-between pb-4 border-b border-[#E5E0D5]/60 mb-5">
               <h3 className="text-lg font-bold font-headline text-[#252923]">Language & Currency</h3>
@@ -1266,7 +1271,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       {/* 7. FILTER MODAL                                              */}
       {/* ============================================================ */}
       {filterModalOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in-up">
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in-up"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setFilterModalOpen(false);
+          }}
+        >
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E5E0D5] relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-[#E5E0D5]/50">
               <h3 className="text-lg font-bold font-headline text-[#252923]">Filters</h3>
@@ -1471,7 +1481,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           <div className="flex items-center gap-2 text-xs font-semibold">
             <span className="material-symbols-outlined text-lg text-[#D87836]">balance</span>
             <span>{selectedForCompare.length} {selectedForCompare.length === 1 ? 'property' : 'properties'} selected</span>
-            <span className="text-white/60 hidden sm:inline">(Select 2 to 4 to compare)</span>
+            <span className="text-white/60 hidden sm:inline">(Select 2 or 3 to compare)</span>
           </div>
           <button
             type="button"

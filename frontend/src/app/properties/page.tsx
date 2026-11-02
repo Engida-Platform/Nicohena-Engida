@@ -264,8 +264,8 @@ function PropertiesSearchContent() {
       if (prev.includes(id)) {
         return prev.filter((item) => item !== id);
       }
-      if (prev.length >= 4) {
-        alert('You can compare up to 4 properties at a time.');
+      if (prev.length >= 3) {
+        alert('You can compare up to 3 properties at a time.');
         return prev;
       }
       return [...prev, id];
@@ -687,7 +687,7 @@ function PropertiesSearchContent() {
             <div className="flex items-center gap-2 text-xs font-semibold">
               <span className="material-symbols-outlined text-lg text-[#D87836]">balance</span>
               <span>{selectedForCompare.length} {selectedForCompare.length === 1 ? 'property' : 'properties'} selected</span>
-              <span className="text-white/60 hidden sm:inline">(Select 2 to 4 to compare)</span>
+              <span className="text-white/60 hidden sm:inline">(Select 2 or 3 to compare)</span>
             </div>
             <button
               type="button"
