@@ -105,11 +105,7 @@ export default function PersonalizedAiRecommendationsSection() {
                     </div>
                   )}
 
-                  {/* Score Pill */}
-                  <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-xs px-2.5 py-1 rounded-full shadow-sm border border-[#E5E0D5]/60 flex items-center gap-1 text-[11px] font-bold text-[#234B36]">
-                    <Sparkles size={11} className="text-[#D87836]" />
-                    <span>{Math.min(score, 99)}% Match</span>
-                  </div>
+
                 </div>
 
                 {/* Content */}
