@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import 'leaflet/dist/leaflet.css';
 import { AuthProvider } from '../context/AuthContext';
+import { ToastProvider } from '../context/ToastContext';
 import AppShell from '../components/AppShell';
 
 const geistSans = Geist({
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className="min-h-full flex flex-col font-sans bg-[#F8F5ED] text-[#252923] transition-colors duration-200"
       >
         <AuthProvider>
+          <ToastProvider>
           <AppShell>{children}</AppShell>
+        </ToastProvider>
         </AuthProvider>
       </body>
     </html>

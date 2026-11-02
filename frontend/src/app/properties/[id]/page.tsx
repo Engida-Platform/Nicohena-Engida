@@ -1,5 +1,6 @@
 'use client';
 
+import { showPlatformToast } from '@/context/ToastContext';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -539,6 +540,18 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
     }
   };
 
+    // Lightbox keyboard navigation (ArrowLeft, ArrowRight, Escape)
+  useEffect(() => {
+    if (activePhotoModal === null) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActivePhotoModal(null);
+      if (e.key === 'ArrowLeft') setActivePhotoModal((idx) => Math.max(0, (idx || 0) - 1));
+      if (e.key === 'ArrowRight') setActivePhotoModal((idx) => Math.min((property?.images?.length || 1) - 1, (idx || 0) + 1));
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activePhotoModal, property?.images?.length]);
+
   const openPhotoModal = (targetIndex: number) => {
     const imagesCount = property?.images?.length || 1;
     const maxIdx = Math.max(0, imagesCount - 1);
@@ -608,7 +621,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                   navigator.share({ title: property.title, url: window.location.href });
                 } else {
                   navigator.clipboard.writeText(window.location.href);
-                  alert('Listing link copied to clipboard!');
+                  showPlatformToast('Listing link copied to clipboard!', 'success', 'Link Copied');
                 }
               }}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#d8d0c8]/60 text-xs font-semibold text-[#3a302a] hover:bg-[#f2ece4] hover:text-[#c2652a] transition active:scale-95 shadow-2xs cursor-pointer"
@@ -1221,52 +1234,95 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
 
       {/* Fullscreen Photo Lightbox Modal */}
       {activePhotoModal !== null && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col justify-between p-4 sm:p-8 animate-fade-in-up">
-          <div className="flex items-center justify-between text-white">
-            <span className="text-sm font-medium">
-              Photo {activePhotoModal + 1} of {property.images.length}
-            </span>
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-fade-in-up"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setActivePhotoModal(null);
+          }}
+        >
+          <div className="flex items-center justify-between text-white px-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold tracking-wide">
+                Photo {activePhotoModal + 1} of {property.images.length}
+              </span>
+              <span className="text-xs text-white/50 hidden sm:inline">(Use ← → arrow keys to navigate, Esc to close)</span>
+            </div>
             <button
               type="button"
               onClick={() => setActivePhotoModal(null)}
-              className="p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition active:scale-90 cursor-pointer"
+              className="p-2 rounded-full bg-white/15 hover:bg-white/30 text-white transition active:scale-90 cursor-pointer"
             >
-              <span className="material-symbols-outlined">close</span>
+              <span className="material-symbols-outlined text-lg">close</span>
             </button>
           </div>
 
-          <div className="flex-1 flex items-center justify-center p-4">
+          <div
+            className="flex-1 flex items-center justify-center p-2 sm:p-4 relative"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setActivePhotoModal(null);
+            }}
+          >
+            {/* Previous chevron */}
+            {property.images.length > 1 && (
+              <button
+                type="button"
+                aria-label="Previous photo"
+                disabled={activePhotoModal <= 0}
+                onClick={() => setActivePhotoModal((idx) => Math.max(0, (idx || 0) - 1))}
+                className="absolute left-2 sm:left-6 z-20 w-11 h-11 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-20 text-white flex items-center justify-center transition active:scale-90 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-2xl">chevron_left</span>
+              </button>
+            )}
+
             <img
               src={property.images[activePhotoModal] || property.images[0]}
               alt={property.title}
-              className="max-h-[80vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl"
+              className="max-h-[75vh] max-w-[90vw] object-contain rounded-2xl shadow-2xl select-none"
             />
+
+            {/* Next chevron */}
+            {property.images.length > 1 && (
+              <button
+                type="button"
+                aria-label="Next photo"
+                disabled={activePhotoModal >= property.images.length - 1}
+                onClick={() => setActivePhotoModal((idx) => Math.min(property.images.length - 1, (idx || 0) + 1))}
+                className="absolute right-2 sm:right-6 z-20 w-11 h-11 rounded-full bg-white/20 hover:bg-white/40 disabled:opacity-20 text-white flex items-center justify-center transition active:scale-90 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-2xl">chevron_right</span>
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center justify-center gap-4 text-white pb-2">
-            <button
-              type="button"
-              disabled={activePhotoModal <= 0}
-              onClick={() => setActivePhotoModal((idx) => Math.max(0, (idx || 0) - 1))}
-              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs font-semibold disabled:opacity-30 cursor-pointer"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={activePhotoModal >= property.images.length - 1}
-              onClick={() => setActivePhotoModal((idx) => Math.min(property.images.length - 1, (idx || 0) + 1))}
-              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-xs font-semibold disabled:opacity-30 cursor-pointer"
-            >
-              Next
-            </button>
-          </div>
+          {/* Thumbnail preview strip */}
+          {property.images.length > 1 && (
+            <div className="flex items-center justify-center gap-2 overflow-x-auto py-2 no-scrollbar">
+              {property.images.map((img, thumbIdx) => (
+                <button
+                  key={thumbIdx}
+                  type="button"
+                  onClick={() => setActivePhotoModal(thumbIdx)}
+                  className={`w-14 h-10 rounded-lg overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${
+                    activePhotoModal === thumbIdx ? 'border-[#E6C687] scale-105 shadow-md' : 'border-white/30 opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img src={img} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Interactive Message Host Modal */}
       {messageModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in-up">
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in-up"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setMessageModalOpen(false);
+          }}
+        >
           <div className="bg-white rounded-3xl border border-[#d8d0c8] w-full max-w-lg overflow-hidden shadow-2xl">
             {/* Modal Header */}
             <div className="p-6 border-b border-[#d8d0c8]/60 flex items-center justify-between bg-[#faf5ee]/60">
@@ -1415,7 +1471,12 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
       
       {/* Dedicated In-Person Viewing Scheduler Modal */}
       {viewingModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in-up">
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in-up"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setViewingModalOpen(false);
+          }}
+        >
           <div className="bg-white rounded-3xl border border-[#d8d0c8] w-full max-w-lg overflow-hidden shadow-2xl">
             {/* Header */}
             <div className="p-6 border-b border-[#d8d0c8]/60 flex items-center justify-between bg-[#faf5ee]/60">

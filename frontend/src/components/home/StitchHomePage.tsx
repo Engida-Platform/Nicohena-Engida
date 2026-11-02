@@ -1,5 +1,6 @@
 'use client';
 
+import { showPlatformToast } from '@/context/ToastContext';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -192,7 +193,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
         return prev.filter((item) => item !== id);
       }
       if (prev.length >= 3) {
-        alert('You can compare up to 3 properties at a time.');
+        showPlatformToast('You can compare up to 3 properties at a time.', 'warning', 'Comparison Limit');
         return prev;
       }
       return [...prev, id];
@@ -338,10 +339,32 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     setActiveFilters((prev) => prev.filter((f) => f !== filter));
   };
 
+  const [cardImageIndex, setCardImageIndex] = useState<Record<string, number>>({});
+
+  const nextCardImage = (id: string, total: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCardImageIndex((prev) => ({
+      ...prev,
+      [id]: ((prev[id] || 0) + 1) % total,
+    }));
+  };
+
+  const prevCardImage = (id: string, total: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCardImageIndex((prev) => ({
+      ...prev,
+      [id]: ((prev[id] || 0) - 1 + total) % total,
+    }));
+  };
+
   const clearAllFilters = () => {
     setActiveFilters([]);
     setSelectedCategory('all');
     setDestinationSearch('');
+    setGuestCount(1);
+    setDatesSelected('');
   };
 
   // Filter and sort listings
@@ -963,8 +986,69 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               </span>
             </div>
 
-            {/* Quick Toggle Chips */}
+            {/* Quick Toggle & Active Filter Chips */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Category chip */}
+              {selectedCategory !== 'all' && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>Category: {CATEGORIES.find((c) => c.id === selectedCategory)?.label || selectedCategory}</span>
+                  <button
+                    type="button"
+                    aria-label="Remove category filter"
+                    onClick={() => setSelectedCategory('all')}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Destination search chip */}
+              {destinationSearch.trim() && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>📍 {destinationSearch}</span>
+                  <button
+                    type="button"
+                    aria-label="Remove destination filter"
+                    onClick={() => setDestinationSearch('')}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Guest count chip */}
+              {guestCount > 1 && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>👥 {guestCount} guests</span>
+                  <button
+                    type="button"
+                    aria-label="Remove guest filter"
+                    onClick={() => setGuestCount(1)}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Dates chip */}
+              {datesSelected && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>📅 {datesSelected}</span>
+                  <button
+                    type="button"
+                    aria-label="Remove dates filter"
+                    onClick={() => setDatesSelected('')}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Standard active filters */}
               {activeFilters.map((chip) => (
                 <span
                   key={chip}
@@ -982,7 +1066,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                 </span>
               ))}
 
-              {activeFilters.length > 0 && (
+              {(activeFilters.length > 0 || selectedCategory !== 'all' || destinationSearch.trim() || guestCount > 1 || datesSelected) && (
                 <button
                   type="button"
                   onClick={clearAllFilters}
@@ -1025,9 +1109,9 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                     style={{ animationDelay: `${0.1 + (idx % 8) * 0.05}s` }}
                   >
                     {/* Media Container with 4:3 Aspect Ratio */}
-                    <div className="relative w-full aspect-[4/3] overflow-hidden bg-[#EEF3EF]">
+                    <div className="relative w-full aspect-[4/3] overflow-hidden bg-[#EEF3EF] group/media">
                       <img
-                        src={property.images[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'}
+                        src={property.images[cardImageIndex[property.id] || 0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'}
                         alt={property.title}
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
@@ -1035,9 +1119,31 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                         className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
                       />
 
+                      {/* Carousel Navigation Chevrons */}
+                      {property.images && property.images.length > 1 && (
+                        <>
+                          <button
+                            type="button"
+                            aria-label="Previous image"
+                            onClick={(e) => prevCardImage(property.id, property.images.length, e)}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-[#252923] shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm font-bold">chevron_left</span>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Next image"
+                            onClick={(e) => nextCardImage(property.id, property.images.length, e)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full bg-white/90 hover:bg-white text-[#252923] shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all hover:scale-110 active:scale-95 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm font-bold">chevron_right</span>
+                          </button>
+                        </>
+                      )}
+
                       {/* Floating Badge (Isolated on Top Left) */}
                       {property.badge && (
-                        <div className="absolute top-2.5 left-2.5 z-10">
+                        <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none">
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-white font-semibold text-[10px] uppercase tracking-wider shadow-sm transition-transform duration-200 group-hover:scale-105 ${
                               property.badge === 'Superhost'
@@ -1088,12 +1194,32 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                         </button>
                       </div>
 
-                      {/* Gallery Indicator Dots */}
-                      <div className="absolute bottom-2.5 left-0 right-0 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white shadow-sm transition-transform hover:scale-125"></span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/60 hover:bg-white transition-all"></span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/60 hover:bg-white transition-all"></span>
-                      </div>
+                      {/* Interactive Gallery Indicator Dots */}
+                      {property.images && property.images.length > 1 && (
+                        <div className="absolute bottom-2.5 left-0 right-0 z-20 flex justify-center items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          {property.images.slice(0, 5).map((_, dotIdx) => {
+                            const currentIdx = cardImageIndex[property.id] || 0;
+                            const isDotActive = currentIdx === dotIdx;
+                            return (
+                              <button
+                                key={dotIdx}
+                                type="button"
+                                aria-label={`View photo ${dotIdx + 1}`}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setCardImageIndex((prev) => ({ ...prev, [property.id]: dotIdx }));
+                                }}
+                                className={`rounded-full transition-all duration-200 cursor-pointer ${
+                                  isDotActive
+                                    ? 'w-2 h-2 bg-white shadow-xs scale-110'
+                                    : 'w-1.5 h-1.5 bg-white/60 hover:bg-white'
+                                }`}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     {/* Card Content Details */}

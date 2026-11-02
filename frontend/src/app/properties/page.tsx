@@ -1,5 +1,6 @@
 'use client';
 
+import { showPlatformToast } from '@/context/ToastContext';
 /**
  * ENGIDA — Public Property Search & Discovery Page
  * Phase 2: Guest Discovery Engine
@@ -265,7 +266,7 @@ function PropertiesSearchContent() {
         return prev.filter((item) => item !== id);
       }
       if (prev.length >= 3) {
-        alert('You can compare up to 3 properties at a time.');
+        showPlatformToast('You can compare up to 3 properties at a time.', 'warning', 'Comparison Limit');
         return prev;
       }
       return [...prev, id];
