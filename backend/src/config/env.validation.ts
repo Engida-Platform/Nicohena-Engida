@@ -2,8 +2,9 @@ import { plainToInstance, Transform } from 'class-transformer';
 import { IsString, IsNumber, MinLength, IsOptional, IsBoolean, validateSync } from 'class-validator';
 
 class EnvironmentVariables {
+  @IsOptional()
   @IsNumber()
-  PORT: number;
+  PORT?: number = 3000;
 
   @IsString()
   DATABASE_URL: string;
@@ -12,8 +13,9 @@ class EnvironmentVariables {
   @MinLength(32)
   JWT_ACCESS_SECRET: string;
 
+  @IsOptional()
   @IsString()
-  AI_SERVICE_URL: string;
+  AI_SERVICE_URL?: string = 'http://localhost:8000';
 
   @IsOptional()
   @IsBoolean()

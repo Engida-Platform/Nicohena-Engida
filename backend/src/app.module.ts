@@ -151,9 +151,11 @@ import { validate } from './config/env.validation';
         ];
 
         if (databaseUrl) {
+          const isRemote = databaseUrl.includes('supabase.com') || databaseUrl.includes('pooler') || databaseUrl.includes('sslmode=require') || process.env.NODE_ENV === 'production';
           return {
             type: 'postgres',
             url: databaseUrl,
+            ssl: isRemote ? { rejectUnauthorized: false } : undefined,
             entities,
             synchronize,
             logging,
