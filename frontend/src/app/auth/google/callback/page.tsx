@@ -42,11 +42,11 @@ export default function GoogleCallbackPage() {
   }, [user, loading, router]);
 
   return (
-    <div className="min-h-screen bg-[#F4F7FC] flex items-center justify-center px-4">
-      <div className="max-w-sm w-full bg-white border border-[#CBD5E1] p-8 rounded-3xl shadow-lg text-center">
-        <div className="w-14 h-14 mx-auto mb-5 rounded-xl bg-gradient-to-br from-[#33599E] to-[#234079] flex items-center justify-center text-white">
+    <div className="min-h-screen bg-[#F8F5ED] flex items-center justify-center px-4 font-body">
+      <div className="max-w-sm w-full bg-white border border-[#E5E0D5] p-8 rounded-3xl shadow-lg text-center">
+        <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-[#234B36] flex items-center justify-center text-white shadow-sm">
           {status === 'error' ? (
-            <AlertCircle className="w-7 h-7" />
+            <AlertCircle className="w-7 h-7 text-rose-300" />
           ) : (
             <Building2 className="w-7 h-7" />
           )}
@@ -54,18 +54,18 @@ export default function GoogleCallbackPage() {
 
         {status === 'error' ? (
           <>
-            <h1 className="text-2xl font-black text-[#000000] mb-2">Sign-in failed</h1>
-            <p className="text-sm font-semibold text-[#334155]">
+            <h1 className="text-2xl font-black text-[#252923] mb-2 tracking-tight">Sign-in failed</h1>
+            <p className="text-sm font-medium text-[#73776F]">
               We could not complete your Google sign-in. Redirecting you to the login page...
             </p>
           </>
         ) : (
           <>
-            <h1 className="text-2xl font-black text-[#000000] mb-2">Signing you in</h1>
-            <p className="text-sm font-semibold text-[#334155] mb-5">
+            <h1 className="text-2xl font-black text-[#252923] mb-2 tracking-tight">Signing you in</h1>
+            <p className="text-sm font-medium text-[#73776F] mb-5">
               Completing your Google sign-in...
             </p>
-            <div className="w-6 h-6 mx-auto border-2 border-[#CBD5E1] border-t-[#33599E] rounded-full animate-spin" />
+            <div className="w-6 h-6 mx-auto border-2 border-[#E5E0D5] border-t-[#234B36] rounded-full animate-spin" />
           </>
         )}
       </div>
