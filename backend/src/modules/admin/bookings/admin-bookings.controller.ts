@@ -12,6 +12,14 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiProduces,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/guards/roles.guard';
@@ -31,6 +39,8 @@ import {
   RecordCancellationDto,
 } from './dto/admin-bookings.dto';
 
+@ApiTags('Admin - Bookings')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin/bookings')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles(UserRole.ADMIN)
@@ -39,12 +49,17 @@ export class AdminBookingsController {
 
   @Get()
   @RequirePermissions(Permission.BOOKINGS_VIEW)
+  @ApiOperation({ summary: 'List platform bookings with filters' })
+  @ApiResponse({ status: 200, description: 'Paginated platform bookings' })
   list(@Query() query: QueryAdminBookingsDto) {
     return this.adminBookingsService.list(query);
   }
 
   @Get('export.csv')
   @RequirePermissions(Permission.BOOKINGS_VIEW)
+  @ApiOperation({ summary: 'Export bookings CSV' })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file download' })
   async export(
     @Query() query: QueryAdminBookingsDto,
     @GetUser() actor: User,
@@ -66,12 +81,17 @@ export class AdminBookingsController {
 
   @Get('availability')
   @RequirePermissions(Permission.BOOKINGS_VIEW)
+  @ApiOperation({ summary: 'Inspect calendar availability and blocks' })
+  @ApiResponse({ status: 200, description: 'Availability matrix' })
   availability(@Query() query: QueryAvailabilityDto) {
     return this.adminBookingsService.availability(query);
   }
 
   @Delete('availability-blocks/:blockId')
   @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @ApiOperation({ summary: 'Remove administrative calendar block' })
+  @ApiParam({ name: 'blockId', description: 'Block UUID' })
+  @ApiResponse({ status: 200, description: 'Block removed' })
   removeBlock(
     @Param('blockId', ParseUUIDPipe) blockId: string,
     @GetUser() actor: User,
@@ -86,6 +106,9 @@ export class AdminBookingsController {
 
   @Get(':id')
   @RequirePermissions(Permission.BOOKINGS_VIEW)
+  @ApiOperation({ summary: 'Get booking administrative detail' })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiResponse({ status: 200, description: 'Detailed booking object with ledger and audit' })
   detail(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() actor: User,
@@ -95,12 +118,18 @@ export class AdminBookingsController {
 
   @Get(':id/cancellation-preview')
   @RequirePermissions(Permission.BOOKINGS_VIEW)
+  @ApiOperation({ summary: 'Preview cancellation refunds and penalty fees' })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiResponse({ status: 200, description: 'Cancellation preview metrics' })
   cancellationPreview(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminBookingsService.previewCancellation(id);
   }
 
   @Post(':id/status')
   @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @ApiOperation({ summary: 'Update booking status' })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiResponse({ status: 200, description: 'Booking status updated' })
   updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AdminBookingStatusDto,
@@ -116,6 +145,9 @@ export class AdminBookingsController {
 
   @Post(':id/cancellation-requests')
   @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @ApiOperation({ summary: 'Record administrative cancellation request' })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiResponse({ status: 200, description: 'Cancellation request recorded' })
   recordCancellation(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RecordCancellationDto,
@@ -131,6 +163,10 @@ export class AdminBookingsController {
 
   @Post(':id/cancellation-requests/:requestId/approve')
   @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @ApiOperation({ summary: 'Approve cancellation request' })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiParam({ name: 'requestId', description: 'Cancellation Request UUID' })
+  @ApiResponse({ status: 200, description: 'Cancellation approved' })
   approveCancellation(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('requestId', ParseUUIDPipe) requestId: string,
@@ -151,6 +187,10 @@ export class AdminBookingsController {
 
   @Post(':id/cancellation-requests/:requestId/reject')
   @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @ApiOperation({ summary: 'Reject cancellation request' })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiParam({ name: 'requestId', description: 'Cancellation Request UUID' })
+  @ApiResponse({ status: 200, description: 'Cancellation rejected' })
   rejectCancellation(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('requestId', ParseUUIDPipe) requestId: string,
@@ -171,6 +211,9 @@ export class AdminBookingsController {
 
   @Post(':id/availability-blocks')
   @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @ApiOperation({ summary: 'Create administrative availability block' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 201, description: 'Availability block created' })
   createBlock(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateAdminAvailabilityBlockDto,

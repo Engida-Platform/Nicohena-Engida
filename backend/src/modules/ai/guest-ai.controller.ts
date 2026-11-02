@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Req,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { GuestAiService } from './guest-ai.service';
 import {
   ConversationalSearchDto,
@@ -14,6 +15,7 @@ import {
   BookingAssistantDto,
 } from './guest-ai.dto';
 
+@ApiTags('AI Services')
 @Controller('ai/guest')
 export class GuestAiController {
   constructor(private readonly guestAiService: GuestAiService) {}
@@ -25,6 +27,11 @@ export class GuestAiController {
    */
   @Post('conversational-search')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Conversational property search',
+    description: 'Understands natural language search queries ("quiet apartment in Bole near Edna Mall for 3 people under 3000 ETB") and returns matched database listings.',
+  })
+  @ApiResponse({ status: 200, description: 'Natural language search results and applied filters' })
   async conversationalSearch(@Body() dto: ConversationalSearchDto) {
     return this.guestAiService.conversationalSearch(dto);
   }
@@ -36,6 +43,11 @@ export class GuestAiController {
    */
   @Post('recommendations')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Personalized guest recommendations',
+    description: 'Generates tailored property recommendations based on user travel history, current search intent, and ratings.',
+  })
+  @ApiResponse({ status: 200, description: 'Personalized property recommendations' })
   async getRecommendations(
     @Body() dto: GuestRecommendationsDto,
     @Req() req?: any,
@@ -52,6 +64,11 @@ export class GuestAiController {
    */
   @Post('compare')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'AI property comparison',
+    description: 'Performs side-by-side analysis of 2-4 listings, highlighting price, amenities, distance, and suited traveler types.',
+  })
+  @ApiResponse({ status: 200, description: 'Comparison breakdown and synthesized verdict' })
   async compareProperties(@Body() dto: ComparePropertiesDto) {
     return this.guestAiService.compareProperties(dto);
   }
@@ -63,6 +80,11 @@ export class GuestAiController {
    */
   @Post('booking-assistant')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'AI guest booking assistant',
+    description: 'Answers guest queries about property amenities, rules, check-in policies, and reservation status using grounded platform data.',
+  })
+  @ApiResponse({ status: 200, description: 'Assistant answer with follow-up suggestions' })
   async bookingAssistantChat(
     @Body() dto: BookingAssistantDto,
     @Req() req?: any,

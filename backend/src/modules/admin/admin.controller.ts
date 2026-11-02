@@ -12,6 +12,13 @@ import {
   HttpStatus,
   Ip,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
@@ -36,6 +43,8 @@ import {
   RejectHostVerificationDto,
 } from '../host/dto/admin-host-verification.dto';
 
+@ApiTags('Admin - Listings & Moderation')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles(UserRole.ADMIN)
@@ -51,6 +60,11 @@ export class AdminController {
    */
   @Get('reviews')
   @RequirePermissions(Permission.LISTINGS_REVIEW)
+  @ApiOperation({
+    summary: 'Get listing moderation queue',
+    description: 'Returns listing submissions awaiting moderator review (draft publishings and major content edits).',
+  })
+  @ApiResponse({ status: 200, description: 'Paginated review submissions' })
   async getReviewQueue(@Query() query: QueryReviewsDto) {
     return this.listingModerationService.getAdminReviewQueue(query);
   }
@@ -61,6 +75,8 @@ export class AdminController {
    */
   @Get('reviews/stats')
   @RequirePermissions(Permission.LISTINGS_REVIEW)
+  @ApiOperation({ summary: 'Get moderation queue metrics' })
+  @ApiResponse({ status: 200, description: 'Moderation queue counts' })
   async getReviewStats() {
     return this.listingModerationService.getAdminReviewStats();
   }
@@ -71,6 +87,9 @@ export class AdminController {
    */
   @Get('reviews/:id')
   @RequirePermissions(Permission.LISTINGS_REVIEW)
+  @ApiOperation({ summary: 'Get review detail with live diff' })
+  @ApiParam({ name: 'id', description: 'Review UUID' })
+  @ApiResponse({ status: 200, description: 'Review detail object' })
   async getReviewDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.listingModerationService.getAdminReviewDetail(id);
   }
@@ -82,6 +101,9 @@ export class AdminController {
   @Post('reviews/:id/approve')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.LISTINGS_REVIEW)
+  @ApiOperation({ summary: 'Approve listing review' })
+  @ApiParam({ name: 'id', description: 'Review UUID' })
+  @ApiResponse({ status: 200, description: 'Review approved and changes merged to live listing' })
   async approveReview(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() admin: User,
@@ -101,6 +123,9 @@ export class AdminController {
   @Post('reviews/:id/reject')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.LISTINGS_REVIEW)
+  @ApiOperation({ summary: 'Reject listing review' })
+  @ApiParam({ name: 'id', description: 'Review UUID' })
+  @ApiResponse({ status: 200, description: 'Review rejected with feedback' })
   async rejectReview(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectReviewDto,
@@ -123,6 +148,9 @@ export class AdminController {
   @Post('listings/:id/hide')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.LISTINGS_HIDE)
+  @ApiOperation({ summary: 'Hide listing from public search' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Listing hidden from public discovery' })
   async hideListing(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: HideListingDto,
@@ -142,6 +170,9 @@ export class AdminController {
    */
   @Get('listings/:id')
   @RequireAnyPermissions(Permission.LISTINGS_HIDE, Permission.LISTINGS_VIEW)
+  @ApiOperation({ summary: 'Inspect listing detail (Admin view)' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Comprehensive listing record' })
   async getAdminListingDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.listingModerationService.getAdminListingDetail(id);
   }
@@ -153,6 +184,9 @@ export class AdminController {
   @Post('listings/:id/restore')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.LISTINGS_HIDE)
+  @ApiOperation({ summary: 'Restore hidden listing' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Listing restored to active search' })
   async restoreListing(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RestoreListingDto,
@@ -181,6 +215,8 @@ export class AdminController {
    */
   @Get('host-verifications')
   @RequirePermissions(Permission.HOSTS_VIEW)
+  @ApiOperation({ summary: 'List pending host verifications' })
+  @ApiResponse({ status: 200, description: 'Host verification list' })
   async getHostVerifications(@Query() query: QueryHostVerificationsDto) {
     return this.hostService.getHostVerifications(query);
   }
@@ -192,6 +228,9 @@ export class AdminController {
   @Post('host-verifications/:id/approve')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.HOSTS_VERIFY)
+  @ApiOperation({ summary: 'Approve host identity verification' })
+  @ApiParam({ name: 'id', description: 'Host Profile UUID' })
+  @ApiResponse({ status: 200, description: 'Host verified' })
   async approveHostVerification(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() admin: User,
@@ -211,6 +250,9 @@ export class AdminController {
   @Post('host-verifications/:id/reject')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.HOSTS_VERIFY)
+  @ApiOperation({ summary: 'Reject host identity verification' })
+  @ApiParam({ name: 'id', description: 'Host Profile UUID' })
+  @ApiResponse({ status: 200, description: 'Verification rejected' })
   async rejectHostVerification(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectHostVerificationDto,
@@ -232,6 +274,9 @@ export class AdminController {
   @Post('host-verifications/:id/revoke')
   @HttpCode(HttpStatus.OK)
   @RequirePermissions(Permission.HOSTS_VERIFY)
+  @ApiOperation({ summary: 'Revoke active host verification' })
+  @ApiParam({ name: 'id', description: 'Host Profile UUID' })
+  @ApiResponse({ status: 200, description: 'Verification revoked' })
   async revokeHostVerification(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RejectHostVerificationDto,
@@ -252,9 +297,11 @@ export class AdminController {
    */
   @Get('host-verifications/:id/audit-trail')
   @RequirePermissions(Permission.HOSTS_VERIFY)
+  @ApiOperation({ summary: 'Get host verification audit trail' })
+  @ApiParam({ name: 'id', description: 'Host Profile UUID' })
+  @ApiResponse({ status: 200, description: 'Full verification audit trail' })
   async getHostVerificationAuditTrail(@Param('id', ParseUUIDPipe) id: string) {
     const profile = await this.hostService.getHostProfileById(id);
     return this.hostService.getVerificationAudit(profile.userId);
   }
 }
-

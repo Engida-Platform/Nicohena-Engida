@@ -9,16 +9,28 @@ import {
   HttpStatus,
   Req,
   Headers,
-  RawBodyRequest,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiHeader,
+} from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
-import { CreatePaymentSessionDto, InitializePaymentDto, VerifyPaymentDto, CompleteSandboxPaymentDto } from './dto/payment.dto';
+import {
+  CreatePaymentSessionDto,
+  InitializePaymentDto,
+  VerifyPaymentDto,
+  CompleteSandboxPaymentDto,
+} from './dto/payment.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
 import { PaymentsCaptureService } from '../finance/services/payments-capture.service';
 
+@ApiTags('Payments')
 @Controller('payments')
 export class PaymentsController {
   constructor(
@@ -30,6 +42,11 @@ export class PaymentsController {
    * Public list of supported Ethiopian & International payment methods
    */
   @Get('methods')
+  @ApiOperation({
+    summary: 'Get supported payment methods',
+    description: 'Returns available payment options (Telebirr, CBE Birr, Chapa card/mobile) with currencies and capabilities.',
+  })
+  @ApiResponse({ status: 200, description: 'List of supported payment methods' })
   getMethods() {
     return this.paymentsService.getPaymentMethods();
   }
@@ -40,6 +57,13 @@ export class PaymentsController {
   @Post('sessions')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Create payment session',
+    description: 'Generates an authoritative payment checkout session with redirect URL and checkout token.',
+  })
+  @ApiResponse({ status: 201, description: 'Payment session created' })
+  @ApiResponse({ status: 400, description: 'Invalid booking or expired quote' })
   createSession(
     @Body() dto: CreatePaymentSessionDto,
     @GetUser() user: User,
@@ -52,6 +76,13 @@ export class PaymentsController {
    */
   @Get('sessions/:id')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get payment session status',
+    description: 'Retrieves payment session state (PENDING, PAID, FAILED) without exposing sensitive provider tokens.',
+  })
+  @ApiParam({ name: 'id', description: 'Session UUID' })
+  @ApiResponse({ status: 200, description: 'Session status object' })
   getSession(
     @Param('id') id: string,
     @GetUser() user: User,
@@ -65,6 +96,12 @@ export class PaymentsController {
   @Post('sandbox/complete')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Complete sandbox payment (Development)',
+    description: 'Simulates instantaneous payment capture in sandbox mode without external gateway roundtrips.',
+  })
+  @ApiResponse({ status: 200, description: 'Sandbox payment completed' })
   async completeSandboxPayment(
     @Body() dto: CompleteSandboxPaymentDto,
     @GetUser() user: User,
@@ -77,6 +114,13 @@ export class PaymentsController {
    */
   @Post('webhook/:provider')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Provider payment webhook endpoint',
+    description: 'Authoritative webhook receiver for Telebirr, CBE Birr, and Chapa with HMAC signature verification.',
+  })
+  @ApiParam({ name: 'provider', description: 'Payment provider (TELEBIRR, CBE, CHAPA)' })
+  @ApiHeader({ name: 'x-chapa-signature', required: false, description: 'Chapa HMAC signature header' })
+  @ApiResponse({ status: 200, description: 'Webhook accepted and processed' })
   async handleWebhook(
     @Param('provider') provider: string,
     @Req() req: any,
@@ -93,11 +137,16 @@ export class PaymentsController {
   @Post('initialize')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Initialize payment (Legacy compatibility)',
+    description: 'Initializes a transaction directly with Chapa or Telebirr and returns checkout URL.',
+  })
+  @ApiResponse({ status: 200, description: 'Payment initialized with checkout URL' })
   async initializePayment(
     @Body() dto: InitializePaymentDto,
     @GetUser() user: User,
   ) {
-    // If bookingId is provided, delegate to server quote session if possible
     if (dto.bookingId) {
       return this.captureService.createPaymentSession(
         {
@@ -119,6 +168,12 @@ export class PaymentsController {
   @Post('verify')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Verify payment status',
+    description: 'Checks the latest transaction status from payment provider without mutating escrow state.',
+  })
+  @ApiResponse({ status: 200, description: 'Payment verification result' })
   async verifyPayment(
     @Body() dto: VerifyPaymentDto,
     @GetUser() user: User,
@@ -131,6 +186,11 @@ export class PaymentsController {
    */
   @Post('webhook/chapa')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Legacy Chapa webhook route',
+    description: 'Delegates Chapa notifications to the verified webhook capture service.',
+  })
+  @ApiResponse({ status: 200, description: 'Webhook processed' })
   async chapaWebhook(
     @Req() req: any,
     @Headers() headers: Record<string, string | string[] | undefined>,

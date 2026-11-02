@@ -8,6 +8,12 @@ import {
   HttpStatus,
   Req,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import {
@@ -17,6 +23,7 @@ import {
   RecordRecommendationFeedbackDto,
 } from './ai.dto';
 
+@ApiTags('AI Services')
 @Controller('ai')
 export class AiController {
   constructor(private readonly aiService: AiService) {}
@@ -27,6 +34,12 @@ export class AiController {
   @Post('predict-price')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Predict optimal nightly price',
+    description: 'Generates competitive dynamic pricing suggestions based on location, room count, seasonality, and comparable listings.',
+  })
+  @ApiResponse({ status: 200, description: 'Price recommendation with confidence metrics' })
   async predictPrice(@Body() request: PredictPriceDto, @Req() req?: any) {
     const hostId = req?.user?.id || req?.user?.userId;
     return this.aiService.predictPrice(request, hostId);
@@ -38,6 +51,12 @@ export class AiController {
   @Post('recommendations/feedback')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Submit pricing recommendation feedback',
+    description: 'Records whether a host accepted, modified, or rejected AI price recommendations for reinforcement learning.',
+  })
+  @ApiResponse({ status: 200, description: 'Feedback recorded' })
   async recordFeedback(
     @Body() request: RecordRecommendationFeedbackDto,
     @Req() req?: any,
@@ -52,6 +71,12 @@ export class AiController {
   @Post('generate-listing-content')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Generate listing title and description',
+    description: 'Synthesizes catchy titles, highlight bullets, and localized descriptions in English and Amharic from property attributes.',
+  })
+  @ApiResponse({ status: 200, description: 'Generated multilingual copy' })
   async generateListingContent(@Body() request: GenerateListingContentDto) {
     return this.aiService.generateListingContent(request);
   }
@@ -62,6 +87,12 @@ export class AiController {
   @Post('recommendations')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get AI recommendations',
+    description: 'Returns contextual property suggestions based on guest preferences and booking trends.',
+  })
+  @ApiResponse({ status: 200, description: 'List of recommended properties' })
   async getRecommendations(@Body() request: RecommendationsDto) {
     return this.aiService.getRecommendations(request);
   }
@@ -70,6 +101,11 @@ export class AiController {
    * Public: Check AI service health
    */
   @Get('health')
+  @ApiOperation({
+    summary: 'Check AI service health',
+    description: 'Verifies availability and responsiveness of LLM and embedding providers.',
+  })
+  @ApiResponse({ status: 200, description: 'Health status object' })
   async healthCheck() {
     return this.aiService.healthCheck();
   }

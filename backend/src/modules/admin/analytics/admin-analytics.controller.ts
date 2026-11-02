@@ -5,6 +5,14 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiProduces,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/guards/roles.guard';
@@ -18,6 +26,8 @@ import {
   type AnalyticsPeriod,
 } from './admin-analytics.service';
 
+@ApiTags('Admin - Dashboard & Analytics')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin/analytics')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles(UserRole.ADMIN)
@@ -26,12 +36,25 @@ export class AdminAnalyticsController {
 
   @Get('overview')
   @RequirePermissions(Permission.ANALYTICS_VIEW)
+  @ApiOperation({
+    summary: 'Platform analytics overview',
+    description: 'Returns historical performance curves, booking conversion, GMV trends, and revenue metrics.',
+  })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d', '12m'], description: 'Time window' })
+  @ApiResponse({ status: 200, description: 'Analytics timeseries and KPI aggregations' })
   async getOverview(@Query('period') period?: string) {
     return this.analyticsService.getOverview((period as AnalyticsPeriod) || '30d');
   }
 
   @Get('export')
   @RequirePermissions(Permission.ANALYTICS_VIEW)
+  @ApiOperation({
+    summary: 'Export analytics CSV report',
+    description: 'Streams a generated CSV data export of platform booking and revenue timeseries.',
+  })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d', '12m'] })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file download' })
   async exportCsv(
     @Query('period') period: string = '30d',
     @Res() res: Response,

@@ -9,11 +9,18 @@ import {
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiHeader,
+} from '@nestjs/swagger';
 import { IdentityVerificationService } from './identity-verification.service';
 import { HostService } from './host.service';
-import { VerificationProviderType } from './dto/request-verification.dto';
 import { LookupFaydaDto } from './dto/lookup-fayda.dto';
 
+@ApiTags('Host Management')
 @Controller('host/verification')
 export class IdentityVerificationController {
   constructor(
@@ -26,6 +33,11 @@ export class IdentityVerificationController {
    * Public discovery endpoint for supported identity document types, issuing countries, and providers.
    */
   @Get('config')
+  @ApiOperation({
+    summary: 'Get verification provider config',
+    description: 'Returns supported ID document types, issuing countries, and digital verification options (e.g. Ethiopian Fayda ID, passport).',
+  })
+  @ApiResponse({ status: 200, description: 'Configuration payload returned' })
   getVerificationConfig() {
     return this.identityVerificationService.getVerificationConfig();
   }
@@ -36,6 +48,12 @@ export class IdentityVerificationController {
    */
   @Post('fayda/lookup')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Lookup Ethiopian Fayda National ID',
+    description: 'Validates demographic details against the Ethiopian National ID Program (FIN / FAN) for instant host verification.',
+  })
+  @ApiResponse({ status: 200, description: 'Demographic match result returned' })
+  @ApiResponse({ status: 400, description: 'Invalid Fayda ID or demographic discrepancy' })
   async lookupFayda(@Body() dto: LookupFaydaDto) {
     return this.identityVerificationService.lookupFaydaRecord(dto);
   }
@@ -43,10 +61,18 @@ export class IdentityVerificationController {
   /**
    * POST /host/verification/webhook/:provider
    * Authoritative identity verification provider webhook.
-   * Cryptographically validates HMAC-SHA256 signature and timestamp before treating result as authoritative.
    */
   @Post('webhook/:provider')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Identity verification provider webhook',
+    description: 'Receives signed verification results from third-party identity providers with HMAC-SHA256 signature verification.',
+  })
+  @ApiParam({ name: 'provider', description: 'Provider identifier (e.g. smile_id, onfido, fayda)' })
+  @ApiHeader({ name: 'x-signature', description: 'HMAC signature of payload' })
+  @ApiHeader({ name: 'x-timestamp', description: 'Unix timestamp of webhook request' })
+  @ApiResponse({ status: 200, description: 'Webhook processed successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid signature or missing transactionId' })
   async handleProviderWebhook(
     @Param('provider') providerParam: string,
     @Headers('x-signature') signature: string,

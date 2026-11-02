@@ -17,6 +17,15 @@ import {
   BadRequestException,
   GoneException,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { PropertiesService } from './properties.service';
 import { HostService } from '../host/host.service';
@@ -30,6 +39,7 @@ import { SuperAdminBypassGuard } from '../admin/rbac/super-admin-bypass.guard';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
 
+@ApiTags('Properties')
 @Controller('properties')
 export class PropertiesController {
   constructor(
@@ -41,6 +51,11 @@ export class PropertiesController {
    * Public: Search and filter property listings
    */
   @Get()
+  @ApiOperation({
+    summary: 'Search and filter published properties',
+    description: 'Returns a paginated list of published properties matching location, price, room, and category filters.',
+  })
+  @ApiResponse({ status: 200, description: 'List of matching properties with pagination metadata' })
   async findAll(@Query() query: QueryPropertyDto) {
     try {
       return await this.propertiesService.findAll(query);
@@ -54,6 +69,13 @@ export class PropertiesController {
    * Public: Get a single property with full details
    */
   @Get(':id')
+  @ApiOperation({
+    summary: 'Get public property details',
+    description: 'Fetches comprehensive listing details including images, host summary, rooms, amenities, and review aggregates.',
+  })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Full property details' })
+  @ApiResponse({ status: 404, description: 'Property not found or not published' })
   async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.propertiesService.findPublicOne(id);
   }
@@ -62,6 +84,12 @@ export class PropertiesController {
    * Public: Get related properties for a given property
    */
   @Get(':id/related')
+  @ApiOperation({
+    summary: 'Get related properties',
+    description: 'Returns up to 6 similar listings in the same city, category, or price range.',
+  })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Array of related property summaries' })
   async findRelated(@Param('id', ParseUUIDPipe) id: string) {
     return this.propertiesService.findRelated(id);
   }
@@ -71,6 +99,13 @@ export class PropertiesController {
    */
   @Get('my/listings')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get current user listings',
+    description: 'Retrieves all property listings owned by the authenticated host across all publication statuses.',
+  })
+  @ApiResponse({ status: 200, description: 'List of host properties' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMyListings(@GetUser() user: User) {
     return this.propertiesService.findMyProperties(user.id);
   }
@@ -79,6 +114,9 @@ export class PropertiesController {
   @Post()
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.GONE)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Legacy property creation (retired; use /host/listings)' })
+  @ApiResponse({ status: 410, description: 'Create listings through /host/listings' })
   create() {
     throw new GoneException('Create a host profile, then create listings through /host/listings');
   }
@@ -86,11 +124,17 @@ export class PropertiesController {
   /**
    * Protected: Update a property listing (owner or admin only)
    * Deprecation notice: Prefer PUT /host/listings/:id.
-   * Routes through HostService.updateListing to ensure that important changes
-   * to published listings cannot bypass ListingModerationService.
    */
   @Put(':id')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Update property listing',
+    description: 'Updates listing content. Significant updates to published listings trigger moderation review.',
+  })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Property updated successfully' })
+  @ApiResponse({ status: 403, description: 'Forbidden - not listing owner or admin' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updatePropertyDto: UpdatePropertyDto,
@@ -106,6 +150,9 @@ export class PropertiesController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.GONE)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Delete listing (retired)' })
+  @ApiResponse({ status: 410, description: 'Listings cannot be deleted; archive or hide instead' })
   remove() {
     throw new GoneException(
       'Listings cannot be permanently deleted. Archive the listing or hide it from public view instead.',
@@ -118,6 +165,10 @@ export class PropertiesController {
   @Post(':id/rooms')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Add room to property' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 201, description: 'Room added successfully' })
   async addRoom(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() createRoomDto: CreateRoomDto,
@@ -132,7 +183,20 @@ export class PropertiesController {
   @Post(':id/cover-image')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Upload cover image' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Image file (max 10MB)' },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Cover image uploaded and updated' })
   async uploadCoverImage(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: Express.Multer.File,
@@ -150,7 +214,24 @@ export class PropertiesController {
   @Post(':id/images')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
   @UseInterceptors(FilesInterceptor('files', 10, { limits: { fileSize: 10 * 1024 * 1024 } }))
+  @ApiOperation({ summary: 'Upload gallery images (up to 10)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Image files array (max 10, max 10MB each)',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Gallery images uploaded successfully' })
   async uploadGalleryImages(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFiles() files: Express.Multer.File[],
@@ -168,6 +249,10 @@ export class PropertiesController {
   @Delete(':id/images')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Remove gallery image' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Gallery image removed' })
   async removeGalleryImage(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() deleteImageDto: DeletePropertyImageDto,
@@ -182,6 +267,10 @@ export class PropertiesController {
   @Post(':id/availability-blocks')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Block calendar dates' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 201, description: 'Calendar block created' })
   async addAvailabilityBlock(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: CreateAvailabilityBlockDto,
@@ -201,6 +290,9 @@ export class PropertiesController {
    * Public: Get all availability blocks for a property
    */
   @Get(':id/availability-blocks')
+  @ApiOperation({ summary: 'Get calendar availability blocks' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiResponse({ status: 200, description: 'Array of blocked date ranges' })
   async getAvailabilityBlocks(@Param('id', ParseUUIDPipe) id: string) {
     return this.propertiesService.getAvailabilityBlocks(id);
   }
@@ -211,6 +303,11 @@ export class PropertiesController {
   @Delete(':id/availability-blocks/:blockId')
   @UseGuards(JwtAuthGuard, SuperAdminBypassGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Remove calendar block' })
+  @ApiParam({ name: 'id', description: 'Property UUID' })
+  @ApiParam({ name: 'blockId', description: 'Availability Block UUID' })
+  @ApiResponse({ status: 204, description: 'Availability block removed' })
   async removeAvailabilityBlock(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('blockId', ParseUUIDPipe) blockId: string,
