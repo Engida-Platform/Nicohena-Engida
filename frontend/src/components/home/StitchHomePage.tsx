@@ -1223,38 +1223,40 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                     </div>
 
                     {/* Card Content Details */}
-                    <div className="flex flex-col p-4 flex-1">
-                      <div className="flex items-start justify-between gap-1">
-                        <h3 className="font-headline text-lg font-bold text-[#252923] truncate group-hover:text-[#234B36] transition-colors duration-200">
-                          <Link
-                            href={`/properties/${property.id}`}
-                            className="focus:outline-hidden after:absolute after:inset-0 after:z-0"
+                    <div className="flex flex-col p-4 flex-1 justify-between">
+                      <div>
+                        <div className="flex items-start justify-between gap-1.5">
+                          <h3
+                            title={property.title}
+                            className="font-headline text-base font-bold text-[#252923] line-clamp-1 group-hover:text-[#234B36] transition-colors duration-200 flex-1 min-w-0"
                           >
-                            {property.title}
-                          </Link>
-                        </h3>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <span
-                            className="material-symbols-outlined text-base text-[#234B36]"
-                            style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            star
-                          </span>
-                          <span className="text-xs font-bold text-[#252923]">{property.rating.toFixed(2)}</span>
-                          <span className="text-xs text-[#73776F]">({property.reviewsCount})</span>
+                            <Link
+                              href={`/properties/${property.id}`}
+                              className="focus:outline-hidden after:absolute after:inset-0 after:z-0"
+                            >
+                              {property.title}
+                            </Link>
+                          </h3>
+                          <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                            <span
+                              className="material-symbols-outlined text-sm text-[#234B36]"
+                              style={{ fontVariationSettings: "'FILL' 1" }}
+                            >
+                              star
+                            </span>
+                            <span className="text-xs font-bold text-[#252923]">{property.rating.toFixed(2)}</span>
+                            <span className="text-xs text-[#73776F]">({property.reviewsCount})</span>
+                          </div>
                         </div>
+
+                        <p className="text-xs font-semibold text-[#234B36] mt-1 truncate">{property.location}</p>
+                        <p className="text-xs text-[#73776F] mt-0.5 truncate">{property.details}</p>
                       </div>
 
-                      <p className="text-sm font-medium text-[#234B36] mt-0.5 truncate">{property.location}</p>
-                      <p className="text-xs text-[#73776F] mt-1 truncate">{property.details}</p>
-                      <p className="text-xs text-[#73776F]/80 mt-1">
-                        {property.dates} · {property.subLocation}
-                      </p>
-
-                      <div className="mt-4 pt-2 flex items-baseline justify-between border-t border-[#E5E0D5]/40">
+                      <div className="mt-3 pt-2.5 flex items-baseline justify-between border-t border-[#E5E0D5]/50">
                         {property.badge === 'For Sale' ? (
                           <div>
-                            <span className="text-lg font-bold text-[#234B36] font-headline">
+                            <span className="text-base font-bold text-[#234B36] font-headline">
                               {formatPrice(property.pricePerNight)}
                             </span>
                             <span className="text-xs font-semibold text-[#D87836] ml-1.5">· For Sale</span>
@@ -1264,7 +1266,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                           </div>
                         ) : (
                           <div>
-                            <span className="text-lg font-bold text-[#252923] font-headline">
+                            <span className="text-base font-bold text-[#252923] font-headline">
                               {formatPrice(property.pricePerNight)}
                             </span>
                             <span className="text-xs text-[#73776F]"> / night</span>
