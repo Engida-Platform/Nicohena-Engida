@@ -34,7 +34,7 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
   PENDING: 'bg-amber-50 text-amber-800 border-amber-200',
   CONFIRMED: 'bg-emerald-50 text-emerald-800 border-emerald-200',
   CANCELLED: 'bg-red-50 text-red-800 border-red-200',
-  COMPLETED: 'bg-blue-50 text-blue-800 border-blue-200',
+  COMPLETED: 'bg-[#234B36]/10 text-[#234B36] border-[#234B36]/20',
 };
 
 function formatDate(value: string): string {
@@ -209,24 +209,24 @@ export default function DashboardPage() {
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2.5">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider">
-                <Luggage className="w-3.5 h-3.5 text-slate-600" />
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EEF3EF] border border-[#E5E0D5] text-[#252923] text-xs font-bold uppercase tracking-wider">
+                <Luggage className="w-3.5 h-3.5 text-[#234B36]" />
                 Guest Traveler Account
               </span>
               {user?.hostProfile && (
                 <Link
                   href="/host/dashboard"
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 text-[#1e40af] text-xs font-black uppercase tracking-wider hover:bg-blue-100 transition"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 border border-[#234B36]/20 text-[#234B36] text-xs font-bold uppercase tracking-wider hover:bg-[#234B36]/20 transition"
                 >
                   <Building2 className="w-3.5 h-3.5" />
                   <span>Switch to Host Portal →</span>
                 </Link>
               )}
             </div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900">
+            <h1 className="text-3xl font-black tracking-tight text-[#252923] font-headline">
               My Trips & Stays{user?.name ? ` · ${user.name}` : ''}
             </h1>
-            <p className="mt-1.5 max-w-2xl text-sm text-slate-600">
+            <p className="mt-1.5 max-w-2xl text-sm text-[#73776F]">
               Stays and property reservations you&apos;ve requested as a guest. Track host confirmation status and stay details.
             </p>
           </div>
@@ -234,7 +234,7 @@ export default function DashboardPage() {
             type="button"
             onClick={() => void loadBookings()}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer shadow-xs disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-[#E5E0D5] bg-white px-4 py-2.5 text-sm font-bold text-[#252923] hover:bg-[#FAF8F2] transition cursor-pointer shadow-xs disabled:opacity-50"
           >
             <RotateCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </button>
@@ -255,25 +255,27 @@ export default function DashboardPage() {
 
         {loading && !error && (
           <div role="status" className="space-y-3">
-            <p className="text-sm text-slate-500">Loading your reservations…</p>
-            {[0, 1].map((item) => <div key={item} className="h-36 animate-pulse rounded-2xl bg-slate-100" />)}
+            <p className="text-sm text-[#73776F]">Loading your reservations…</p>
+            {[0, 1].map((item) => (
+              <div key={item} className="h-36 animate-pulse rounded-2xl bg-[#FAF8F2] border border-[#E5E0D5]/50" />
+            ))}
           </div>
         )}
 
         {!loading && !error && bookings.length === 0 && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-xs">
-            <Luggage className="mx-auto h-12 w-12 text-slate-400" />
-            <h2 className="mt-4 text-xl font-bold text-slate-900">No trips booked yet</h2>
-            <p className="mt-2 text-sm text-slate-600 max-w-md mx-auto">
+          <section className="rounded-2xl border border-[#E5E0D5] bg-white p-10 text-center shadow-xs">
+            <Luggage className="mx-auto h-12 w-12 text-[#73776F]/60" />
+            <h2 className="mt-4 text-xl font-bold text-[#252923]">No trips booked yet</h2>
+            <p className="mt-2 text-sm text-[#73776F] max-w-md mx-auto">
               When you browse accommodations across Ethiopia and request a stay, your booking details and host status will appear here.
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/?tab=stays" className="inline-flex items-center gap-2 rounded-xl bg-[#1e40af] hover:bg-[#1e3a8a] px-5 py-2.5 text-sm font-bold text-white transition shadow-xs">
+              <Link href="/?tab=stays" className="inline-flex items-center gap-2 rounded-xl bg-[#234B36] hover:bg-[#1A3828] px-5 py-2.5 text-sm font-bold text-white transition shadow-xs">
                 Browse Stays & Rentals
               </Link>
               {user?.hostProfile && (
-                <Link href="/host/dashboard" className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-5 py-2.5 text-sm font-bold text-slate-700 transition">
-                  <Building2 className="w-4 h-4 text-[#1e40af]" />
+                <Link href="/host/dashboard" className="inline-flex items-center gap-2 rounded-xl border border-[#E5E0D5] bg-white hover:bg-[#FAF8F2] px-5 py-2.5 text-sm font-bold text-[#252923] transition">
+                  <Building2 className="w-4 h-4 text-[#234B36]" />
                   <span>Go to Host Portal</span>
                 </Link>
               )}
@@ -284,28 +286,28 @@ export default function DashboardPage() {
         {!loading && bookings.length > 0 && (
           <ul className="space-y-4">
             {bookings.map((booking) => (
-              <li key={booking.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+              <li key={booking.id} className="rounded-2xl border border-[#E5E0D5] bg-white p-5 shadow-xs sm:p-6">
                 <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-bold text-slate-900">{booking.property?.title || 'Listing unavailable'}</h2>
+                      <h2 className="text-lg font-bold text-[#252923]">{booking.property?.title || 'Listing unavailable'}</h2>
                       <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[booking.status]}`}>
                         {booking.status.charAt(0) + booking.status.slice(1).toLowerCase()}
                       </span>
                     </div>
-                    <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-600">
-                      <MapPin className="h-4 w-4 shrink-0" />{booking.property?.city || 'Location unavailable'}
+                    <p className="mt-2 flex items-center gap-1.5 text-sm text-[#73776F]">
+                      <MapPin className="h-4 w-4 shrink-0 text-[#234B36]" />{booking.property?.city || 'Location unavailable'}
                       {booking.room?.title ? ` · ${booking.room.title}` : ''}
                     </p>
-                    <p className="mt-3 flex items-center gap-1.5 text-sm text-slate-700">
-                      <CalendarDays className="h-4 w-4 shrink-0 text-slate-500" />
+                    <p className="mt-3 flex items-center gap-1.5 text-sm text-[#252923]">
+                      <CalendarDays className="h-4 w-4 shrink-0 text-[#73776F]" />
                       {formatDate(booking.checkInDate)} – {formatDate(booking.checkOutDate)}
-                      <span className="text-slate-500">· {booking.guestCount} {booking.guestCount === 1 ? 'guest' : 'guests'}</span>
+                      <span className="text-[#73776F]">· {booking.guestCount} {booking.guestCount === 1 ? 'guest' : 'guests'}</span>
                     </p>
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-slate-900">{formatAmount(booking.totalPrice)}</span>
+                      <span className="text-sm font-bold text-[#252923]">{formatAmount(booking.totalPrice)}</span>
                       {booking.paymentMethod && (
-                        <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">
+                        <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md bg-[#FAF8F2] text-[#252923] border border-[#E5E0D5]">
                           {booking.paymentMethod.replace(/_/g, ' ')}
                         </span>
                       )}
@@ -317,19 +319,19 @@ export default function DashboardPage() {
                         {booking.paymentStatus || 'PENDING'}
                       </span>
                       {booking.paymentReference && (
-                        <span className="text-[11px] text-slate-400 font-mono">Ref: {booking.paymentReference}</span>
+                        <span className="text-[11px] text-[#73776F] font-mono">Ref: {booking.paymentReference}</span>
                       )}
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-2">
                     {booking.property?.id && (
-                      <Link href={`/properties/${booking.property.id}`} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition">
+                      <Link href={`/properties/${booking.property.id}`} className="rounded-xl border border-[#E5E0D5] px-3 py-2 text-xs font-bold text-[#252923] hover:bg-[#FAF8F2] transition">
                         View listing
                       </Link>
                     )}
                     <Link
                       href={`/messages?bookingId=${booking.id}`}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#234B36]/30 bg-[#234B36]/5 px-3 py-2 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10 transition"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[#234B36]/30 bg-[#234B36]/5 px-3 py-2 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10 transition"
                     >
                       <MessageSquare className="h-3.5 w-3.5" />
                       Message host
@@ -338,16 +340,16 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedReceiptBooking(booking)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#E5E0D5] bg-white px-3 py-2 text-xs font-bold text-[#252923] hover:bg-[#FAF8F2] transition cursor-pointer"
                       >
-                        <Receipt className="h-3.5 w-3.5 text-slate-600" />
+                        <Receipt className="h-3.5 w-3.5 text-[#73776F]" />
                         Receipt
                       </button>
                     )}
                     <button
                       type="button"
                       onClick={() => setActiveAssistantBookingId(booking.id)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#234B36]/30 bg-[#EEF3EF] px-3 py-2 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10 transition cursor-pointer"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-[#234B36]/30 bg-[#EEF3EF] px-3 py-2 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10 transition cursor-pointer"
                     >
                       <Sparkles className="h-3.5 w-3.5 text-[#D87836]" />
                       Ask AI
@@ -356,7 +358,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={() => handleOpenCancel(booking)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 transition"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-50 transition cursor-pointer"
                       >
                         <X className="h-3.5 w-3.5" />
                         Cancel stay
@@ -367,22 +369,22 @@ export default function DashboardPage() {
                     booking.checkOutDate <= today &&
                     reviewOpportunityByProperty.get(booking.propertyId) === booking.id &&
                     reviewStatusByProperty[booking.propertyId] !== undefined && (
-                      <div className="mt-5 w-full basis-full border-t border-slate-100 pt-4">
+                      <div className="mt-5 w-full basis-full border-t border-[#E5E0D5] pt-4">
                         {reviewStatusByProperty[booking.propertyId] === true ? (
                           <p role="status" className="text-sm font-semibold text-emerald-700">You have reviewed this listing.</p>
                         ) : reviewStatusByProperty[booking.propertyId] === null ? (
                           <p role="alert" className="text-sm text-red-700">Review status could not be checked. Refresh your reservations to try again.</p>
                         ) : (
                           <form onSubmit={(event) => { event.preventDefault(); void submitReview(booking.propertyId); }} className="grid gap-3 sm:grid-cols-[150px_1fr_auto] sm:items-end">
-                            <label className="text-xs font-semibold text-slate-600">Your rating
-                              <select value={reviewForms[booking.propertyId]?.rating ?? 5} onChange={(event) => setReviewForms((current) => ({ ...current, [booking.propertyId]: { rating: Number(event.target.value), comment: current[booking.propertyId]?.comment ?? '' } }))} className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                            <label className="text-xs font-semibold text-[#73776F]">Your rating
+                              <select value={reviewForms[booking.propertyId]?.rating ?? 5} onChange={(event) => setReviewForms((current) => ({ ...current, [booking.propertyId]: { rating: Number(event.target.value), comment: current[booking.propertyId]?.comment ?? '' } }))} className="mt-1 block w-full rounded-xl border border-[#E5E0D5] bg-white px-3 py-2 text-sm text-[#252923]">
                                 {[5, 4, 3, 2, 1].map((rating) => <option key={rating} value={rating}>{rating} {rating === 1 ? 'star' : 'stars'}</option>)}
                               </select>
                             </label>
-                            <label className="text-xs font-semibold text-slate-600">Comment (optional)
-                              <textarea maxLength={2000} rows={2} value={reviewForms[booking.propertyId]?.comment ?? ''} onChange={(event) => setReviewForms((current) => ({ ...current, [booking.propertyId]: { rating: current[booking.propertyId]?.rating ?? 5, comment: event.target.value } }))} className="mt-1 block w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                            <label className="text-xs font-semibold text-[#73776F]">Comment (optional)
+                              <textarea maxLength={2000} rows={2} value={reviewForms[booking.propertyId]?.comment ?? ''} onChange={(event) => setReviewForms((current) => ({ ...current, [booking.propertyId]: { rating: current[booking.propertyId]?.rating ?? 5, comment: event.target.value } }))} className="mt-1 block w-full resize-y rounded-xl border border-[#E5E0D5] px-3 py-2 text-sm text-[#252923] focus:border-[#234B36] focus:ring-1 focus:ring-[#234B36]" />
                             </label>
-                            <button type="submit" disabled={reviewSavingPropertyId === booking.propertyId} className="rounded-lg bg-blue-700 px-4 py-2 text-xs font-bold text-white hover:bg-blue-800 disabled:opacity-50">
+                            <button type="submit" disabled={reviewSavingPropertyId === booking.propertyId} className="rounded-xl bg-[#234B36] px-4 py-2 text-xs font-bold text-white hover:bg-[#1A3828] disabled:opacity-50 transition cursor-pointer">
                               {reviewSavingPropertyId === booking.propertyId ? 'Submitting…' : 'Submit review'}
                             </button>
                           </form>
@@ -397,19 +399,19 @@ export default function DashboardPage() {
         )}
         {/* Cancellation Modal */}
         {cancellingBooking && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
-            <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-              <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                <div className="rounded-full bg-red-50 p-2.5 text-red-600">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#252923]/60 p-4 backdrop-blur-xs">
+            <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-[#E5E0D5]">
+              <div className="flex items-center gap-3 border-b border-[#E5E0D5] pb-4">
+                <div className="rounded-full bg-rose-50 p-2.5 text-rose-600">
                   <ShieldAlert className="h-6 w-6" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Cancel Reservation</h3>
-                  <p className="text-xs text-slate-500">{cancellingBooking.property?.title}</p>
+                  <h3 className="text-base font-bold text-[#252923]">Cancel Reservation</h3>
+                  <p className="text-xs text-[#73776F]">{cancellingBooking.property?.title}</p>
                 </div>
               </div>
 
-              <div className="mt-4 space-y-4 text-xs text-slate-600">
+              <div className="mt-4 space-y-4 text-xs text-[#73776F]">
                 <div className="rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-amber-900">
                   <p className="font-bold">Cancellation Policy: {cancellingBooking.cancellationPolicy || 'Standard'}</p>
                   <p className="mt-1">
@@ -420,7 +422,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="cancel-reason" className="block font-semibold text-slate-700 mb-1">
+                  <label htmlFor="cancel-reason" className="block font-semibold text-[#252923] mb-1">
                     Reason for cancellation (optional)
                   </label>
                   <textarea
@@ -429,17 +431,17 @@ export default function DashboardPage() {
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
                     placeholder="E.g., Travel plans changed, personal emergency, booked alternative dates..."
-                    className="w-full rounded-xl border border-slate-300 p-3 text-xs text-slate-900 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                    className="w-full rounded-xl border border-[#E5E0D5] p-3 text-xs text-[#252923] focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                   />
                 </div>
               </div>
 
-              <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-[#E5E0D5] pt-4">
                 <button
                   type="button"
                   disabled={cancelSubmitting}
                   onClick={() => setCancellingBooking(null)}
-                  className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
+                  className="rounded-xl border border-[#E5E0D5] bg-white px-4 py-2 text-xs font-bold text-[#252923] hover:bg-[#FAF8F2] transition disabled:opacity-50 cursor-pointer"
                 >
                   Keep Reservation
                 </button>
@@ -447,7 +449,7 @@ export default function DashboardPage() {
                   type="button"
                   disabled={cancelSubmitting}
                   onClick={() => void handleConfirmCancel()}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700 transition disabled:opacity-50 cursor-pointer"
                 >
                   {cancelSubmitting ? <RotateCcw className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
                   {cancelSubmitting ? 'Cancelling...' : 'Confirm Cancellation'}
@@ -459,18 +461,18 @@ export default function DashboardPage() {
 
         {/* Printable Receipt Modal */}
         {selectedReceiptBooking && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs overflow-y-auto">
-            <div className="print-receipt-modal relative w-full max-w-2xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-200 my-8">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#252923]/60 p-4 backdrop-blur-xs overflow-y-auto">
+            <div className="print-receipt-modal relative w-full max-w-2xl rounded-2xl bg-white p-6 sm:p-8 shadow-2xl border border-[#E5E0D5] my-8">
               {/* Receipt Header */}
-              <div className="flex items-start justify-between border-b border-slate-100 pb-5">
+              <div className="flex items-start justify-between border-b border-[#E5E0D5] pb-5">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl font-black tracking-tight text-[#1e40af]">ENGIDA</span>
-                    <span className="rounded bg-blue-50 px-2 py-0.5 text-[10px] font-black uppercase text-blue-700 border border-blue-200">
+                    <span className="text-xl font-bold tracking-tight text-[#234B36] font-headline">ENGIDA</span>
+                    <span className="rounded-full bg-[#234B36]/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#234B36] border border-[#234B36]/20">
                       Official Receipt
                     </span>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[#73776F]">
                     Booking Reference #{selectedReceiptBooking.id.slice(0, 8).toUpperCase()}
                   </p>
                 </div>
@@ -478,14 +480,14 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-[#E5E0D5] bg-[#FAF8F2] px-3.5 py-2 text-xs font-bold text-[#252923] hover:bg-[#EEF3EF] transition cursor-pointer"
                   >
                     <Printer className="h-3.5 w-3.5" /> Print
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedReceiptBooking(null)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition cursor-pointer"
+                    className="rounded-xl p-1.5 text-[#73776F] hover:bg-[#FAF8F2] hover:text-[#252923] transition cursor-pointer"
                   >
                     <X className="h-5 w-5" />
                   </button>
@@ -494,20 +496,20 @@ export default function DashboardPage() {
 
               {/* Receipt Body */}
               <div className="mt-6 space-y-6 text-sm">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4 border border-slate-100">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-xl bg-[#FAF8F2] p-4 border border-[#E5E0D5]">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Guest Information</p>
-                    <p className="mt-1 font-bold text-slate-900">{user?.name || 'Guest Traveler'}</p>
-                    <p className="text-xs text-slate-600">{user?.email || 'N/A'}</p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#73776F]">Guest Information</p>
+                    <p className="mt-1 font-bold text-[#252923]">{user?.name || 'Guest Traveler'}</p>
+                    <p className="text-xs text-[#73776F]">{user?.email || 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Property & Host</p>
-                    <p className="mt-1 font-bold text-slate-900">{selectedReceiptBooking.property?.title}</p>
-                    <p className="text-xs text-slate-600">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#73776F]">Property & Host</p>
+                    <p className="mt-1 font-bold text-[#252923]">{selectedReceiptBooking.property?.title}</p>
+                    <p className="text-xs text-[#73776F]">
                       {selectedReceiptBooking.property?.city}
                       {selectedReceiptBooking.property?.address ? `, ${selectedReceiptBooking.property.address}` : ''}
                     </p>
-                    <p className="text-xs text-slate-600">
+                    <p className="text-xs text-[#73776F]">
                       Host: {selectedReceiptBooking.property?.host?.name || 'Verified Engida Host'}
                     </p>
                   </div>
@@ -515,25 +517,25 @@ export default function DashboardPage() {
 
                 {/* Stay Breakdown */}
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Reservation Details</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#73776F] mb-2">Reservation Details</h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="rounded-lg border border-slate-200 p-2.5">
-                      <span className="text-slate-500 block">Check-in</span>
-                      <span className="font-bold text-slate-900">{formatDate(selectedReceiptBooking.checkInDate)}</span>
+                    <div className="rounded-xl border border-[#E5E0D5] p-2.5 bg-white">
+                      <span className="text-[#73776F] block">Check-in</span>
+                      <span className="font-bold text-[#252923]">{formatDate(selectedReceiptBooking.checkInDate)}</span>
                     </div>
-                    <div className="rounded-lg border border-slate-200 p-2.5">
-                      <span className="text-slate-500 block">Check-out</span>
-                      <span className="font-bold text-slate-900">{formatDate(selectedReceiptBooking.checkOutDate)}</span>
+                    <div className="rounded-xl border border-[#E5E0D5] p-2.5 bg-white">
+                      <span className="text-[#73776F] block">Check-out</span>
+                      <span className="font-bold text-[#252923]">{formatDate(selectedReceiptBooking.checkOutDate)}</span>
                     </div>
-                    <div className="rounded-lg border border-slate-200 p-2.5">
-                      <span className="text-slate-500 block">Duration</span>
-                      <span className="font-bold text-slate-900">
+                    <div className="rounded-xl border border-[#E5E0D5] p-2.5 bg-white">
+                      <span className="text-[#73776F] block">Duration</span>
+                      <span className="font-bold text-[#252923]">
                         {calculateNights(selectedReceiptBooking.checkInDate, selectedReceiptBooking.checkOutDate)} nights
                       </span>
                     </div>
-                    <div className="rounded-lg border border-slate-200 p-2.5">
-                      <span className="text-slate-500 block">Guests</span>
-                      <span className="font-bold text-slate-900">
+                    <div className="rounded-xl border border-[#E5E0D5] p-2.5 bg-white">
+                      <span className="text-[#73776F] block">Guests</span>
+                      <span className="font-bold text-[#252923]">
                         {selectedReceiptBooking.guestCount} {selectedReceiptBooking.guestCount === 1 ? 'guest' : 'guests'}
                       </span>
                     </div>
@@ -542,15 +544,15 @@ export default function DashboardPage() {
 
                 {/* Charges */}
                 <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Payment Summary</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#73776F] mb-2">Payment Summary</h4>
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-500">
+                      <tr className="border-b border-[#E5E0D5] text-[#73776F]">
                         <th className="py-2 font-bold">Description</th>
                         <th className="py-2 text-right font-bold">Amount</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                    <tbody className="divide-y divide-[#E5E0D5]/50 text-[#252923]">
                       <tr>
                         <td className="py-2.5">
                           Accommodation ({calculateNights(selectedReceiptBooking.checkInDate, selectedReceiptBooking.checkOutDate)} nights)
@@ -561,10 +563,10 @@ export default function DashboardPage() {
                         </td>
                       </tr>
                       <tr>
-                        <td className="py-2.5 text-slate-500">Platform Service & Escrow Protection Fee</td>
-                        <td className="py-2.5 text-right text-slate-500">Included</td>
+                        <td className="py-2.5 text-[#73776F]">Platform Service & Escrow Protection Fee</td>
+                        <td className="py-2.5 text-right text-[#73776F]">Included</td>
                       </tr>
-                      <tr className="border-t-2 border-slate-900 text-slate-900 font-bold text-sm">
+                      <tr className="border-t-2 border-[#252923] text-[#252923] font-bold text-sm">
                         <td className="py-3">Total Amount Paid</td>
                         <td className="py-3 text-right text-emerald-700">
                           {formatAmount(selectedReceiptBooking.totalPrice)}
@@ -575,15 +577,15 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Escrow & Payment Guarantee */}
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 flex items-start gap-3">
-                  <FileText className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div className="text-xs text-emerald-900">
-                    <p className="font-bold">Engida Escrow Guarantee</p>
-                    <p className="mt-0.5 text-emerald-800">
+                <div className="rounded-xl border border-[#234B36]/30 bg-[#EEF3EF] p-3.5 flex items-start gap-3">
+                  <FileText className="h-5 w-5 text-[#234B36] shrink-0 mt-0.5" />
+                  <div className="text-xs text-[#252923]">
+                    <p className="font-bold text-[#234B36]">Engida Escrow Guarantee</p>
+                    <p className="mt-0.5 text-[#73776F]">
                       Payment Method: {selectedReceiptBooking.paymentMethod?.replace(/_/g, ' ') || 'Digital Payment'}
                       {selectedReceiptBooking.paymentReference ? ` · Ref: ${selectedReceiptBooking.paymentReference}` : ''}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-emerald-700">
+                    <p className="mt-0.5 text-[11px] text-[#234B36]">
                       Payment is held securely in escrow and released to the property host 24 hours after check-in verification.
                     </p>
                   </div>
@@ -591,11 +593,11 @@ export default function DashboardPage() {
               </div>
 
               {/* Close Button */}
-              <div className="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-4 no-print">
+              <div className="mt-6 flex justify-end gap-3 border-t border-[#E5E0D5] pt-4 no-print">
                 <button
                   type="button"
                   onClick={() => setSelectedReceiptBooking(null)}
-                  className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  className="rounded-xl border border-[#E5E0D5] bg-white px-5 py-2 text-xs font-bold text-[#252923] hover:bg-[#FAF8F2] transition cursor-pointer"
                 >
                   Close
                 </button>

@@ -190,7 +190,7 @@ export default function SupportCenterPage() {
       case 'OPEN':
         return { label: 'Queued', bg: 'bg-amber-50 text-amber-800 border-amber-200' };
       case 'IN_PROGRESS':
-        return { label: 'Under Review', bg: 'bg-blue-50 text-blue-800 border-blue-200' };
+        return { label: 'Under Review', bg: 'bg-[#234B36]/10 text-[#234B36] border-[#234B36]/20' };
       case 'WAITING_ON_REQUESTER':
         return { label: 'Action Required', bg: 'bg-purple-50 text-purple-800 border-purple-200 animate-pulse' };
       case 'WAITING_ON_INTERNAL':

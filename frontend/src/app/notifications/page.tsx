@@ -85,8 +85,9 @@ export default function NotificationsPage() {
       case 'PAYOUT_FAILED':
         return { icon: 'payments', color: 'text-amber-700 bg-amber-100' };
       case 'IDENTITY_VERIFIED':
+        return { icon: 'badge', color: 'text-emerald-700 bg-emerald-100' };
       case 'IDENTITY_REJECTED':
-        return { icon: 'badge', color: 'text-blue-700 bg-blue-100' };
+        return { icon: 'badge', color: 'text-rose-700 bg-rose-100' };
       case 'REVIEW_RECEIVED':
       case 'REVIEW_MODERATED':
         return { icon: 'star', color: 'text-amber-600 bg-amber-50' };
