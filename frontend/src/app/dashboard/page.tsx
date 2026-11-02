@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, MapPin, RotateCcw, X, Luggage, Building2, MessageSquare, Receipt, Printer, FileText, ShieldAlert } from 'lucide-react';
+import { CalendarDays, MapPin, RotateCcw, X, Luggage, Building2, MessageSquare, Receipt, Printer, FileText, ShieldAlert, Sparkles } from 'lucide-react';
+import PersonalizedAiRecommendationsSection from '@/components/home/PersonalizedAiRecommendationsSection';
+import AiBookingAssistantWidget from '@/components/assistant/AiBookingAssistantWidget';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAuth } from '../../context/AuthContext';
 import { apiFetch } from '../../lib/api';
@@ -75,6 +77,8 @@ export default function DashboardPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [selectedReceiptBooking, setSelectedReceiptBooking] = useState<GuestBooking | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [activeAssistantBookingId, setActiveAssistantBookingId] = useState<string | undefined>(undefined);
   const [reviewStatusByProperty, setReviewStatusByProperty] = useState<Record<string, boolean | null>>({});
   const [reviewForms, setReviewForms] = useState<Record<string, { rating: number; comment: string }>>({});
   const [reviewFeedback, setReviewFeedback] = useState<Record<string, { type: 'success' | 'error'; message: string }>>({});
@@ -326,6 +330,14 @@ export default function DashboardPage() {
                         Receipt
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setActiveAssistantBookingId(booking.id)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#234B36]/30 bg-[#EEF3EF] px-3 py-2 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10 transition cursor-pointer"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-[#D87836]" />
+                      Ask AI
+                    </button>
                     {(booking.status === 'PENDING' || booking.status === 'CONFIRMED') && (
                       <button
                         type="button"
@@ -369,7 +381,6 @@ export default function DashboardPage() {
             ))}
           </ul>
         )}
-
         {/* Cancellation Modal */}
         {cancellingBooking && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs">
@@ -578,6 +589,17 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+              {/* Personalized recommendations for guest */}
+        <div className="mt-14">
+          <PersonalizedAiRecommendationsSection />
+        </div>
+
+        {/* AI Booking Assistant Floating Widget */}
+        <AiBookingAssistantWidget
+          key={activeAssistantBookingId || 'dashboard'}
+          bookingId={activeAssistantBookingId}
+        />
       </main>
     </ProtectedRoute>
   );

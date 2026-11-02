@@ -6,6 +6,11 @@ import { PriceRecommendationLog } from './entities/price-recommendation-log.enti
 import { SeasonalPricingService } from './seasonal/seasonal-pricing.service';
 import { AiService } from './ai.service';
 import { AiController } from './ai.controller';
+import { Review } from '../reviews/entities/review.entity';
+import { Amenity } from '../amenities/entities/amenity.entity';
+import { User } from '../../users/entities/user.entity';
+import { GuestAiService } from './guest-ai.service';
+import { GuestAiController } from './guest-ai.controller';
 
 /**
  * AI Module - Application gateway for AI service & Market Comparables
@@ -21,10 +26,10 @@ import { AiController } from './ai.controller';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Property, Booking, PriceRecommendationLog]),
+    TypeOrmModule.forFeature([Property, Booking, PriceRecommendationLog, Review, Amenity, User]),
   ],
-  controllers: [AiController],
-  providers: [AiService, SeasonalPricingService],
-  exports: [AiService, SeasonalPricingService],
+  controllers: [AiController, GuestAiController],
+  providers: [AiService, SeasonalPricingService, GuestAiService],
+  exports: [AiService, SeasonalPricingService, GuestAiService],
 })
 export class AiModule {}

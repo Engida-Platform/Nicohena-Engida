@@ -136,16 +136,18 @@ function MessagesContent() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      router.push('/login?redirect=/messages');
+      router.push('/login?next=/messages');
       return;
     }
+
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
     const init = async () => {
       const convs = await loadConversations();
 
-      if (conversationIdParam) {
+      if (conversationIdParam && UUID_REGEX.test(conversationIdParam)) {
         await loadThread(conversationIdParam);
-      } else if (bookingIdParam) {
+      } else if (bookingIdParam && UUID_REGEX.test(bookingIdParam)) {
         setLoadingThread(true);
         try {
           const data = await apiFetch<ConversationThread>(`/messages/booking/${bookingIdParam}`);
@@ -158,7 +160,7 @@ function MessagesContent() {
         } finally {
           setLoadingThread(false);
         }
-      } else if (propertyIdParam) {
+      } else if (propertyIdParam && UUID_REGEX.test(propertyIdParam)) {
         setLoadingThread(true);
         try {
           const data = await apiFetch<ConversationThread>(`/messages/property/${propertyIdParam}`);
