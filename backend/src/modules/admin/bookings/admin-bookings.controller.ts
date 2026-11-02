@@ -28,6 +28,7 @@ import { GetUser } from '../../../auth/decorators/get-user.decorator';
 import { User, UserRole } from '../../../users/entities/user.entity';
 import { PermissionsGuard } from '../rbac/permissions.guard';
 import { RequirePermissions } from '../rbac/permissions.decorator';
+import { RequireAnyPermissions } from '../rbac/permissions.decorator';
 import { Permission } from '../rbac/permissions';
 import { AdminBookingsService } from './admin-bookings.service';
 import {
@@ -88,7 +89,7 @@ export class AdminBookingsController {
   }
 
   @Delete('availability-blocks/:blockId')
-  @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @RequireAnyPermissions(Permission.BOOKINGS_MANAGE, Permission.BOOKINGS_BLOCK_CALENDAR)
   @ApiOperation({ summary: 'Remove administrative calendar block' })
   @ApiParam({ name: 'blockId', description: 'Block UUID' })
   @ApiResponse({ status: 200, description: 'Block removed' })
@@ -126,7 +127,7 @@ export class AdminBookingsController {
   }
 
   @Post(':id/status')
-  @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @RequireAnyPermissions(Permission.BOOKINGS_MANAGE, Permission.BOOKINGS_OVERRIDE_STATUS)
   @ApiOperation({ summary: 'Update booking status' })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiResponse({ status: 200, description: 'Booking status updated' })
@@ -144,7 +145,7 @@ export class AdminBookingsController {
   }
 
   @Post(':id/cancellation-requests')
-  @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @RequireAnyPermissions(Permission.BOOKINGS_MANAGE, Permission.BOOKINGS_CANCEL)
   @ApiOperation({ summary: 'Record administrative cancellation request' })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiResponse({ status: 200, description: 'Cancellation request recorded' })
@@ -162,7 +163,7 @@ export class AdminBookingsController {
   }
 
   @Post(':id/cancellation-requests/:requestId/approve')
-  @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @RequireAnyPermissions(Permission.BOOKINGS_MANAGE, Permission.BOOKINGS_CANCEL)
   @ApiOperation({ summary: 'Approve cancellation request' })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiParam({ name: 'requestId', description: 'Cancellation Request UUID' })
@@ -186,7 +187,7 @@ export class AdminBookingsController {
   }
 
   @Post(':id/cancellation-requests/:requestId/reject')
-  @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @RequireAnyPermissions(Permission.BOOKINGS_MANAGE, Permission.BOOKINGS_CANCEL)
   @ApiOperation({ summary: 'Reject cancellation request' })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiParam({ name: 'requestId', description: 'Cancellation Request UUID' })
@@ -210,7 +211,7 @@ export class AdminBookingsController {
   }
 
   @Post(':id/availability-blocks')
-  @RequirePermissions(Permission.BOOKINGS_MANAGE)
+  @RequireAnyPermissions(Permission.BOOKINGS_MANAGE, Permission.BOOKINGS_BLOCK_CALENDAR)
   @ApiOperation({ summary: 'Create administrative availability block' })
   @ApiParam({ name: 'id', description: 'Property UUID' })
   @ApiResponse({ status: 201, description: 'Availability block created' })

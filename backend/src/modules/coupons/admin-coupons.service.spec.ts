@@ -2,8 +2,19 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { AdminCouponsService } from './admin-coupons.service';
-import { Coupon, CouponDiscountType } from './entities/coupon.entity';
+import { Coupon, CouponApprovalStatus, CouponDiscountType } from './entities/coupon.entity';
 import { CouponRedemption } from './entities/coupon-redemption.entity';
+import { FinanceSettingsService } from '../finance/services/finance-settings.service';
+import { AuditService } from '../audit/audit.service';
+import { User } from '../../users/entities/user.entity';
+
+const mockUser = { id: 'usr-admin-1' } as User;
+
+const mockFinanceSettings = {
+  couponMaxPercentageDiscount: 50,
+  couponMaxFixedDiscountMinor: '10000',
+  couponMaxRedemptionsLimit: 100,
+};
 
 describe('AdminCouponsService', () => {
   let service: AdminCouponsService;
@@ -37,6 +48,18 @@ describe('AdminCouponsService', () => {
           provide: getRepositoryToken(CouponRedemption),
           useValue: redemptionRepo,
         },
+        {
+          provide: FinanceSettingsService,
+          useValue: {
+            getAllSettings: jest.fn().mockResolvedValue(mockFinanceSettings),
+          },
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            record: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -44,35 +67,61 @@ describe('AdminCouponsService', () => {
   });
 
   describe('createCoupon', () => {
-    it('creates a percentage coupon with uppercase code', async () => {
+    it('creates a percentage coupon with uppercase code and auto-approves if within limits', async () => {
       couponRepo.findOne.mockResolvedValue(null);
 
-      const result = await service.createCoupon({
-        code: 'welcome10',
-        description: '10% welcome discount',
-        discountType: CouponDiscountType.PERCENTAGE,
-        discountValue: 10,
-      });
+      const result = await service.createCoupon(
+        {
+          code: 'welcome10',
+          description: '10% welcome discount',
+          discountType: CouponDiscountType.PERCENTAGE,
+          discountValue: 10,
+        },
+        mockUser,
+      );
 
       expect(couponRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           code: 'WELCOME10',
           discountType: CouponDiscountType.PERCENTAGE,
           discountValue: 10,
+          approvalStatus: CouponApprovalStatus.APPROVED,
         }),
       );
       expect(result.code).toBe('WELCOME10');
+    });
+
+    it('sets coupon to PENDING_APPROVAL when percentage exceeds limit', async () => {
+      couponRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.createCoupon(
+        {
+          code: 'BIG75',
+          discountType: CouponDiscountType.PERCENTAGE,
+          discountValue: 75, // exceeds 50% limit
+        },
+        mockUser,
+      );
+
+      expect(couponRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          approvalStatus: CouponApprovalStatus.PENDING_APPROVAL,
+        }),
+      );
     });
 
     it('rejects duplicate coupon code with ConflictException', async () => {
       couponRepo.findOne.mockResolvedValue({ id: 'existing', code: 'PROMO10' });
 
       await expect(
-        service.createCoupon({
-          code: 'promo10',
-          discountType: CouponDiscountType.PERCENTAGE,
-          discountValue: 10,
-        }),
+        service.createCoupon(
+          {
+            code: 'promo10',
+            discountType: CouponDiscountType.PERCENTAGE,
+            discountValue: 10,
+          },
+          mockUser,
+        ),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -80,11 +129,14 @@ describe('AdminCouponsService', () => {
       couponRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.createCoupon({
-          code: 'OVER100',
-          discountType: CouponDiscountType.PERCENTAGE,
-          discountValue: 120,
-        }),
+        service.createCoupon(
+          {
+            code: 'OVER100',
+            discountType: CouponDiscountType.PERCENTAGE,
+            discountValue: 120,
+          },
+          mockUser,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -95,11 +147,12 @@ describe('AdminCouponsService', () => {
         id: 'cpn-pct',
         code: 'SAVE20',
         isActive: true,
+        approvalStatus: CouponApprovalStatus.APPROVED,
         discountType: CouponDiscountType.PERCENTAGE,
         discountValue: 20,
         currency: 'ETB',
-        minBookingAmountMinor: 100000, // 1,000 ETB
-        maxDiscountAmountMinor: 30000, // Max 300 ETB
+        minBookingAmountMinor: 100000,
+        maxDiscountAmountMinor: 30000,
         maxRedemptions: 100,
         redemptionsCount: 5,
         perUserLimit: 1,
@@ -109,7 +162,7 @@ describe('AdminCouponsService', () => {
       couponRepo.findOne.mockResolvedValue(mockCoupon);
       redemptionRepo.count.mockResolvedValue(0);
 
-      // 20% of 200,000 minor is 40,000 minor, but capped at 30,000 minor
+      // 20% of 200,000 minor = 40,000 minor, capped at 30,000
       const result = await service.validateCoupon(
         { code: 'save20', bookingAmountMinor: 200000 },
         'usr-1',
@@ -124,21 +177,45 @@ describe('AdminCouponsService', () => {
         id: 'cpn-min',
         code: 'MINREQ',
         isActive: true,
+        approvalStatus: CouponApprovalStatus.APPROVED,
         discountType: CouponDiscountType.FIXED_AMOUNT,
         discountValue: 50000,
         currency: 'ETB',
-        minBookingAmountMinor: 500000, // 5,000 ETB min
+        minBookingAmountMinor: 500000,
         startsAt: new Date(Date.now() - 86400000),
       };
       couponRepo.findOne.mockResolvedValue(mockCoupon);
 
       const result = await service.validateCoupon({
         code: 'MINREQ',
-        bookingAmountMinor: 200000, // Only 2,000 ETB
+        bookingAmountMinor: 200000,
       });
 
       expect(result.valid).toBe(false);
       expect(result.reason).toContain('minimum requirement');
+    });
+
+    it('rejects coupon when pending approval', async () => {
+      const mockCoupon = {
+        id: 'cpn-pend',
+        code: 'PENDING',
+        isActive: true,
+        approvalStatus: CouponApprovalStatus.PENDING_APPROVAL,
+        discountType: CouponDiscountType.PERCENTAGE,
+        discountValue: 75,
+        currency: 'ETB',
+        minBookingAmountMinor: 0,
+        startsAt: new Date(Date.now() - 86400000),
+      };
+      couponRepo.findOne.mockResolvedValue(mockCoupon);
+
+      const result = await service.validateCoupon({
+        code: 'PENDING',
+        bookingAmountMinor: 200000,
+      });
+
+      expect(result.valid).toBe(false);
+      expect(result.reason).toContain('pending approval');
     });
 
     it('rejects coupon when expired', async () => {
@@ -146,12 +223,13 @@ describe('AdminCouponsService', () => {
         id: 'cpn-exp',
         code: 'OLDCODE',
         isActive: true,
+        approvalStatus: CouponApprovalStatus.APPROVED,
         discountType: CouponDiscountType.PERCENTAGE,
         discountValue: 10,
         currency: 'ETB',
         minBookingAmountMinor: 0,
         startsAt: new Date(Date.now() - 172800000),
-        expiresAt: new Date(Date.now() - 86400000), // expired yesterday
+        expiresAt: new Date(Date.now() - 86400000),
       };
       couponRepo.findOne.mockResolvedValue(mockCoupon);
 
@@ -169,6 +247,7 @@ describe('AdminCouponsService', () => {
         id: 'cpn-limit',
         code: 'ONCEONLY',
         isActive: true,
+        approvalStatus: CouponApprovalStatus.APPROVED,
         discountType: CouponDiscountType.FIXED_AMOUNT,
         discountValue: 10000,
         currency: 'ETB',
@@ -176,7 +255,7 @@ describe('AdminCouponsService', () => {
         perUserLimit: 1,
       };
       couponRepo.findOne.mockResolvedValue(mockCoupon);
-      redemptionRepo.count.mockResolvedValue(1); // Already used once
+      redemptionRepo.count.mockResolvedValue(1);
 
       const result = await service.validateCoupon(
         { code: 'ONCEONLY', bookingAmountMinor: 200000 },

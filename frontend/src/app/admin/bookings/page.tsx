@@ -122,6 +122,9 @@ export default function AdminBookingsPage() {
   const { user } = useAuth();
   const canView = can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_VIEW);
   const canManage = can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_MANAGE);
+  const canCancel = canManage || can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_CANCEL);
+  const canOverrideStatus = canManage || can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_OVERRIDE_STATUS);
+  const canBlockCalendar = canManage || can(user?.permissions, ADMIN_PERMISSIONS.BOOKINGS_BLOCK_CALENDAR);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -448,6 +451,9 @@ export default function AdminBookingsPage() {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       canManage={canManage}
+      canCancel={canCancel}
+      canOverrideStatus={canOverrideStatus}
+      canBlockCalendar={canBlockCalendar}
       canViewCases={can(user?.permissions, ADMIN_PERMISSIONS.CASES_VIEW)}
       pendingCancellation={pendingCancellation}
       onStatusAction={setStatusAction}
@@ -1047,6 +1053,9 @@ interface BookingDetailProps {
   preview: CancellationPreview | null;
   activeTab: DetailTab;
   canManage: boolean;
+  canCancel: boolean;
+  canOverrideStatus: boolean;
+  canBlockCalendar: boolean;
   canViewCases?: boolean;
   pendingCancellation?: CancellationRequest;
   onTabChange: (tab: DetailTab) => void;
@@ -1062,6 +1071,9 @@ function BookingDetail({
   preview,
   activeTab,
   canManage,
+  canCancel,
+  canOverrideStatus,
+  canBlockCalendar,
   canViewCases = true,
   pendingCancellation,
   onTabChange,
@@ -1090,7 +1102,7 @@ function BookingDetail({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {canManage ? (
+          {canOverrideStatus ? (
             detail.allowedTransitions.map((next) => {
               const action = STATUS_ACTIONS[next];
               if (!action) return null;
@@ -1295,7 +1307,7 @@ function BookingDetail({
                 <p className="mt-1 text-[10px] text-[#78706a]">
                   Recorded by {pendingCancellation.requestedBy?.name || 'admin'} · {shortDateTime(pendingCancellation.createdAt)}
                 </p>
-                {canManage && (
+                {canCancel && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     <button type="button" className="admin-btn admin-btn-primary h-8 min-h-8 px-2.5 text-[11px]" onClick={() => onDecision(pendingCancellation, 'approve')}>
                       Approve
@@ -1306,7 +1318,7 @@ function BookingDetail({
                   </div>
                 )}
               </section>
-            ) : canManage && detail.status !== 'CANCELLED' && detail.status !== 'COMPLETED' ? (
+            ) : canCancel && detail.status !== 'CANCELLED' && detail.status !== 'COMPLETED' ? (
               <button type="button" className="admin-btn admin-btn-secondary w-full" onClick={onRecordCancellation}>
                 <Plus className="h-3.5 w-3.5" /> Record cancellation request
               </button>
@@ -1359,7 +1371,7 @@ function BookingDetail({
             <section className="border-t border-[#d8d0c8] pt-4">
               <div className="flex items-center justify-between gap-2">
                 <p className="admin-meta-label">Calendar blocks</p>
-                {canManage ? (
+                {canBlockCalendar ? (
                   <button type="button" className="text-[10px] font-extrabold uppercase tracking-[0.08em] text-[#b3541e]" onClick={onAddBlock}>
                     Add block
                   </button>
@@ -1373,7 +1385,7 @@ function BookingDetail({
                         <p className="text-xs font-bold text-[#3a302a]">{formatStayDate(block.startDate)} – {formatStayDate(block.endDate)}</p>
                         <p className="mt-0.5 text-[10px] text-[#78706a]">{block.reason || 'No reason'} · {block.source.toLowerCase()}</p>
                       </div>
-                      {block.source === 'ADMIN' && canManage ? (
+                      {block.source === 'ADMIN' && canBlockCalendar ? (
                         <button type="button" className="text-[#9a3f33]" onClick={() => onRemoveBlock(block)} aria-label="Remove admin block">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

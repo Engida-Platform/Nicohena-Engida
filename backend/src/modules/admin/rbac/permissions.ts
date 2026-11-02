@@ -19,7 +19,11 @@ export enum Permission {
   REPORTS_VIEW = 'reports.view',
   REPORTS_RESOLVE = 'reports.resolve',
   BOOKINGS_VIEW = 'bookings.view',
-  BOOKINGS_MANAGE = 'bookings.manage',
+  BOOKINGS_MANAGE = 'bookings.manage',            // legacy: implies all sub-permissions below
+  BOOKINGS_MODIFY_DATES = 'bookings.modify_dates', // adjust check-in / check-out dates
+  BOOKINGS_CANCEL = 'bookings.cancel',             // cancel bookings or decide cancellation requests
+  BOOKINGS_OVERRIDE_STATUS = 'bookings.override_status', // force-set booking status (admin override)
+  BOOKINGS_BLOCK_CALENDAR = 'bookings.block_calendar',   // create / remove availability blocks
   CASES_VIEW = 'cases.view',
   CASES_MANAGE = 'cases.manage',
   CASES_COMPENSATE = 'cases.compensate',
@@ -90,6 +94,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.USERS_MANAGE,
     Permission.HOSTS_VIEW,
     Permission.BOOKINGS_VIEW,
+    Permission.BOOKINGS_CANCEL,      // can approve/reject guest cancellation requests only
     Permission.REVIEWS_VIEW,
     Permission.REPORTS_VIEW,
     Permission.REPORTS_RESOLVE,
@@ -108,6 +113,10 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.DASHBOARD_VIEW,
     Permission.BOOKINGS_VIEW,
     Permission.BOOKINGS_MANAGE,
+    Permission.BOOKINGS_MODIFY_DATES,
+    Permission.BOOKINGS_CANCEL,
+    Permission.BOOKINGS_OVERRIDE_STATUS,
+    Permission.BOOKINGS_BLOCK_CALENDAR,
     Permission.CASES_VIEW,
     Permission.CASES_MANAGE,
     Permission.CASES_COMPENSATE,
@@ -176,4 +185,23 @@ export function hasAnyPermission(
   if (permissions.length === 0) return true;
   const granted = new Set(getAdminPermissions(user));
   return permissions.some((permission) => granted.has(permission));
+}
+
+/**
+ * Booking sub-permission check: BOOKINGS_MANAGE implies all sub-permissions
+ * for backward compatibility with roles granted the legacy coarse permission.
+ */
+export const BOOKINGS_MANAGE_IMPLIES: Permission[] = [
+  Permission.BOOKINGS_MODIFY_DATES,
+  Permission.BOOKINGS_CANCEL,
+  Permission.BOOKINGS_OVERRIDE_STATUS,
+  Permission.BOOKINGS_BLOCK_CALENDAR,
+];
+
+export function hasBookingPermission(
+  user: AdminIdentity | null | undefined,
+  specific: Permission,
+): boolean {
+  const granted = new Set(getAdminPermissions(user));
+  return granted.has(specific) || granted.has(Permission.BOOKINGS_MANAGE);
 }
