@@ -193,6 +193,71 @@ export default function PropertyDetailsPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
   const [sentConversationId, setSentConversationId] = useState<string | null>(null);
+  // Dedicated In-Person Viewing Request state (For Sale properties)
+  const [viewingModalOpen, setViewingModalOpen] = useState(false);
+  const [viewingDate, setViewingDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0];
+  });
+  const [viewingTimeSlot, setViewingTimeSlot] = useState<'morning' | 'afternoon' | 'weekend'>('morning');
+  const [viewingPhone, setViewingPhone] = useState('');
+  const [viewingNotes, setViewingNotes] = useState('');
+  const [submittingViewing, setSubmittingViewing] = useState(false);
+  const [viewingSuccess, setViewingSuccess] = useState(false);
+  const [viewingError, setViewingError] = useState<string | null>(null);
+
+  const handleScheduleViewing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!property || submittingViewing) return;
+
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(`/properties/${property.id}`)}`);
+      return;
+    }
+
+    setSubmittingViewing(true);
+    setViewingError(null);
+    try {
+      let targetPropertyId = property.id;
+      if (!isUuid(targetPropertyId)) {
+        try {
+          const res = await apiFetch<{ data: Property[] } | Property[]>('/properties?limit=1', { skipAuth: true });
+          const items = Array.isArray(res) ? res : (res as any).data;
+          if (items && items.length > 0) {
+            targetPropertyId = items[0].id;
+          }
+        } catch {}
+      }
+
+      const slotLabels = {
+        morning: 'Morning (9:00 AM - 12:00 PM)',
+        afternoon: 'Afternoon (2:00 PM - 5:00 PM)',
+        weekend: 'Weekend Flexible',
+      };
+
+      const viewingContent = `📅 Private In-Person Viewing Request:
+Property: ${property.title}
+Preferred Date: ${viewingDate}
+Preferred Time Slot: ${slotLabels[viewingTimeSlot]}
+Contact Phone: ${viewingPhone.trim() || 'Via Engida Direct Chat'}
+${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim();
+
+      const res = await apiFetch<{ id: string; conversationId: string }>('/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          propertyId: targetPropertyId,
+          content: viewingContent,
+        }),
+      });
+      setSentConversationId(res.conversationId);
+      setViewingSuccess(true);
+    } catch (err: unknown) {
+      setViewingError(err instanceof Error ? err.message : 'Failed to submit viewing request');
+    } finally {
+      setSubmittingViewing(false);
+    }
+  };
 
   const handleSendInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -553,16 +618,7 @@ export default function PropertyDetailsPage() {
               <span>{isWishlisted ? 'Saved' : 'Save'}</span>
             </button>
 
-            {isUuid(property.id) && (
-              <button
-                type="button"
-                onClick={openListingReport}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#d8d0c8]/60 text-xs font-semibold text-[#3a302a] hover:bg-[#f2ece4] hover:text-[#a84d16] transition active:scale-95 shadow-2xs cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">flag</span>
-                <span>Report</span>
-              </button>
-            )}
+            
           </div>
         </div>
 
@@ -609,65 +665,111 @@ export default function PropertyDetailsPage() {
 
         {/* 5-Photo Architectural Showcase Mosaic */}
         <section className="mb-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-3.5 h-[360px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative group">
-            {/* Primary Hero Image (Takes Left 2 Columns) */}
+          {property.images.length === 1 ? (
             <div
-              className="md:col-span-2 relative h-full overflow-hidden cursor-pointer"
+              className="relative h-[340px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden cursor-pointer group"
               onClick={() => openPhotoModal(0)}
             >
               <img
-                src={property.images[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'}
+                src={property.images[0]}
                 alt={property.title}
                 className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
               />
             </div>
-
-            {/* Sub-photo 1 */}
-            <div
-              className="hidden md:block relative h-full overflow-hidden cursor-pointer"
-              onClick={() => openPhotoModal(1)}
-            >
-              <img
-                src={property.images[1] || property.images[0]}
-                alt="Interior view 1"
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-              />
-            </div>
-
-            {/* Sub-photo 2 & 3 Stacked in Column 4 */}
-            <div className="hidden md:flex flex-col gap-3.5 h-full">
+          ) : property.images.length === 2 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 h-[340px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative">
               <div
-                className="relative h-1/2 overflow-hidden cursor-pointer"
-                onClick={() => openPhotoModal(2)}
+                className="relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(0)}
               >
                 <img
-                  src={property.images[2] || property.images[0]}
-                  alt="Interior view 2"
+                  src={property.images[0]}
+                  alt={property.title}
                   className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                 />
               </div>
               <div
-                className="relative h-1/2 overflow-hidden cursor-pointer"
-                onClick={() => openPhotoModal(3)}
+                className="relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(1)}
               >
                 <img
-                  src={property.images[3] || property.images[0]}
-                  alt="Interior view 3"
+                  src={property.images[1]}
+                  alt="Interior view"
                   className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => openPhotoModal(0)}
+                className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
+              >
+                <span className="material-symbols-outlined text-sm">grid_view</span>
+                <span>View all {property.images.length} photos</span>
+              </button>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-3.5 h-[360px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative group">
+              {/* Primary Hero Image */}
+              <div
+                className="md:col-span-2 relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(0)}
+              >
+                <img
+                  src={property.images[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'}
+                  alt={property.title}
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                />
+              </div>
 
-            {/* "Show all photos" Pill Button */}
-            <button
-              type="button"
-              onClick={() => openPhotoModal(0)}
-              className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
-            >
-              <span className="material-symbols-outlined text-sm">grid_view</span>
-              <span>View all {property.images.length} photos</span>
-            </button>
-          </div>
+              {/* Sub-photo 1 */}
+              <div
+                className="hidden md:block relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(1)}
+              >
+                <img
+                  src={property.images[1] || property.images[0]}
+                  alt="Interior view 1"
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                />
+              </div>
+
+              {/* Sub-photo 2 & 3 Stacked in Column 4 */}
+              <div className="hidden md:flex flex-col gap-3.5 h-full">
+                <div
+                  className="relative h-1/2 overflow-hidden cursor-pointer"
+                  onClick={() => openPhotoModal(2)}
+                >
+                  <img
+                    src={property.images[2] || property.images[0]}
+                    alt="Interior view 2"
+                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  />
+                </div>
+                <div
+                  className="relative h-1/2 overflow-hidden cursor-pointer"
+                  onClick={() => openPhotoModal(3)}
+                >
+                  <img
+                    src={property.images[3] || property.images[1] || property.images[0]}
+                    alt="Interior view 3"
+                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  />
+                </div>
+              </div>
+
+              {/* "Show all photos" Pill Button */}
+              {property.images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => openPhotoModal(0)}
+                  className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
+                >
+                  <span className="material-symbols-outlined text-sm">grid_view</span>
+                  <span>View all {property.images.length} photos</span>
+                </button>
+              )}
+            </div>
+          )}
         </section>
 
         {/* 2-Column Content Grid: Left Story + Right Sticky Reservation Widget */}
@@ -700,17 +802,7 @@ export default function PropertyDetailsPage() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMessageSent(false);
-                  setMessageModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#d8d0c8] bg-white hover:bg-[#f2ece4] text-[#3a302a] text-xs font-semibold transition active:scale-95 shadow-2xs cursor-pointer shrink-0"
-              >
-                <span className="material-symbols-outlined text-base text-[#a84d16]">chat_bubble</span>
-                <span>Message Host</span>
-              </button>
+              
             </div>
 
             {/* Highlights List */}
@@ -797,6 +889,18 @@ export default function PropertyDetailsPage() {
                 neighborhood={property.neighborhood}
                 showExactPin={true}
               />
+              {isUuid(property.id) && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={openListingReport}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#73776F] hover:text-red-700 underline transition cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">flag</span>
+                    <span>Report this listing</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Guest Reviews Section */}
@@ -923,9 +1027,9 @@ export default function PropertyDetailsPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setHostMessage(`Hello ${property.host.name}, I am interested in scheduling an in-person viewing of ${property.title}. Please let me know your availability this week.`);
-                      setMessageSent(false);
-                      setMessageModalOpen(true);
+                      setViewingSuccess(false);
+                      setViewingError(null);
+                      setViewingModalOpen(true);
                     }}
                     className="w-full py-4 px-4 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-[#234B36]/25 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
                   >
@@ -933,18 +1037,18 @@ export default function PropertyDetailsPage() {
                     <span>Schedule Private Viewing</span>
                   </button>
 
-                  {/* Secondary CTA: Inquire with Seller/Broker */}
+                  {/* Secondary Clean Action: Contact Host / Broker */}
                   <button
                     type="button"
                     onClick={() => {
-                      setHostMessage(`Hello ${property.host.name}, I would like to inquire about the purchase price terms and documentation for ${property.title}.`);
+                      setHostMessage(`Hello ${property.host.name}, I would like to inquire about the purchase terms and title deed documentation for ${property.title}.`);
                       setMessageSent(false);
                       setMessageModalOpen(true);
                     }}
-                    className="w-full mt-2.5 py-3 px-4 rounded-xl bg-[#FAF8F2] hover:bg-[#E5E0D5] text-[#252923] font-semibold text-xs transition-all duration-200 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 border border-[#E5E0D5]"
+                    className="w-full mt-3 py-1.5 text-xs font-medium text-[#73776F] hover:text-[#234B36] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    <span className="material-symbols-outlined text-base text-[#D87836]">chat_bubble</span>
-                    <span>Inquire with Host / Broker</span>
+                    <span className="material-symbols-outlined text-sm">chat</span>
+                    <span>Have questions? Contact host / broker</span>
                   </button>
 
                   {/* Reassurance Badge */}
@@ -1055,17 +1159,18 @@ export default function PropertyDetailsPage() {
                     )}
                   </button>
 
-                  {/* Message Host Secondary Action Button */}
+                  {/* Secondary Action: Contact Host */}
                   <button
                     type="button"
                     onClick={() => {
+                      setHostMessage('');
                       setMessageSent(false);
                       setMessageModalOpen(true);
                     }}
-                    className="w-full mt-2.5 py-3 px-4 rounded-xl bg-[#faf5ee] hover:bg-[#ede4d8] text-[#3a302a] font-semibold text-xs transition-all duration-200 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full mt-2.5 text-xs font-medium text-[#73776F] hover:text-[#234B36] transition-colors cursor-pointer flex items-center justify-center gap-1.5 hover:underline"
                   >
-                    <span className="material-symbols-outlined text-base text-[#a84d16]">chat_bubble</span>
-                    <span>Message Host</span>
+                    <span className="material-symbols-outlined text-sm">mail</span>
+                    <span>Contact host about this property</span>
                   </button>
 
                   {isBookingSuccess && (
@@ -1303,6 +1408,175 @@ export default function PropertyDetailsPage() {
                     >
                       <span>{sendingMessage ? 'Sending...' : 'Send Message'}</span>
                       <span className="material-symbols-outlined text-sm">send</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      
+      {/* Dedicated In-Person Viewing Scheduler Modal */}
+      {viewingModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in-up">
+          <div className="bg-white rounded-3xl border border-[#d8d0c8] w-full max-w-lg overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="p-6 border-b border-[#d8d0c8]/60 flex items-center justify-between bg-[#faf5ee]/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#234B36] text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-xl">calendar_month</span>
+                </div>
+                <div>
+                  <h3 className="font-headline font-bold text-lg text-[#252923] leading-tight">
+                    Schedule Private Viewing
+                  </h3>
+                  <p className="text-xs text-[#73776F] truncate max-w-xs">
+                    {property.title}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewingModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white border border-[#d8d0c8] hover:bg-[#faf5ee] flex items-center justify-center text-[#605850] hover:text-[#3a302a] transition cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6">
+              {viewingSuccess ? (
+                <div className="py-6 text-center flex flex-col items-center">
+                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-3xl">check_circle</span>
+                  </div>
+                  <h4 className="font-headline font-bold text-xl text-[#252923]">
+                    Viewing Request Submitted!
+                  </h4>
+                  <p className="text-xs text-[#73776F] mt-2 max-w-sm leading-relaxed">
+                    Your appointment request for {property.title} on {viewingDate} has been sent to {property.host.name}. The host or broker will confirm availability shortly.
+                  </p>
+                  <div className="mt-6 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewingModalOpen(false);
+                        if (sentConversationId) {
+                          router.push(`/messages?conversationId=${sentConversationId}`);
+                        } else {
+                          router.push('/messages');
+                        }
+                      }}
+                      className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs font-semibold transition active:scale-95 shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">chat</span>
+                      <span>View in Messages</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewingModalOpen(false)}
+                      className="px-5 py-2.5 rounded-xl border border-[#d8d0c8] hover:bg-[#faf5ee] text-xs font-semibold text-[#605850] transition cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleScheduleViewing} className="space-y-4">
+                  {viewingError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium">
+                      {viewingError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Preferred Date
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      min={new Date().toISOString().split('T')[0]}
+                      value={viewingDate}
+                      onChange={(e) => setViewingDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F2] border border-[#E5E0D5] text-xs font-semibold text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Preferred Time Window
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'morning', label: 'Morning', time: '9am - 12pm' },
+                        { id: 'afternoon', label: 'Afternoon', time: '2pm - 5pm' },
+                        { id: 'weekend', label: 'Weekend', time: 'Flexible' },
+                      ].map((slot) => (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          onClick={() => setViewingTimeSlot(slot.id as any)}
+                          className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                            viewingTimeSlot === slot.id
+                              ? 'bg-[#234B36] text-white border-[#234B36] shadow-2xs'
+                              : 'bg-[#FAF8F2] hover:bg-white text-[#252923] border-[#E5E0D5]'
+                          }`}
+                        >
+                          <div className="text-xs font-bold">{slot.label}</div>
+                          <div className={`text-[10px] ${viewingTimeSlot === slot.id ? 'text-white/80' : 'text-[#73776F]'}`}>
+                            {slot.time}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Phone Number (Optional contact for gate security)
+                    </label>
+                    <input
+                      type="tel"
+                      value={viewingPhone}
+                      onChange={(e) => setViewingPhone(e.target.value)}
+                      placeholder="+251 9... or 09..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F2] border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Specific Inquiries / Notes (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={viewingNotes}
+                      onChange={(e) => setViewingNotes(e.target.value)}
+                      placeholder="e.g. Inquiring regarding title deeds, parking access, or mortgage support..."
+                      className="w-full p-3 rounded-xl bg-[#FAF8F2] border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewingModalOpen(false)}
+                      className="px-4 py-2.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#605850] hover:bg-[#faf5ee] transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingViewing}
+                      className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] disabled:opacity-40 text-white text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>{submittingViewing ? 'Submitting...' : 'Request Appointment'}</span>
+                      <span className="material-symbols-outlined text-sm">calendar_month</span>
                     </button>
                   </div>
                 </form>

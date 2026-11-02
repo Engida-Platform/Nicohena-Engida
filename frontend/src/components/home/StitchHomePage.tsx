@@ -162,6 +162,7 @@ const CATEGORIES = [
   { id: 'house', label: 'Houses', icon: 'home' },
   { id: 'studio', label: 'Studios', icon: 'bed' },
   { id: 'lakefront', label: 'Lakefront Stays', icon: 'water' },
+  { id: 'for-sale', label: 'For Sale', icon: 'real_estate_agent' },
   { id: 'bole', label: 'Bole Central', icon: 'location_city' },
 ];
 
@@ -208,7 +209,16 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       .then((res) => {
         const items = Array.isArray(res) ? res : res.data;
         if (Array.isArray(items) && items.length > 0) {
-          const mapped: PropertyListing[] = items.map((p) => {
+          // Prioritize rental stays at the top of the feed for Stays exploration
+          const sortedItems = [...items].sort((a, b) => {
+            const aIsSale = String(a.listingType || '').toUpperCase() === 'SALE';
+            const bIsSale = String(b.listingType || '').toUpperCase() === 'SALE';
+            if (aIsSale && !bIsSale) return 1;
+            if (!aIsSale && bIsSale) return -1;
+            return 0;
+          });
+
+          const mapped: PropertyListing[] = sortedItems.map((p) => {
             const cover =
               p.coverImage ||
               (p.images && p.images[0]) ||
@@ -438,6 +448,48 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
             </Link>
           </div>
 
+                    {/* Center Segmented Navigation Bar (Stays / Experiences / How it Works) */}
+          <nav className="hidden md:inline-flex items-center gap-1 p-1 rounded-full bg-[#FAF8F2] border border-[#E5E0D5]/80 shadow-2xs transition-all">
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('stays')}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
+                activeNavTab === 'stays' || activeNavTab === 'home'
+                  ? 'bg-[#234B36] text-white shadow-xs'
+                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">cottage</span>
+              <span>Stays</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('destinations')}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
+                activeNavTab === 'destinations'
+                  ? 'bg-[#234B36] text-white shadow-xs'
+                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">local_activity</span>
+              <span>Experiences</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('how-it-works')}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
+                activeNavTab === 'how-it-works'
+                  ? 'bg-[#234B36] text-white shadow-xs'
+                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">help_outline</span>
+              <span>How it Works</span>
+            </button>
+          </nav>
+
           {/* Right Actions: Become a Host & User Profile */}
           <div className="flex items-center gap-4">
             {user?.hostProfile ? (
@@ -602,49 +654,6 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           </div>
         </div>
 
-        {/* Center Segmented Navigation Bar (Stays / Experiences / How it Works) */}
-        <div className="w-full px-4 sm:px-6 lg:px-12 py-2 flex items-center justify-center">
-          <nav className="inline-flex items-center gap-1 p-1 rounded-full bg-white border border-[#E5E0D5]/60 shadow-sm transition-all">
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.('stays')}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-sm transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'stays' || activeNavTab === 'home'
-                  ? 'bg-[#234B36] text-white shadow-sm'
-                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">cottage</span>
-              <span>Stays</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.('destinations')}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-sm transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'destinations'
-                  ? 'bg-[#234B36] text-white shadow-sm'
-                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">local_activity</span>
-              <span>Experiences</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.('how-it-works')}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-sm transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'how-it-works'
-                  ? 'bg-[#234B36] text-white shadow-sm'
-                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">help_outline</span>
-              <span>How it Works</span>
-            </button>
-          </nav>
-        </div>
       </header>
 
       {/* Main content */}
@@ -652,7 +661,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
         {/* ============================================================ */}
         {/* 2. SEARCH BAR SECTION                                        */}
         {/* ============================================================ */}
-        <section className="sticky top-0 z-[45] w-full px-4 sm:px-6 lg:px-12 pt-6 pb-6 flex flex-col items-center justify-center bg-[#F8F5ED]/95 backdrop-blur-md animate-fade-in-up">
+        <section className="sticky top-0 z-[45] w-full px-4 sm:px-6 lg:px-12 pt-3 pb-3 flex flex-col items-center justify-center bg-[#F8F5ED]/95 backdrop-blur-md animate-fade-in-up">
           <div className="w-full max-w-4xl mx-auto flex justify-center relative">
             <div className="search-bar-container inline-flex flex-wrap sm:flex-nowrap items-center bg-white rounded-full border border-[#E5E0D5] shadow-[0_4px_16px_rgba(58,48,42,0.06)] hover:shadow-[0_8px_28px_rgba(194,101,42,0.16)] hover:border-[#234B36]/50 transition-all duration-300 pl-4 sm:pl-8 pr-2.5 py-2.5 gap-2 focus-within:ring-2 focus-within:ring-[#234B36]/40 focus-within:border-[#234B36]">
               {/* WHERE SEGMENT */}
@@ -731,10 +740,10 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               <button
                 type="button"
                 onClick={() => setAiSearchModalOpen(true)}
-                className="flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-[#234B36] hover:bg-[#2D5E43] text-white text-xs font-bold shadow-md hover:scale-105 active:scale-95 transition-all duration-200 ml-1 cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[#234B36]/30 bg-[#FAF8F2] hover:bg-[#EEF3EF] text-[#234B36] text-xs font-semibold shadow-2xs hover:scale-105 active:scale-95 transition-all duration-200 ml-1 cursor-pointer"
                 title="Search with AI natural language"
               >
-                <span className="material-symbols-outlined text-base text-[#D87836]">auto_awesome</span>
+                <span className="material-symbols-outlined text-sm text-[#D87836]">auto_awesome</span>
                 <span className="hidden sm:inline">AI Search</span>
               </button>
             </div>
@@ -1016,37 +1025,24 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                     {/* Media Container with 4:3 Aspect Ratio */}
                     <div className="relative w-full aspect-[4/3] overflow-hidden bg-[#EEF3EF]">
                       <img
-                        src={property.images[0]}
+                        src={property.images[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'}
                         alt={property.title}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
+                        }}
                         className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
                       />
 
-                      {/* Subtle Compare Toggle */}
-                      <button
-                        type="button"
-                        onClick={(e) => handleToggleCompare(property.id, e)}
-                        title={selectedForCompare.includes(property.id) ? 'Remove from compare' : 'Compare stay'}
-                        className={`absolute top-2.5 left-2.5 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
-                          selectedForCompare.includes(property.id)
-                            ? 'bg-[#234B36] text-white shadow-md ring-2 ring-white scale-105 opacity-100'
-                            : 'bg-white/90 hover:bg-white text-[#252923] opacity-0 group-hover:opacity-100'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-sm">
-                          {selectedForCompare.includes(property.id) ? 'check' : 'balance'}
-                        </span>
-                      </button>
-
-                      {/* Floating Badge */}
+                      {/* Floating Badge (Isolated on Top Left) */}
                       {property.badge && (
-                        <div className="absolute top-2.5 left-2.5">
+                        <div className="absolute top-2.5 left-2.5 z-10">
                           <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-white font-semibold text-[11px] uppercase tracking-wider shadow-sm transition-transform duration-200 group-hover:scale-105 ${
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-white font-semibold text-[10px] uppercase tracking-wider shadow-sm transition-transform duration-200 group-hover:scale-105 ${
                               property.badge === 'Superhost'
                                 ? 'bg-[#234B36]'
                                 : property.badge === 'Guest Favorite'
                                 ? 'bg-[#2D5E43]'
-                                : 'bg-[#8c3c3c]'
+                                : 'bg-[#D87836]'
                             }`}
                           >
                             {property.badge}
@@ -1054,22 +1050,41 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                         </div>
                       )}
 
-                      {/* Wishlist Heart Button */}
-                      <button
-                        type="button"
-                        aria-label="Add to wishlist"
-                        onClick={(e) => toggleWishlist(property.id, e)}
-                        className={`wishlist-btn absolute top-2.5 right-2.5 z-10 w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm border border-[#E5E0D5]/60 flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer ${
-                          isSaved ? 'text-[#234B36]' : 'text-[#252923]'
-                        }`}
-                      >
-                        <span
-                          className="material-symbols-outlined text-xl transition-all duration-200"
-                          style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                      {/* Top Right Action Cluster: Compare & Wishlist */}
+                      <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+                        {/* Subtle Compare Toggle */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleCompare(property.id, e)}
+                          title={selectedForCompare.includes(property.id) ? 'Remove from compare' : 'Compare stay'}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                            selectedForCompare.includes(property.id)
+                              ? 'bg-[#234B36] text-white shadow-md ring-2 ring-white scale-105 opacity-100'
+                              : 'bg-white/90 hover:bg-white text-[#252923] opacity-0 group-hover:opacity-100'
+                          }`}
                         >
-                          favorite
-                        </span>
-                      </button>
+                          <span className="material-symbols-outlined text-sm">
+                            {selectedForCompare.includes(property.id) ? 'check' : 'balance'}
+                          </span>
+                        </button>
+
+                        {/* Wishlist Heart Button */}
+                        <button
+                          type="button"
+                          aria-label="Add to wishlist"
+                          onClick={(e) => toggleWishlist(property.id, e)}
+                          className={`wishlist-btn w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-[#E5E0D5]/60 flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer ${
+                            isSaved ? 'text-[#234B36]' : 'text-[#252923]'
+                          }`}
+                        >
+                          <span
+                            className="material-symbols-outlined text-lg transition-all duration-200"
+                            style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                          >
+                            favorite
+                          </span>
+                        </button>
+                      </div>
 
                       {/* Gallery Indicator Dots */}
                       <div className="absolute bottom-2.5 left-0 right-0 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -1488,8 +1503,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
         propertyIds={selectedForCompare}
       />
 
-      {/* AI Booking Assistant Floating Widget */}
-      <AiBookingAssistantWidget />
+
     </div>
   );
 }
