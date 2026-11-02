@@ -19,6 +19,8 @@ import { RefundEvent } from './refund-event.entity';
 export enum RefundStatus {
   REQUESTED = 'REQUESTED',
   PENDING_APPROVAL = 'PENDING_APPROVAL',
+  PENDING_DUAL_APPROVAL = 'PENDING_DUAL_APPROVAL', // Requires 2 Finance Managers
+  PENDING_SUPER_ADMIN = 'PENDING_SUPER_ADMIN', // Requires Super Admin
   APPROVED = 'APPROVED',
   PROCESSING = 'PROCESSING',
   SUCCEEDED = 'SUCCEEDED',
@@ -90,6 +92,16 @@ export class Refund {
   @ManyToOne(() => User, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'approved_by_id' })
   approvedBy: User | null;
+
+  @Column({ type: 'uuid', nullable: true, name: 'second_approver_id' })
+  secondApproverId: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'second_approver_id' })
+  secondApprover: User | null;
+
+  @Column({ type: 'varchar', length: 20, nullable: true, name: 'approval_tier' })
+  approvalTier: string | null; // 'AUTO', 'SINGLE', 'DUAL', 'SUPER_ADMIN'
 
   @Column({ type: 'varchar', length: 100, nullable: true, name: 'provider_refund_id' })
   providerRefundId: string | null;

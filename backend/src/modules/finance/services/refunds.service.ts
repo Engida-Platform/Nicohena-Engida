@@ -129,7 +129,13 @@ export class RefundsService {
   }
 
   /**
-   * Proposes a refund with policy check and dual-approval classification.
+   * Proposes a refund with tiered approval classification.
+   * 
+   * Approval Tiers (configurable via finance settings):
+   * - Tier 1 (< threshold1): Auto-approved
+   * - Tier 2 (threshold1 - threshold2): Requires single Finance Manager approval
+   * - Tier 3 (threshold2 - threshold3): Requires two Finance Manager approvals
+   * - Tier 4 (> threshold3): Requires Super Admin approval
    */
   async proposeRefund(
     dto: ProposeRefundDto,
@@ -178,13 +184,33 @@ export class RefundsService {
       );
     }
 
+    // Get tiered approval thresholds
     const settings = await this.settingsService.getAllSettings();
-    const thresholdMinor = BigInt(settings.refundDualApprovalThresholdMinor);
+    const tier1 = BigInt(settings.refundTier1ThresholdMinor);
+    const tier2 = BigInt(settings.refundTier2ThresholdMinor);
+    const tier3 = BigInt(settings.refundTier3ThresholdMinor);
 
-    const requiresDualApproval = refundAmountMinor >= thresholdMinor;
-    const initialStatus = requiresDualApproval
-      ? RefundStatus.PENDING_APPROVAL
-      : RefundStatus.REQUESTED;
+    // Determine approval tier and initial status
+    let approvalTier: string;
+    let initialStatus: RefundStatus;
+    
+    if (refundAmountMinor < tier1) {
+      // Tier 1: Auto-approve
+      approvalTier = 'AUTO';
+      initialStatus = RefundStatus.REQUESTED;
+    } else if (refundAmountMinor < tier2) {
+      // Tier 2: Single approval
+      approvalTier = 'SINGLE';
+      initialStatus = RefundStatus.PENDING_APPROVAL;
+    } else if (refundAmountMinor < tier3) {
+      // Tier 3: Dual approval (two Finance Managers)
+      approvalTier = 'DUAL';
+      initialStatus = RefundStatus.PENDING_DUAL_APPROVAL;
+    } else {
+      // Tier 4: Super Admin required
+      approvalTier = 'SUPER_ADMIN';
+      initialStatus = RefundStatus.PENDING_SUPER_ADMIN;
+    }
 
     const idempotencyKey = `ref_${dto.bookingId}_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
 
@@ -198,18 +224,25 @@ export class RefundsService {
       reason: dto.reason,
       policyTier,
       status: initialStatus,
+      approvalTier,
       proposedById: proposer.id,
-      approvedById: requiresDualApproval ? null : proposer.id,
-      approvedAt: requiresDualApproval ? null : new Date(),
+      approvedById: approvalTier === 'AUTO' ? proposer.id : null,
+      approvedAt: approvalTier === 'AUTO' ? new Date() : null,
       idempotencyKey,
     });
 
     const savedRefund = await this.refundRepo.save(refund);
 
     // Record refund event
+    const eventType = 
+      approvalTier === 'AUTO' ? 'REFUND_AUTO_APPROVED' :
+      approvalTier === 'SINGLE' ? 'REFUND_REQUESTED' :
+      approvalTier === 'DUAL' ? 'REFUND_DUAL_APPROVAL_REQUIRED' :
+      'REFUND_SUPER_ADMIN_REQUIRED';
+      
     const event = this.refundEventRepo.create({
       refundId: savedRefund.id,
-      eventType: requiresDualApproval ? 'REFUND_REQUESTED' : 'REFUND_AUTO_APPROVED',
+      eventType,
       toStatus: initialStatus,
       actorId: proposer.id,
       reason: dto.reason,
@@ -224,9 +257,13 @@ export class RefundsService {
       after: {
         amountMinor: savedRefund.amountMinor,
         status: savedRefund.status,
-        requiresDualApproval,
+        approvalTier,
       },
-      metadata: { reason: dto.reason, bookingId: dto.bookingId },
+      metadata: { 
+        reason: dto.reason, 
+        bookingId: dto.bookingId,
+        approvalTier,
+      },
       ipAddress: context?.ipAddress ?? null,
       userAgent: context?.userAgent ?? null,
     });
@@ -235,7 +272,10 @@ export class RefundsService {
   }
 
   /**
-   * Approves a pending refund. Strictly enforces the four-eyes / dual approval rule.
+   * Approves a pending refund. Enforces tiered approval rules:
+   * - SINGLE tier: Any Finance Manager can approve
+   * - DUAL tier: Requires two different Finance Managers
+   * - SUPER_ADMIN tier: Requires Super Admin approval
    */
   async approveRefund(
     refundId: string,
@@ -245,34 +285,86 @@ export class RefundsService {
   ) {
     const refund = await this.refundRepo.findOne({
       where: { id: refundId },
-      relations: ['booking'],
+      relations: ['booking', 'proposedBy', 'approvedBy'],
     });
 
     if (!refund) {
       throw new NotFoundException(`Refund ${refundId} not found`);
     }
 
-    if (refund.status !== RefundStatus.PENDING_APPROVAL && refund.status !== RefundStatus.REQUESTED) {
+    const validStatuses = [
+      RefundStatus.PENDING_APPROVAL,
+      RefundStatus.PENDING_DUAL_APPROVAL,
+      RefundStatus.PENDING_SUPER_ADMIN,
+      RefundStatus.REQUESTED,
+    ];
+
+    if (!validStatuses.includes(refund.status)) {
       throw new BadRequestException(`Refund is not in an approvable status (${refund.status})`);
     }
 
-    // Strict two-person rule: proposer cannot approve their own refund
+    // Enforce two-person rule: proposer cannot approve their own refund
     if (refund.proposedById === approver.id) {
       throw new ForbiddenException(
-        'Dual approval violation: An administrator cannot approve a refund they proposed',
+        'Separation of duties violation: An administrator cannot approve a refund they proposed',
       );
     }
 
-    refund.status = RefundStatus.APPROVED;
-    refund.approvedById = approver.id;
-    refund.approvedAt = new Date();
+    // Check approval tier requirements
+    const { approvalTier } = refund;
+
+    if (approvalTier === 'SUPER_ADMIN') {
+      // Requires Super Admin
+      if (approver.adminRole !== 'SUPER_ADMIN') {
+        throw new ForbiddenException(
+          'This refund amount requires Super Admin approval',
+        );
+      }
+      // Super Admin can approve directly
+      refund.status = RefundStatus.APPROVED;
+      refund.approvedById = approver.id;
+      refund.approvedAt = new Date();
+    } else if (approvalTier === 'DUAL') {
+      // Requires two Finance Managers
+      if (!refund.approvedById) {
+        // First approval
+        refund.approvedById = approver.id;
+        refund.status = RefundStatus.PENDING_DUAL_APPROVAL;
+        // Still pending second approval
+      } else {
+        // Second approval
+        if (refund.approvedById === approver.id) {
+          throw new ForbiddenException(
+            'Dual approval requires two different Finance Managers',
+          );
+        }
+        refund.secondApproverId = approver.id;
+        refund.status = RefundStatus.APPROVED;
+        refund.approvedAt = new Date();
+      }
+    } else if (approvalTier === 'SINGLE') {
+      // Single Finance Manager approval
+      refund.status = RefundStatus.APPROVED;
+      refund.approvedById = approver.id;
+      refund.approvedAt = new Date();
+    } else {
+      // AUTO tier shouldn't reach here
+      throw new BadRequestException('This refund does not require approval');
+    }
+
     await this.refundRepo.save(refund);
+
+    const fromStatus = validStatuses.find(s => s === refund.status) || RefundStatus.PENDING_APPROVAL;
+    const eventType = 
+      refund.status === RefundStatus.APPROVED ? 'REFUND_APPROVED' :
+      approvalTier === 'DUAL' && !refund.secondApproverId ? 'REFUND_FIRST_APPROVAL' :
+      'REFUND_APPROVED';
 
     const event = this.refundEventRepo.create({
       refundId: refund.id,
-      eventType: 'REFUND_APPROVED',
-      fromStatus: RefundStatus.PENDING_APPROVAL,
-      toStatus: RefundStatus.APPROVED,
+      eventType,
+      fromStatus,
+      toStatus: refund.status,
       actorId: approver.id,
       reason,
     });
@@ -280,11 +372,15 @@ export class RefundsService {
 
     await this.auditService.record({
       actor: approver,
-      action: 'finance.refund_approved',
+      action: refund.status === RefundStatus.APPROVED ? 'finance.refund_approved' : 'finance.refund_first_approval',
       entityType: 'refund',
       entityId: refund.id,
-      after: { status: refund.status },
-      metadata: { reason },
+      after: { 
+        status: refund.status,
+        approvedById: refund.approvedById,
+        secondApproverId: refund.secondApproverId,
+      },
+      metadata: { reason, approvalTier },
       ipAddress: context?.ipAddress ?? null,
       userAgent: context?.userAgent ?? null,
     });

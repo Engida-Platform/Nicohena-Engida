@@ -13,6 +13,11 @@ export interface FinanceSettingsDto {
   withholdingRateBps: number;
   refundDualApprovalThresholdMinor: string;
   payoutDualApprovalThresholdMinor: string;
+  // Tiered approval thresholds for refunds (in minor units)
+  refundTier1ThresholdMinor: string; // < Tier1: Auto-approve (e.g., < $50 / 5000 ETB)
+  refundTier2ThresholdMinor: string; // Tier1-2: Single Finance Manager (e.g., $50-$200 / 5000-20000 ETB)
+  refundTier3ThresholdMinor: string; // Tier2-3: Two Finance Managers (e.g., $200-$1000 / 20000-100000 ETB)
+  // Above Tier3: Requires Super Admin
   escrowReleaseTrigger: string;
   escrowReleaseDelayHours: number;
   payoutSchedule: string;
@@ -48,6 +53,10 @@ export class FinanceSettingsService {
       withholdingRateBps: parseInt(map.get('finance.withholding_rate_bps') || '0', 10),
       refundDualApprovalThresholdMinor: map.get('finance.refund_dual_approval_threshold_minor') || '500000',
       payoutDualApprovalThresholdMinor: map.get('finance.payout_dual_approval_threshold_minor') || '1000000',
+      // Tiered thresholds (default: $50, $200, $1000 at ~100 ETB/$1)
+      refundTier1ThresholdMinor: map.get('finance.refund_tier1_threshold_minor') || '5000', // ~$50 / 5000 ETB
+      refundTier2ThresholdMinor: map.get('finance.refund_tier2_threshold_minor') || '20000', // ~$200 / 20000 ETB
+      refundTier3ThresholdMinor: map.get('finance.refund_tier3_threshold_minor') || '100000', // ~$1000 / 100000 ETB
       escrowReleaseTrigger: map.get('finance.escrow_release_trigger') || 'COMPLETED_PLUS_24H',
       escrowReleaseDelayHours: parseInt(map.get('finance.escrow_release_delay_hours') || '24', 10),
       payoutSchedule: map.get('finance.payout_schedule') || 'DAILY_0200_ADDIS',
