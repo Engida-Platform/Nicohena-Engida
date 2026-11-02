@@ -14,7 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [returnPath, setReturnPath] = useState('/dashboard');
+  const [returnPath, setReturnPath] = useState('/');
 
   const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -22,7 +22,7 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paramReturn = params.get('next') || params.get('returnUrl') || params.get('redirect');
-    setReturnPath(getSafeReturnPath(paramReturn, '/dashboard'));
+    setReturnPath(getSafeReturnPath(paramReturn, '/'));
 
     const googleError = params.get('error');
     if (googleError) {
@@ -36,12 +36,12 @@ export default function LoginPage() {
     if (user.role === 'ADMIN') {
       const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
       router.replace(dest);
-    } else if (returnPath && returnPath !== '/dashboard') {
+    } else if (returnPath && returnPath !== '/') {
       router.replace(returnPath);
     } else if (user.hostProfile) {
       router.replace('/host/dashboard');
     } else {
-      router.replace('/dashboard');
+      router.replace('/');
     }
   }, [authLoading, user, returnPath, router]);
 
@@ -65,12 +65,12 @@ export default function LoginPage() {
       if (loggedUser.role === 'ADMIN') {
         const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
         router.push(dest);
-      } else if (returnPath && returnPath !== '/dashboard') {
+      } else if (returnPath && returnPath !== '/') {
         router.push(returnPath);
       } else if (loggedUser.hostProfile) {
         router.push('/host/dashboard');
       } else {
-        router.push('/dashboard');
+        router.push('/');
       }
     } catch (err: any) {
       setError(
@@ -197,7 +197,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center text-sm font-body text-[#73776F]">
             Don&apos;t have an account?{' '}
             <Link
-              href={returnPath === '/dashboard' ? '/register' : `/register?next=${encodeURIComponent(returnPath)}`}
+              href={returnPath === '/' ? '/register' : `/register?next=${encodeURIComponent(returnPath)}`}
               className="font-semibold text-[#b2531b] hover:text-[#994413] hover:underline transition-colors"
             >
               Create an account

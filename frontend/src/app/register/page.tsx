@@ -15,14 +15,14 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [returnPath, setReturnPath] = useState('/dashboard');
+  const [returnPath, setReturnPath] = useState('/');
 
   const { register, user, loading: authLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setReturnPath(getSafeReturnPath(params.get('next'), '/dashboard'));
+    setReturnPath(getSafeReturnPath(params.get('next'), '/'));
 
     const googleError = params.get('error');
     if (googleError) {
@@ -36,12 +36,12 @@ export default function RegisterPage() {
     if (user.role === 'ADMIN') {
       const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
       router.replace(dest);
-    } else if (returnPath && returnPath !== '/dashboard') {
+    } else if (returnPath && returnPath !== '/') {
       router.replace(returnPath);
     } else if (user.hostProfile) {
       router.replace('/host/dashboard');
     } else {
-      router.replace('/dashboard');
+      router.replace('/');
     }
   }, [authLoading, user, returnPath, router]);
 
@@ -69,12 +69,12 @@ export default function RegisterPage() {
       if (newUser?.role === 'ADMIN') {
         const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
         router.push(dest);
-      } else if (returnPath && returnPath !== '/dashboard') {
+      } else if (returnPath && returnPath !== '/') {
         router.push(returnPath);
       } else if (newUser?.hostProfile) {
         router.push('/host/dashboard');
       } else {
-        router.push('/dashboard');
+        router.push('/');
       }
     } catch (err: any) {
       setError(
@@ -211,7 +211,7 @@ export default function RegisterPage() {
           <div className="mt-6 text-center text-sm font-body text-[#73776F]">
             Already have an account?{' '}
             <Link
-              href={returnPath === '/dashboard' ? '/login' : `/login?next=${encodeURIComponent(returnPath)}`}
+              href={returnPath === '/' ? '/login' : `/login?next=${encodeURIComponent(returnPath)}`}
               className="font-semibold text-[#b2531b] hover:text-[#994413] hover:underline transition-colors"
             >
               Sign In Here

@@ -366,6 +366,26 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
         const adapted = adaptBackendProperty(data);
         setProperty(adapted);
 
+        // Record recent view in localStorage for guest AI recommendation personalization
+        if (typeof window !== 'undefined' && adapted?.id) {
+          try {
+            const raw = localStorage.getItem('engida_viewed_properties');
+            const views = raw ? JSON.parse(raw) : [];
+            const updated = Array.isArray(views) ? views.filter((v) => v.id !== adapted.id) : [];
+            updated.unshift({
+              id: adapted.id,
+              title: adapted.title,
+              city: adapted.city || 'Addis Ababa',
+              subCity: adapted.subCity || '',
+              price: Number(adapted.pricePerNight || 0),
+              timestamp: Date.now(),
+            });
+            localStorage.setItem('engida_viewed_properties', JSON.stringify(updated.slice(0, 10)));
+          } catch {
+            // ignore
+          }
+        }
+
         // Fetch availability blocks for UUID properties (best-effort, non-fatal)
         apiFetch<{ blockedDates?: string[]; blocks?: { startDate: string; endDate: string }[] } | { startDate: string; endDate: string }[]>(
           `/properties/${data.id}/availability-blocks`,

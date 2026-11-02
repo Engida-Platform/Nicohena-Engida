@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
+import type { RecommendationsResponse } from '@/types/guest-ai';
 import type { Property } from '@/types';
 import AiConversationalSearchModal from '@/components/search/AiConversationalSearchModal';
 import PersonalizedAiRecommendationsSection from '@/components/home/PersonalizedAiRecommendationsSection';
@@ -206,6 +207,82 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     'Addis Ababa', 'Bishoftu', 'Hawassa', 'Bahir Dar', 'Lalibela'
   ]);
   const [realProperties, setRealProperties] = useState<PropertyListing[]>([]);
+  const [aiRecommendations, setAiRecommendations] = useState<
+    Record<string, { score: number; reason: string; matchTags: string[] }>
+  >({});
+  const [isAiPersonalized, setIsAiPersonalized] = useState(false);
+
+  // Load Guest AI Recommendations based on authenticated guest context, search or viewing history
+  useEffect(() => {
+    async function loadPersonalizedStays() {
+      try {
+        let cityPreference: string | undefined;
+        let budgetPreference: number | undefined;
+
+        if (typeof window !== 'undefined') {
+          // 1. Analyze recent view history from localStorage
+          const rawViews = localStorage.getItem('engida_viewed_properties');
+          if (rawViews) {
+            try {
+              const views: Array<{ city?: string; price?: number }> = JSON.parse(rawViews);
+              if (views.length > 0) {
+                const cityMap: Record<string, number> = {};
+                let totalPrice = 0;
+                let count = 0;
+                views.forEach((v) => {
+                  if (v.city) cityMap[v.city] = (cityMap[v.city] || 0) + 1;
+                  if (v.price && v.price > 0) {
+                    totalPrice += v.price;
+                    count++;
+                  }
+                });
+                const topCity = Object.entries(cityMap).sort((a, b) => b[1] - a[1])[0];
+                if (topCity) cityPreference = topCity[0];
+                if (count > 0) budgetPreference = Math.round(totalPrice / count);
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          // 2. Fallback to last searched city if no views
+          if (!cityPreference) {
+            const lastSearch = localStorage.getItem('engida_last_searched_city');
+            if (lastSearch) cityPreference = lastSearch;
+          }
+        }
+
+        // 3. Query the AI Recommendations endpoint
+        const res = await apiFetch<RecommendationsResponse>('/ai/guest/recommendations', {
+          method: 'POST',
+          body: JSON.stringify({
+            preferredCity: cityPreference || 'Addis Ababa',
+            maxBudget: budgetPreference || undefined,
+            limit: 15,
+          }),
+        });
+
+        if (res && Array.isArray(res.recommendations) && res.recommendations.length > 0) {
+          const recMap: Record<string, { score: number; reason: string; matchTags: string[] }> = {};
+          res.recommendations.forEach((item) => {
+            if (item.property && item.property.id) {
+              recMap[item.property.id] = {
+                score: item.score,
+                reason: item.reason,
+                matchTags: item.matchTags || [],
+              };
+            }
+          });
+          setAiRecommendations(recMap);
+          setIsAiPersonalized(true);
+        }
+      } catch {
+        // Graceful fallback to default sorting
+      }
+    }
+
+    void loadPersonalizedStays();
+  }, [user]);
 
   // Fetch real properties from database
   useEffect(() => {
@@ -521,9 +598,15 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       if (sortOption === 'price-asc') return a.pricePerNight - b.pricePerNight;
       if (sortOption === 'price-desc') return b.pricePerNight - a.pricePerNight;
       if (sortOption === 'rating') return b.rating - a.rating;
+      // AI Personalized sorting: elevate high-match properties for authenticated guest
+      const scoreA = aiRecommendations[a.id]?.score || 0;
+      const scoreB = aiRecommendations[b.id]?.score || 0;
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA;
+      }
       return 0; // recommended
     });
-  }, [sourceListings, selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption, minPrice, maxPrice, selectedBedrooms, selectedBathrooms, selectedPropertyType, selectedAmenities]);
+  }, [sourceListings, selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption, minPrice, maxPrice, selectedBedrooms, selectedBathrooms, selectedPropertyType, selectedAmenities, aiRecommendations]);
 
   const displayedListings = useMemo(() => {
     return filteredListings.slice(0, visibleCount);
@@ -1080,6 +1163,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               <span className="hidden md:inline-flex items-center px-3 py-0.5 rounded-full bg-[#eae2da] text-[#73776F] font-semibold text-xs border border-[#E5E0D5]/50 transition-all hover:bg-[#fbe8d8] hover:text-[#401a08] cursor-default">
                 Updated today
               </span>
+              {user && isAiPersonalized && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span className="material-symbols-outlined text-xs text-[#D87836]">auto_awesome</span>
+                  <span>Curated for {user.name ? user.name.split(' ')[0] : 'you'}</span>
+                </span>
+              )}
             </div>
 
             {/* Quick Toggle & Active Filter Chips */}
@@ -1316,8 +1405,17 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                       )}
 
                       {/* Floating Badge (Isolated on Top Left) */}
-                      {property.badge && (
-                        <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none">
+                      <div className="absolute top-2.5 left-2.5 z-10 pointer-events-none flex flex-col gap-1 items-start">
+                        {aiRecommendations[property.id] && aiRecommendations[property.id].score >= 70 && (
+                          <span
+                            title={aiRecommendations[property.id].reason}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-white font-bold text-[10px] uppercase tracking-wider bg-[#234B36] shadow-sm backdrop-blur-xs"
+                          >
+                            <span className="material-symbols-outlined text-[11px] text-[#D87836]">auto_awesome</span>
+                            <span>{aiRecommendations[property.id].score}% Match</span>
+                          </span>
+                        )}
+                        {property.badge && (!aiRecommendations[property.id] || property.badge === 'For Sale') && (
                           <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-white font-semibold text-[10px] uppercase tracking-wider shadow-sm transition-transform duration-200 group-hover:scale-105 ${
                               property.badge === 'Superhost'
@@ -1329,8 +1427,8 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                           >
                             {property.badge}
                           </span>
-                        </div>
-                      )}
+                        )}
+                      </div>
 
                       {/* Top Right Action Cluster: Compare & Wishlist */}
                       <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
