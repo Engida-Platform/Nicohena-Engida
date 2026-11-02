@@ -761,13 +761,50 @@ async function seed() {
 
       // Link amenities
       if (item.amenities && item.amenities.length > 0) {
-        // Clear old amenities for this property to prevent duplicates
         await client.query('DELETE FROM property_amenities WHERE property_id = $1', [propId]);
-        for (const amenityId of item.amenities) {
-          await client.query(
-            'INSERT INTO property_amenities (property_id, amenity_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-            [propId, amenityId]
-          );
+        
+        const oldUuidToKey = {
+          'fbe2b0f1-5e9c-40a6-aaff-da4bf62be731': 'wifi',
+          'cdb1ee52-4449-4402-a95e-b8ce7cddbcc7': 'parking',
+          'c109b028-a82b-4684-af9f-aec3bb85507f': 'ac',
+          '4d4368d2-a9a6-4d3e-a507-d3bb860c91c6': 'kitchen',
+          '90c4bda9-74d1-4cb5-9e4d-c24275d4b9d2': 'washer',
+          '651a809c-4554-4923-8281-fe00adbeb402': 'pool',
+          'cd887868-b835-4223-8290-be5dd13c0bcb': 'tv',
+          '2139b538-c0ba-4747-869f-5d82b51d3457': 'hotWater',
+          '3d07918f-8270-44ee-827c-0bcd87062697': 'security',
+          '1918435a-c95f-4167-9730-bc27e7eb7a4e': 'elevator',
+          'dcf6ed0a-f181-4dfa-ae1d-c46f2d3a3112': 'gym',
+          'a9d1a4b4-ecd8-4bc3-b189-ec49f45280de': 'smartHome',
+          '1d0cc66e-94ea-40bb-aec6-3354f72f78f3': 'garden',
+        };
+
+        const amenityRows = await client.query('SELECT id, name FROM amenities');
+        const resolvedAmenities = {
+          wifi: amenityRows.rows.find(r => /wi-?fi/i.test(r.name))?.id,
+          parking: amenityRows.rows.find(r => /parking/i.test(r.name))?.id,
+          ac: amenityRows.rows.find(r => /air|ac/i.test(r.name))?.id,
+          kitchen: amenityRows.rows.find(r => /kitchen/i.test(r.name))?.id,
+          washer: amenityRows.rows.find(r => /wash/i.test(r.name))?.id,
+          pool: amenityRows.rows.find(r => /pool/i.test(r.name))?.id,
+          tv: amenityRows.rows.find(r => /tv/i.test(r.name))?.id,
+          hotWater: amenityRows.rows.find(r => /hot water/i.test(r.name))?.id,
+          security: amenityRows.rows.find(r => /security/i.test(r.name))?.id,
+          elevator: amenityRows.rows.find(r => /elevator/i.test(r.name))?.id,
+          gym: amenityRows.rows.find(r => /gym|fitness/i.test(r.name))?.id,
+          smartHome: amenityRows.rows.find(r => /smart/i.test(r.name))?.id,
+          garden: amenityRows.rows.find(r => /garden/i.test(r.name))?.id,
+        };
+
+        for (const rawAmenity of item.amenities) {
+          const matchedKey = oldUuidToKey[rawAmenity] || rawAmenity;
+          const amenityId = resolvedAmenities[matchedKey] || rawAmenity;
+          if (amenityId) {
+            await client.query(
+              'INSERT INTO property_amenities (property_id, amenity_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+              [propId, amenityId]
+            );
+          }
         }
       }
       console.log(`✔ Synced amenities for "${item.title}" (ID: ${propId})`);
