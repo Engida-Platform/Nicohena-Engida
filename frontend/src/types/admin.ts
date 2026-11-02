@@ -36,7 +36,11 @@ export const ADMIN_PERMISSIONS = {
   REPORTS_VIEW: 'reports.view',
   REPORTS_RESOLVE: 'reports.resolve',
   BOOKINGS_VIEW: 'bookings.view',
-  BOOKINGS_MANAGE: 'bookings.manage',
+  BOOKINGS_MANAGE: 'bookings.manage',             // legacy: implies all sub-permissions below
+  BOOKINGS_MODIFY_DATES: 'bookings.modify_dates', // adjust check-in / check-out dates
+  BOOKINGS_CANCEL: 'bookings.cancel',             // cancel bookings or decide cancellation requests
+  BOOKINGS_OVERRIDE_STATUS: 'bookings.override_status', // force-set booking status (admin override)
+  BOOKINGS_BLOCK_CALENDAR: 'bookings.block_calendar',   // create / remove availability blocks
   CASES_VIEW: 'cases.view',
   CASES_MANAGE: 'cases.manage',
   CASES_COMPENSATE: 'cases.compensate',
@@ -317,6 +321,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     ADMIN_PERMISSIONS.USERS_MANAGE,
     ADMIN_PERMISSIONS.HOSTS_VIEW,
     ADMIN_PERMISSIONS.BOOKINGS_VIEW,
+    ADMIN_PERMISSIONS.BOOKINGS_CANCEL,      // can approve/reject guest cancellation requests only
     ADMIN_PERMISSIONS.REVIEWS_VIEW,
     ADMIN_PERMISSIONS.REPORTS_VIEW,
     ADMIN_PERMISSIONS.REPORTS_RESOLVE,
@@ -330,6 +335,10 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     ADMIN_PERMISSIONS.DASHBOARD_VIEW,
     ADMIN_PERMISSIONS.BOOKINGS_VIEW,
     ADMIN_PERMISSIONS.BOOKINGS_MANAGE,
+    ADMIN_PERMISSIONS.BOOKINGS_MODIFY_DATES,
+    ADMIN_PERMISSIONS.BOOKINGS_CANCEL,
+    ADMIN_PERMISSIONS.BOOKINGS_OVERRIDE_STATUS,
+    ADMIN_PERMISSIONS.BOOKINGS_BLOCK_CALENDAR,
     ADMIN_PERMISSIONS.CASES_VIEW,
     ADMIN_PERMISSIONS.CASES_MANAGE,
     ADMIN_PERMISSIONS.CASES_COMPENSATE,
@@ -380,7 +389,21 @@ export function getEffectivePermissions(user: {
 }
 
 export function can(userPermissions: string[] | undefined, permission: Permission): boolean {
-  return Boolean(userPermissions?.includes(permission));
+  if (!userPermissions) return false;
+  if (userPermissions.includes(permission)) return true;
+  // BOOKINGS_MANAGE legacy: implies all granular booking sub-permissions
+  if (
+    userPermissions.includes(ADMIN_PERMISSIONS.BOOKINGS_MANAGE) &&
+    (
+      permission === ADMIN_PERMISSIONS.BOOKINGS_MODIFY_DATES ||
+      permission === ADMIN_PERMISSIONS.BOOKINGS_CANCEL ||
+      permission === ADMIN_PERMISSIONS.BOOKINGS_OVERRIDE_STATUS ||
+      permission === ADMIN_PERMISSIONS.BOOKINGS_BLOCK_CALENDAR
+    )
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function canAny(

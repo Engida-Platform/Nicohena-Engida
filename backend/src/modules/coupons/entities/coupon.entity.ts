@@ -14,6 +14,12 @@ export enum CouponDiscountType {
   FIXED_AMOUNT = 'FIXED_AMOUNT',
 }
 
+export enum CouponApprovalStatus {
+  APPROVED = 'APPROVED', // Auto-approved or manually approved
+  PENDING_APPROVAL = 'PENDING_APPROVAL', // Exceeds limits, awaiting approval
+  REJECTED = 'REJECTED', // Rejected by approver
+}
+
 @Entity('coupons')
 @Index('idx_coupons_code', ['code'], { unique: true })
 @Index('idx_coupons_is_active', ['isActive'])
@@ -68,6 +74,26 @@ export class Coupon {
 
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: CouponApprovalStatus,
+    default: CouponApprovalStatus.APPROVED,
+    name: 'approval_status',
+  })
+  approvalStatus: CouponApprovalStatus;
+
+  @Column({ type: 'uuid', nullable: true, name: 'created_by_id' })
+  createdById: string | null;
+
+  @Column({ type: 'uuid', nullable: true, name: 'approved_by_id' })
+  approvedById: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true, name: 'approved_at' })
+  approvedAt: Date | null;
+
+  @Column({ type: 'text', nullable: true, name: 'rejection_reason' })
+  rejectionReason: string | null;
 
   @OneToMany(() => CouponRedemption, (redemption) => redemption.coupon)
   redemptions: CouponRedemption[];

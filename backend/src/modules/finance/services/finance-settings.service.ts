@@ -21,6 +21,10 @@ export interface FinanceSettingsDto {
   // Compensation limits per agent (in minor units)
   compensationDailyLimitMinor: string; // Per agent per day (e.g., $500 / 50000 ETB)
   compensationMonthlyLimitMinor: string; // Per agent per month (e.g., $5000 / 500000 ETB)
+  // Coupon control limits
+  couponMaxPercentageDiscount: number; // Maximum percentage discount without approval (e.g., 50%)
+  couponMaxFixedDiscountMinor: string; // Maximum fixed discount without approval (e.g., 10000 ETB = $100)
+  couponMaxRedemptionsLimit: number; // Maximum redemptions without approval (e.g., 100)
   escrowReleaseTrigger: string;
   escrowReleaseDelayHours: number;
   payoutSchedule: string;
@@ -63,6 +67,10 @@ export class FinanceSettingsService {
       // Compensation limits (default: $500/day, $5000/month at ~100 ETB/$1)
       compensationDailyLimitMinor: map.get('finance.compensation_daily_limit_minor') || '50000', // ~$500 / 50000 ETB
       compensationMonthlyLimitMinor: map.get('finance.compensation_monthly_limit_minor') || '500000', // ~$5000 / 500000 ETB
+      // Coupon control limits (default: 50% or $100, max 100 uses)
+      couponMaxPercentageDiscount: parseInt(map.get('finance.coupon_max_percentage_discount') || '50', 10), // 50%
+      couponMaxFixedDiscountMinor: map.get('finance.coupon_max_fixed_discount_minor') || '10000', // ~$100 / 10000 ETB
+      couponMaxRedemptionsLimit: parseInt(map.get('finance.coupon_max_redemptions_limit') || '100', 10), // 100 uses
       escrowReleaseTrigger: map.get('finance.escrow_release_trigger') || 'COMPLETED_PLUS_24H',
       escrowReleaseDelayHours: parseInt(map.get('finance.escrow_release_delay_hours') || '24', 10),
       payoutSchedule: map.get('finance.payout_schedule') || 'DAILY_0200_ADDIS',
