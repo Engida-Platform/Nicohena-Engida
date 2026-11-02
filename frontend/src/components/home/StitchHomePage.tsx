@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { toggleWishlist as toggleWishlistStore, WISHLIST_UPDATED_EVENT, getSavedWishlist } from '@/lib/wishlist';
 import type { RecommendationsResponse } from '@/types/guest-ai';
 import type { Property } from '@/types';
 import AiConversationalSearchModal from '@/components/search/AiConversationalSearchModal';
@@ -37,7 +38,7 @@ export interface PropertyListing {
 }
 
 // Stitch curated luxury stays from the design
-const ETHIOPIAN_FALLBACK_PROPERTIES: PropertyListing[] = [
+export const ETHIOPIAN_FALLBACK_PROPERTIES: PropertyListing[] = [
   {
     id: '3d600de0-423b-4678-a361-962d3edcfb13',
     title: 'Executive Luxury Penthouse overlooking Bole Medhanialem',
@@ -375,8 +376,10 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     (selectedPropertyType !== 'all' ? 1 : 0) +
     selectedAmenities.length;
 
-  // Wishlist state
+  // Wishlist state & Saved Filter
   const [wishlist, setWishlist] = useState<Record<string, boolean>>({});
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const savedCount = useMemo(() => Object.values(wishlist).filter(Boolean).length, [wishlist]);
 
   // Pagination / Load more state
   const [visibleCount, setVisibleCount] = useState(8);
@@ -407,16 +410,27 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     return `$${Math.round(amount / 125).toLocaleString()}`;
   };
 
-  // Load wishlist from localStorage on mount
+  // Load wishlist from localStorage on mount & listen for updates
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('engida_wishlist');
-      if (stored) {
-        setWishlist(JSON.parse(stored));
+    const syncWishlist = () => {
+      setWishlist(getSavedWishlist());
+    };
+    syncWishlist();
+
+    // Check URL params for ?saved=true or ?tab=saved
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('saved') === 'true' || params.get('tab') === 'saved' || params.get('favorites') === 'true') {
+        setShowSavedOnly(true);
       }
-    } catch {
-      // ignore
     }
+
+    window.addEventListener(WISHLIST_UPDATED_EVENT, syncWishlist);
+    window.addEventListener('storage', syncWishlist);
+    return () => {
+      window.removeEventListener(WISHLIST_UPDATED_EVENT, syncWishlist);
+      window.removeEventListener('storage', syncWishlist);
+    };
   }, []);
 
   const toggleWishlist = (id: string, e: React.MouseEvent) => {
@@ -426,15 +440,22 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     btn.classList.add('heart-pop');
     setTimeout(() => btn.classList.remove('heart-pop'), 350);
 
+    const isNowSaved = toggleWishlistStore(id);
     setWishlist((prev) => {
-      const next = { ...prev, [id]: !prev[id] };
-      try {
-        localStorage.setItem('engida_wishlist', JSON.stringify(next));
-      } catch {
-        // ignore
+      const next = { ...prev };
+      if (isNowSaved) {
+        next[id] = true;
+      } else {
+        delete next[id];
       }
       return next;
     });
+
+    showPlatformToast(
+      isNowSaved ? 'Saved to your favorites!' : 'Removed from your favorites',
+      isNowSaved ? 'success' : 'info',
+      isNowSaved ? 'Saved' : 'Removed'
+    );
   };
 
   const removeFilterChip = (filter: string) => {
@@ -473,12 +494,18 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     setSelectedBathrooms('any');
     setSelectedPropertyType('all');
     setSelectedAmenities([]);
+    setShowSavedOnly(false);
   };
 
   // Filter and sort listings
   const sourceListings = realProperties.length > 0 ? realProperties : ETHIOPIAN_FALLBACK_PROPERTIES;
   const filteredListings = useMemo(() => {
     return sourceListings.filter((item) => {
+      // Saved / Wishlist filter
+      if (showSavedOnly && !wishlist[item.id]) {
+        return false;
+      }
+
       // Category filter with smart fuzzy matching
       if (selectedCategory !== 'all') {
         const cat = selectedCategory.toLowerCase();
@@ -606,7 +633,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       }
       return 0; // recommended
     });
-  }, [sourceListings, selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption, minPrice, maxPrice, selectedBedrooms, selectedBathrooms, selectedPropertyType, selectedAmenities, aiRecommendations]);
+  }, [sourceListings, selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption, minPrice, maxPrice, selectedBedrooms, selectedBathrooms, selectedPropertyType, selectedAmenities, aiRecommendations, showSavedOnly, wishlist]);
 
   const displayedListings = useMemo(() => {
     return filteredListings.slice(0, visibleCount);
@@ -786,6 +813,25 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                           </Link>
                         )}
                         <div className="h-[1px] bg-[#E5E0D5]/50 my-1"></div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            setShowSavedOnly(true);
+                            document.getElementById('listings-grid')?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base text-[#D87836]">favorite</span>
+                            <span>Wishlist &amp; Saved Stays</span>
+                          </div>
+                          {savedCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#234B36]/10 text-[#234B36]">
+                              {savedCount}
+                            </span>
+                          )}
+                        </button>
                         <Link
                           href="/dashboard"
                           onClick={() => setUserMenuOpen(false)}
@@ -836,6 +882,25 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                           Create Account
                         </Link>
                         <div className="h-[1px] bg-[#E5E0D5]/50 my-1"></div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setUserMenuOpen(false);
+                            setShowSavedOnly(true);
+                            document.getElementById('listings-grid')?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium text-left cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-base text-[#D87836]">favorite</span>
+                            <span>Wishlist &amp; Saved Stays</span>
+                          </div>
+                          {savedCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#234B36]/10 text-[#234B36]">
+                              {savedCount}
+                            </span>
+                          )}
+                        </button>
                         <Link
                           href="/become-a-host"
                           onClick={() => setUserMenuOpen(false)}
@@ -1072,7 +1137,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               })}
             </div>
 
-            {/* Action Controls: AI Search, Filters & Sort */}
+            {/* Action Controls: AI Search, Saved Favorites, Filters & Sort */}
             <div className="flex items-center gap-2 shrink-0 pl-4 border-l border-[#E5E0D5]/40">
               <button
                 type="button"
@@ -1085,6 +1150,33 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                 </span>
                 <span className="text-xs sm:text-sm font-semibold text-[#234B36]">AI Search</span>
               </button>
+
+              {/* Saved Stays / Favorites Toggle */}
+              <button
+                type="button"
+                onClick={() => setShowSavedOnly((prev) => !prev)}
+                className={`favorites-action-btn flex items-center gap-1.5 px-3.5 py-2 rounded-full transition-all duration-200 cursor-pointer ${
+                  showSavedOnly
+                    ? 'bg-[#234B36] text-white border border-[#234B36] shadow-sm hover:bg-[#1a3828]'
+                    : savedCount > 0
+                    ? 'bg-white border border-[#D87836]/40 text-[#252923] hover:text-[#234B36] hover:border-[#234B36] shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(216,120,54,0.15)] active:scale-95'
+                    : 'bg-white border border-[#E5E0D5] text-[#73776F] hover:text-[#252923] hover:border-[#234B36]/50 shadow-[0_2px_8px_rgba(58,48,42,0.04)] active:scale-95'
+                }`}
+                title={showSavedOnly ? 'Show all stays' : 'Show only your saved properties'}
+              >
+                <span
+                  className={`material-symbols-outlined text-base transition-colors ${
+                    showSavedOnly ? 'text-white' : savedCount > 0 ? 'text-[#D87836]' : 'text-[#73776F]'
+                  }`}
+                  style={showSavedOnly || savedCount > 0 ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                >
+                  favorite
+                </span>
+                <span className="text-xs sm:text-sm font-semibold">
+                  Saved{savedCount > 0 ? ` (${savedCount})` : ''}
+                </span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(true)}
@@ -1158,12 +1250,24 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <h2 className="text-xl md:text-2xl font-bold font-headline text-[#252923]">
-                Over {filteredListings.length} verified stays available
+                {showSavedOnly
+                  ? `Your Saved Stays (${filteredListings.length})`
+                  : `Over ${filteredListings.length} verified stays available`}
               </h2>
-              <span className="hidden md:inline-flex items-center px-3 py-0.5 rounded-full bg-[#eae2da] text-[#73776F] font-semibold text-xs border border-[#E5E0D5]/50 transition-all hover:bg-[#fbe8d8] hover:text-[#401a08] cursor-default">
-                Updated today
-              </span>
-              {user && isAiPersonalized && (
+              {showSavedOnly ? (
+                <button
+                  type="button"
+                  onClick={() => setShowSavedOnly(false)}
+                  className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-bold text-xs hover:bg-[#234B36] hover:text-white transition cursor-pointer"
+                >
+                  <span>View all stays</span>
+                </button>
+              ) : (
+                <span className="hidden md:inline-flex items-center px-3 py-0.5 rounded-full bg-[#eae2da] text-[#73776F] font-semibold text-xs border border-[#E5E0D5]/50 transition-all hover:bg-[#fbe8d8] hover:text-[#401a08] cursor-default">
+                  Updated today
+                </span>
+              )}
+              {user && isAiPersonalized && !showSavedOnly && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
                   <span className="material-symbols-outlined text-xs text-[#D87836]">auto_awesome</span>
                   <span>Curated for {user.name ? user.name.split(' ')[0] : 'you'}</span>
@@ -1173,6 +1277,23 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
 
             {/* Quick Toggle & Active Filter Chips */}
             <div className="flex flex-wrap items-center gap-2">
+              {/* Saved filter chip */}
+              {showSavedOnly && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D87836]/15 text-[#9C4B18] font-bold text-xs border border-[#D87836]/40 shadow-2xs">
+                  <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    favorite
+                  </span>
+                  <span>Favorites Only ({savedCount})</span>
+                  <button
+                    type="button"
+                    aria-label="Remove saved stays filter"
+                    onClick={() => setShowSavedOnly(false)}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer ml-1"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
               {/* Category chip */}
               {selectedCategory !== 'all' && (
                 <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
@@ -1349,18 +1470,39 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
         {/* ============================================================ */}
         <section id="listings-grid" className="w-full px-4 sm:px-6 lg:px-12 py-4 max-w-[1440px] mx-auto">
           {displayedListings.length === 0 ? (
-            <div className="py-20 text-center bg-white rounded-3xl border border-[#E5E0D5] p-8 max-w-xl mx-auto shadow-sm">
-              <span className="material-symbols-outlined text-4xl text-[#234B36]">cottage</span>
-              <h3 className="text-xl font-bold font-headline mt-3 text-[#252923]">No stays match your criteria</h3>
-              <p className="text-sm text-[#73776F] mt-1">Try clearing some filters or searching for another destination.</p>
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="mt-5 px-5 py-2.5 rounded-full bg-[#234B36] text-white font-semibold text-xs shadow-md hover:bg-[#2D5E43]"
-              >
-                Reset filters
-              </button>
-            </div>
+            showSavedOnly ? (
+              <div className="py-20 text-center bg-white rounded-3xl border border-[#E5E0D5] p-8 max-w-xl mx-auto shadow-sm">
+                <div className="w-16 h-16 rounded-full bg-[#FAF8F2] border border-[#E5E0D5] flex items-center justify-center mx-auto mb-4 text-[#D87836]">
+                  <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+                    favorite
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold font-headline text-[#252923]">No saved stays yet</h3>
+                <p className="text-sm text-[#73776F] mt-2 max-w-md mx-auto">
+                  Tap the heart icon on any property card while exploring to build your personal Ethiopian travel wishlist.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowSavedOnly(false)}
+                  className="mt-6 inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#234B36] text-white font-semibold text-sm shadow-md hover:bg-[#2D5E43] transition cursor-pointer"
+                >
+                  Browse all verified stays
+                </button>
+              </div>
+            ) : (
+              <div className="py-20 text-center bg-white rounded-3xl border border-[#E5E0D5] p-8 max-w-xl mx-auto shadow-sm">
+                <span className="material-symbols-outlined text-4xl text-[#234B36]">cottage</span>
+                <h3 className="text-xl font-bold font-headline mt-3 text-[#252923]">No stays match your criteria</h3>
+                <p className="text-sm text-[#73776F] mt-1">Try clearing some filters or searching for another destination.</p>
+                <button
+                  type="button"
+                  onClick={clearAllFilters}
+                  className="mt-5 px-5 py-2.5 rounded-full bg-[#234B36] text-white font-semibold text-xs shadow-md hover:bg-[#2D5E43]"
+                >
+                  Reset filters
+                </button>
+              </div>
+            )
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {displayedListings.map((property, idx) => {

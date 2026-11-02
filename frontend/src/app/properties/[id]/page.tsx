@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { isWishlisted as checkWishlisted, toggleWishlist as toggleWishlistHelper, WISHLIST_UPDATED_EVENT } from '@/lib/wishlist';
 import type { Property } from '@/types';
 import AppHeader from '@/components/layout/AppHeader';
 import AppFooter from '@/components/layout/AppFooter';
@@ -188,6 +189,34 @@ export default function PropertyDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
+
+  useEffect(() => {
+    if (id) {
+      setIsWishlisted(checkWishlisted(id));
+    }
+    const handleWishlistUpdate = () => {
+      if (id) {
+        setIsWishlisted(checkWishlisted(id));
+      }
+    };
+    window.addEventListener(WISHLIST_UPDATED_EVENT, handleWishlistUpdate);
+    return () => window.removeEventListener(WISHLIST_UPDATED_EVENT, handleWishlistUpdate);
+  }, [id]);
+
+  const handleToggleWishlist = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!id) return;
+    const nextState = toggleWishlistHelper(id);
+    setIsWishlisted(nextState);
+    showPlatformToast(
+      nextState ? 'Property saved to your favorites!' : 'Removed from your favorites',
+      nextState ? 'success' : 'info',
+      nextState ? 'Saved' : 'Removed'
+    );
+  };
   const [activePhotoModal, setActivePhotoModal] = useState<number | null>(null);
   const [reportListingOpen, setReportListingOpen] = useState(false);
   const [reportReview, setReportReview] = useState<{ id: string; author: string } | null>(null);
@@ -652,7 +681,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
 
             <button
               type="button"
-              onClick={() => setIsWishlisted((prev) => !prev)}
+              onClick={handleToggleWishlist}
               className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#d8d0c8]/60 text-xs font-semibold text-[#3a302a] hover:bg-[#f2ece4] transition active:scale-95 shadow-2xs cursor-pointer"
             >
               <span

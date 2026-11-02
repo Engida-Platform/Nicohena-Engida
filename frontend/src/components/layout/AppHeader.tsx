@@ -4,9 +4,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
+import { useWishlist } from '@/lib/wishlist';
 
 export default function AppHeader() {
   const { user, logout } = useAuth();
+  const { savedCount } = useWishlist();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [currency, setCurrency] = useState<'USD' | 'ETB'>('ETB');
   const [unreadNotifications, setUnreadNotifications] = useState(0);
@@ -134,6 +136,21 @@ export default function AppHeader() {
                       Dashboard
                     </Link>
                     <Link
+                      href="/wishlist"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center justify-between px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-[#D87836]">favorite</span>
+                        <span>Wishlist &amp; Saved</span>
+                      </div>
+                      {savedCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#234B36]/10 text-[#234B36]">
+                          {savedCount}
+                        </span>
+                      )}
+                    </Link>
+                    <Link
                       href="/messages"
                       onClick={() => setUserMenuOpen(false)}
                       className="block px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
@@ -203,6 +220,21 @@ export default function AppHeader() {
                       className="block px-4 py-2.5 text-sm text-[#73776F] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
                     >
                       Create Account
+                    </Link>
+                    <Link
+                      href="/wishlist"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center justify-between px-4 py-2.5 text-sm text-[#252923] hover:bg-[#F8F5ED] hover:text-[#234B36] font-medium"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-[#D87836]">favorite</span>
+                        <span>Wishlist &amp; Saved</span>
+                      </div>
+                      {savedCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#234B36]/10 text-[#234B36]">
+                          {savedCount}
+                        </span>
+                      )}
                     </Link>
                     <div className="my-1 border-t border-[#E5E0D5]/40" />
                     <Link
