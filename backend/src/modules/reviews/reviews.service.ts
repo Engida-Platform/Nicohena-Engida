@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThanOrEqual, Repository } from 'typeorm';
@@ -12,6 +13,8 @@ import { ReviewModerationStatus } from './entities/review.entity';
 import { Property } from '../properties/entities/property.entity';
 import { Booking, BookingStatus } from '../bookings/entities/booking.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/entities/notification.entity';
 
 @Injectable()
 export class ReviewsService {
@@ -22,6 +25,8 @@ export class ReviewsService {
     private readonly reviewRepository: Repository<Review>,
     @InjectRepository(Property)
     private readonly propertyRepository: Repository<Property>,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async findByProperty(propertyId: string): Promise<{
@@ -79,6 +84,9 @@ export class ReviewsService {
     userId: string,
   ): Promise<Review> {
     try {
+      let savedHostId: string | null = null;
+      let savedPropertyTitle: string | null = null;
+
       const saved = await this.reviewRepository.manager.transaction(async (manager) => {
         const propertyRepository = manager.getRepository(Property);
         const reviewRepository = manager.getRepository(Review);
@@ -95,6 +103,9 @@ export class ReviewsService {
         if (property.hostId === userId) {
           throw new BadRequestException('You cannot review your own property');
         }
+
+        savedHostId = property.hostId;
+        savedPropertyTitle = property.title;
 
         const completedBooking = await bookingRepository.findOne({
           where: {
@@ -125,6 +136,22 @@ export class ReviewsService {
       this.logger.log(
         `Review created by user ${userId} for property ${propertyId} (rating: ${createReviewDto.rating})`,
       );
+
+      if (this.notificationsService && savedHostId) {
+        try {
+          await this.notificationsService.createNotification({
+            userId: savedHostId,
+            type: NotificationType.BOOKING_COMPLETED,
+            title: 'New Guest Review',
+            message: `A guest left a ${createReviewDto.rating}-star review for "${savedPropertyTitle || 'your property'}".`,
+            link: '/host/reviews',
+            metadata: { propertyId, reviewId: saved.id, rating: createReviewDto.rating },
+            idempotencyKey: `review_${saved.id}_host`,
+          });
+        } catch (notifErr: unknown) {
+          this.logger.warn(`Failed to notify host of new review: ${notifErr}`);
+        }
+      }
 
       const createdReview = await this.reviewRepository
         .createQueryBuilder('review')

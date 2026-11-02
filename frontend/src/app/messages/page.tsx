@@ -136,7 +136,7 @@ function MessagesContent() {
   useEffect(() => {
     if (authLoading) return;
     if (!user) {
-      router.push('/login?redirect=/messages');
+      router.push('/login?next=/messages');
       return;
     }
 

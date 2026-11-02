@@ -35,6 +35,7 @@ import { FinanceJobsService } from './services/finance-jobs.service';
 import { AdminFinanceService } from '../admin/finance/admin-finance.service';
 import { AdminFinanceController } from '../admin/finance/admin-finance.controller';
 import { AuditModule } from '../audit/audit.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { AuditModule } from '../audit/audit.module';
       User,
     ]),
     AuditModule,
+    NotificationsModule,
   ],
   providers: [
     SandboxPaymentProvider,

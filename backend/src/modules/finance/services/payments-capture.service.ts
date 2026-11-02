@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -21,6 +22,8 @@ import { ChapaPaymentProvider } from '../providers/chapa-payment.provider';
 import { LedgerService } from './ledger.service';
 import { FinanceSettingsService } from './finance-settings.service';
 import { AuditService } from '../../audit/audit.service';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 import { calculateBasisPoints, toMinorUnits } from '../../../lib/money';
 import { LedgerTransactionType } from '../entities/ledger-transaction.entity';
 
@@ -55,6 +58,8 @@ export class PaymentsCaptureService {
     private readonly ledgerService: LedgerService,
     private readonly settingsService: FinanceSettingsService,
     private readonly auditService: AuditService,
+    @Optional()
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   /**
@@ -574,6 +579,42 @@ export class PaymentsCaptureService {
       this.logger.log(
         `Successfully captured payment ${payment.id} for booking ${booking.id}: ${amountMinor} ${payment.currency}`,
       );
+
+      // 7. Notify guest and host of secured payment & escrow
+      if (this.notificationsService) {
+        const propTitle = booking.property?.title || 'your reservation';
+        const refStr = booking.reference || `#${booking.id.slice(0, 8)}`;
+        if (booking.guestId) {
+          try {
+            await this.notificationsService.createNotification({
+              userId: booking.guestId,
+              type: NotificationType.BOOKING_CONFIRMED,
+              title: 'Payment Secured & Escrow Active',
+              message: `Your payment for ${refStr} ("${propTitle}") is confirmed and held safely in platform escrow.`,
+              link: '/dashboard',
+              metadata: { bookingId: booking.id, propertyId: booking.property?.id, paymentId: payment.id },
+              idempotencyKey: `payment_${payment.id}_captured_guest`,
+            });
+          } catch (notifErr: unknown) {
+            this.logger.warn(`Failed to dispatch guest payment notification: ${notifErr}`);
+          }
+        }
+        if (booking.property?.hostId) {
+          try {
+            await this.notificationsService.createNotification({
+              userId: booking.property.hostId,
+              type: NotificationType.BOOKING_REQUESTED,
+              title: 'Payment Received in Escrow',
+              message: `Guest payment for ${refStr} ("${propTitle}") was captured and secured in escrow.`,
+              link: '/host/reservations',
+              metadata: { bookingId: booking.id, propertyId: booking.property?.id, paymentId: payment.id },
+              idempotencyKey: `payment_${payment.id}_captured_host`,
+            });
+          } catch (notifErr: unknown) {
+            this.logger.warn(`Failed to dispatch host payment notification: ${notifErr}`);
+          }
+        }
+      }
     });
   }
 

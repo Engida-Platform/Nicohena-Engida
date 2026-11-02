@@ -354,7 +354,7 @@ export default function PropertyDetailsPage() {
     if (!text || sendingMessage || !property) return;
 
     if (!user) {
-      router.push(`/login?redirect=/properties/${property.id}`);
+      router.push(`/login?next=${encodeURIComponent(`/properties/${property.id}`)}`);
       return;
     }
 
@@ -398,6 +398,12 @@ export default function PropertyDetailsPage() {
     apiFetch<Property>(`/properties/${id}`, { skipAuth: true })
       .then((data) => {
         // Adapt backend Property model into rich view model
+        const rawReviews = data.reviews || [];
+        const reviewsCount = rawReviews.length;
+        const computedRating = reviewsCount > 0
+          ? Math.round((rawReviews.reduce((sum: number, r: { rating?: number }) => sum + (r.rating || 5), 0) / reviewsCount) * 10) / 10
+          : 5.0;
+
         const adapted: DetailedProperty = {
           id: data.id,
           title: data.title,
@@ -416,8 +422,8 @@ export default function PropertyDetailsPage() {
           beds: data.bedrooms || 2,
           baths: data.bathrooms || 2,
           dates: 'Available this season',
-          rating: 4.95,
-          reviewsCount: data.reviews?.length || 24,
+          rating: computedRating,
+          reviewsCount: reviewsCount > 0 ? reviewsCount : 0,
           pricePerNight: Number(data.pricePerNight) || 250,
           currency: 'ETB',
           isSuperhost: true,
@@ -452,11 +458,11 @@ export default function PropertyDetailsPage() {
             icon: 'check_circle',
             category: 'Features',
           })),
-          reviews: (data.reviews || []).map((r) => ({
+          reviews: rawReviews.map((r) => ({
             id: r.id,
             authorId: r.user?.id,
             author: r.user?.name || 'Curated Traveler',
-            date: 'Recent Stay',
+            date: r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : 'Recent Stay',
             rating: r.rating || 5,
             avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
             comment: r.comment || 'Remarkable property. Clean, tranquil, and exceeds expectations.',
@@ -601,7 +607,7 @@ export default function PropertyDetailsPage() {
 
     // If user is unauthenticated, redirect to login with safe returnUrl
     if (!user) {
-      router.push(`/auth/login?returnUrl=/properties/${id}`);
+      router.push(`/login?next=${encodeURIComponent(`/properties/${id}`)}`);
       return;
     }
 

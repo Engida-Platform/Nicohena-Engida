@@ -21,7 +21,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setReturnPath(getSafeReturnPath(params.get('next'), '/dashboard'));
+    const paramReturn = params.get('next') || params.get('returnUrl') || params.get('redirect');
+    setReturnPath(getSafeReturnPath(paramReturn, '/dashboard'));
 
     const googleError = params.get('error');
     if (googleError) {
