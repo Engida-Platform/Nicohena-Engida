@@ -17,6 +17,8 @@ import {
 import type { FinanceSummary } from '../../../../types/admin-finance';
 import { formatMinor } from '../../../../lib/finance-format';
 import AdminStatusBadge from '../../../../components/admin/AdminStatusBadge';
+import { useAuth } from '../../../../context/AuthContext';
+import { ADMIN_PERMISSIONS, can } from '../../../../types/admin';
 
 interface OverviewTabProps {
   summary: FinanceSummary | null;
@@ -54,6 +56,49 @@ export default function OverviewTab({
   const invariant = summary?.ledgerInvariant;
   const metrics = summary?.metrics;
   const queues = summary?.pendingQueues;
+
+  const { user } = useAuth();
+  const canRefunds = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_REFUNDS);
+  const canPayouts = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_PAYOUTS);
+  const canEscrow = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_VIEW);
+  const canReconcile = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_RECONCILE);
+
+  const queueCards = [
+    canRefunds && {
+      id: 'refunds',
+      title: 'Refunds Pending Approval',
+      hint: 'requires second approver',
+      count: queues?.pendingRefundApprovals ?? 0,
+      countColor: 'text-[#3a302a]',
+    },
+    canPayouts && {
+      id: 'payouts',
+      title: 'Payout Batches in Review',
+      hint: 'batches queued',
+      count: queues?.pendingPayoutApprovals ?? 0,
+      countColor: 'text-[#3a302a]',
+    },
+    canEscrow && {
+      id: 'escrow',
+      title: 'Dispute Frozen Escrows',
+      hint: 'active case freezes',
+      count: queues?.frozenEscrowHolds ?? 0,
+      countColor: 'text-[#95631f]',
+    },
+    canReconcile && {
+      id: 'reconciliation',
+      title: 'Reconciliation Issues',
+      hint: 'unresolved mismatches',
+      count: queues?.reconciliationIssues ?? 0,
+      countColor: 'text-[#9a3f33]',
+    },
+  ].filter(Boolean) as Array<{
+    id: string;
+    title: string;
+    hint: string;
+    count: number;
+    countColor: string;
+  }>;
 
   return (
     <div className="space-y-6">
@@ -234,76 +279,43 @@ export default function OverviewTab({
       </div>
 
       {/* ── 4. ACTION & APPROVAL QUEUES ── */}
-      <div>
-        <h3 className="text-xs font-bold uppercase tracking-wider text-[#605850] mb-3">
-          Operations & Dual-Approval Queues
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {queueCards.length > 0 && (
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#605850] mb-3">
+            Operations & Dual-Approval Queues
+          </h3>
           <div
-            onClick={() => onNavigateTab('refunds')}
-            className="bg-white border border-[#d8d0c8] hover:border-[#b3541e] rounded-2xl p-4 transition-all shadow-xs cursor-pointer group"
+            className={`grid gap-4 ${
+              queueCards.length === 1
+                ? 'grid-cols-1'
+                : queueCards.length === 2
+                  ? 'grid-cols-1 sm:grid-cols-2'
+                  : queueCards.length === 3
+                    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+                    : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'
+            }`}
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#3a302a]">Refunds Pending Approval</span>
-              <ArrowRight className="w-4 h-4 text-[#73776f] group-hover:text-[#b3541e] transition" />
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black text-[#3a302a]">
-                {queues?.pendingRefundApprovals ?? 0}
-              </span>
-              <span className="text-xs text-[#73776f]">requires second approver</span>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onNavigateTab('payouts')}
-            className="bg-white border border-[#d8d0c8] hover:border-[#b3541e] rounded-2xl p-4 transition-all shadow-xs cursor-pointer group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#3a302a]">Payout Batches in Review</span>
-              <ArrowRight className="w-4 h-4 text-[#73776f] group-hover:text-[#b3541e] transition" />
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black text-[#3a302a]">
-                {queues?.pendingPayoutApprovals ?? 0}
-              </span>
-              <span className="text-xs text-[#73776f]">batches queued</span>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onNavigateTab('escrow')}
-            className="bg-white border border-[#d8d0c8] hover:border-[#b3541e] rounded-2xl p-4 transition-all shadow-xs cursor-pointer group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#3a302a]">Dispute Frozen Escrows</span>
-              <ArrowRight className="w-4 h-4 text-[#73776f] group-hover:text-[#b3541e] transition" />
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black text-[#95631f]">
-                {queues?.frozenEscrowHolds ?? 0}
-              </span>
-              <span className="text-xs text-[#73776f]">active case freezes</span>
-            </div>
-          </div>
-
-          <div
-            onClick={() => onNavigateTab('reconciliation')}
-            className="bg-white border border-[#d8d0c8] hover:border-[#b3541e] rounded-2xl p-4 transition-all shadow-xs cursor-pointer group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#3a302a]">Reconciliation Issues</span>
-              <ArrowRight className="w-4 h-4 text-[#73776f] group-hover:text-[#b3541e] transition" />
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-3xl font-black text-[#9a3f33]">
-                {queues?.reconciliationIssues ?? 0}
-              </span>
-              <span className="text-xs text-[#73776f]">unresolved mismatches</span>
-            </div>
+            {queueCards.map((card) => (
+              <div
+                key={card.id}
+                onClick={() => onNavigateTab(card.id)}
+                className="bg-white border border-[#d8d0c8] hover:border-[#b3541e] rounded-2xl p-4 transition-all shadow-xs cursor-pointer group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#3a302a]">{card.title}</span>
+                  <ArrowRight className="w-4 h-4 text-[#73776f] group-hover:text-[#b3541e] transition" />
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <span className={`text-3xl font-black ${card.countColor}`}>
+                    {card.count}
+                  </span>
+                  <span className="text-xs text-[#73776f]">{card.hint}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

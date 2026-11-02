@@ -725,7 +725,7 @@ export default function AdminModerationPage() {
         </div>
 
         {/* ── TAB 1 & 2: Review Queue & History ── */}
-        {activeTab !== 'takedowns' && activeTab !== 'host-verifications' && (
+        {canReview && activeTab !== 'takedowns' && activeTab !== 'host-verifications' && (
           <div className="space-y-4">
             {/* Filter Bar */}
             <div className="bg-white border border-[#d8d0c8] rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm">
@@ -972,7 +972,7 @@ export default function AdminModerationPage() {
         )}
 
         {/* ── TAB 3: Takedown / Administrative Hold Console ── */}
-        {activeTab === 'takedowns' && (
+        {canHide && activeTab === 'takedowns' && (
           <div className="space-y-6 max-w-3xl">
             <div className="bg-white border border-[#d8d0c8] rounded-2xl p-6 shadow-sm space-y-4">
               <div className="flex items-center gap-2.5 pb-3 border-b border-[#f1eae0]">
@@ -1111,7 +1111,7 @@ export default function AdminModerationPage() {
         )}
 
         {/* ── TAB 4: Host Identity Verification Console ── */}
-        {activeTab === 'host-verifications' && (
+        {canViewHosts && activeTab === 'host-verifications' && (
           <div className="space-y-4">
             {hostVerifSuccess && (
               <div className="p-4 rounded-2xl bg-[#edf1e8] border border-[#d6dfcd] text-[#405a3a] text-xs sm:text-sm font-semibold flex items-center justify-between">

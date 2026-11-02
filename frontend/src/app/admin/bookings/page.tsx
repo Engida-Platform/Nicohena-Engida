@@ -1090,35 +1090,34 @@ function BookingDetail({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
-          {detail.allowedTransitions.map((next) => {
-            const action = STATUS_ACTIONS[next];
-            if (!action) return null;
-            const primary = next === 'CONFIRMED';
-            const todayStr = new Date().toISOString().slice(0, 10);
-            const isBeforeCheckout = next === 'COMPLETED' && detail.checkOutDate > todayStr;
-            const isDisabled = !canManage || isBeforeCheckout;
-            const tooltip = !canManage
-              ? 'Your role cannot change reservations'
-              : isBeforeCheckout
+          {canManage ? (
+            detail.allowedTransitions.map((next) => {
+              const action = STATUS_ACTIONS[next];
+              if (!action) return null;
+              const primary = next === 'CONFIRMED';
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const isBeforeCheckout = next === 'COMPLETED' && detail.checkOutDate > todayStr;
+              const isDisabled = isBeforeCheckout;
+              const tooltip = isBeforeCheckout
                 ? `Stay cannot be marked complete before check-out date (${detail.checkOutDate})`
                 : undefined;
-            return (
-              <button
-                key={next}
-                type="button"
-                className={`admin-btn h-8 min-h-8 px-2.5 text-[11px] ${primary ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
-                onClick={() => onStatusAction(action)}
-                disabled={isDisabled}
-                title={tooltip}
-              >
-                {next === 'CANCELLED' ? <Ban className="h-3 w-3" /> : next === 'COMPLETED' ? <CheckCircle2 className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
-                {action.title}
-              </button>
-            );
-          })}
-          {!canManage ? (
+              return (
+                <button
+                  key={next}
+                  type="button"
+                  className={`admin-btn h-8 min-h-8 px-2.5 text-[11px] ${primary ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
+                  onClick={() => onStatusAction(action)}
+                  disabled={isDisabled}
+                  title={tooltip}
+                >
+                  {next === 'CANCELLED' ? <Ban className="h-3 w-3" /> : next === 'COMPLETED' ? <CheckCircle2 className="h-3 w-3" /> : <Sparkles className="h-3 w-3" />}
+                  {action.title}
+                </button>
+              );
+            })
+          ) : (
             <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#78706a]">Read only</span>
-          ) : null}
+          )}
         </div>
       </div>
 
@@ -1296,7 +1295,7 @@ function BookingDetail({
                 <p className="mt-1 text-[10px] text-[#78706a]">
                   Recorded by {pendingCancellation.requestedBy?.name || 'admin'} · {shortDateTime(pendingCancellation.createdAt)}
                 </p>
-                {canManage ? (
+                {canManage && (
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     <button type="button" className="admin-btn admin-btn-primary h-8 min-h-8 px-2.5 text-[11px]" onClick={() => onDecision(pendingCancellation, 'approve')}>
                       Approve
@@ -1305,10 +1304,6 @@ function BookingDetail({
                       Decline
                     </button>
                   </div>
-                ) : (
-                  <p className="mt-3 text-[11px] text-[#78706a]">
-                    Requires <span className="font-mono text-[#4a4036]">bookings.manage</span> to decide.
-                  </p>
                 )}
               </section>
             ) : canManage && detail.status !== 'CANCELLED' && detail.status !== 'COMPLETED' ? (

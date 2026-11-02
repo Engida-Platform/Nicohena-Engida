@@ -14,6 +14,7 @@ import {
 import { apiFetch } from '../../../lib/api';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
 import AdminDialog from '../../../components/admin/AdminDialog';
+import AdminNoAccess from '../../../components/admin/AdminNoAccess';
 import { useAuth } from '../../../context/AuthContext';
 import { can, ADMIN_PERMISSIONS } from '../../../types/admin';
 import {
@@ -71,6 +72,10 @@ export default function AdminContentPage() {
   const [dialogError, setDialogError] = useState<string | null>(null);
 
   const loadContent = useCallback(async () => {
+    if (!canManage) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -194,6 +199,17 @@ export default function AdminContentPage() {
       setDeleting(false);
     }
   };
+
+  if (!canManage) {
+    return (
+      <AdminNoAccess
+        area="Content & CMS"
+        required={[ADMIN_PERMISSIONS.CONTENT_MANAGE]}
+        backHref="/admin"
+        backLabel="Back to overview"
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

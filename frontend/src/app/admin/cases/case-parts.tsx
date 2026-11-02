@@ -930,24 +930,22 @@ export function CaseContext({
         </p>
       </div>
 
-      <div className="admin-context-section">
-        <p className="admin-context-title">Desk actions</p>
-        <div className="mt-2 flex flex-col gap-1.5">
-          {canManage ? (
-            <>
-              <button type="button" className="admin-btn admin-btn-secondary h-8 min-h-8 justify-start px-2.5 text-[11px]" onClick={onStatus}>
-                Update case status
-              </button>
-              <button type="button" className="admin-btn admin-btn-secondary h-8 min-h-8 justify-start px-2.5 text-[11px]" onClick={onAssign}>
-                Change assignee
-              </button>
-            </>
-          ) : null}
-          <p className="mt-1 text-[9px] leading-4 text-[#a99c90]">
-            Every status, assignment, note, message and file action is audited.
-          </p>
+      {canManage && (
+        <div className="admin-context-section">
+          <p className="admin-context-title">Desk actions</p>
+          <div className="mt-2 flex flex-col gap-1.5">
+            <button type="button" className="admin-btn admin-btn-secondary h-8 min-h-8 justify-start px-2.5 text-[11px]" onClick={onStatus}>
+              Update case status
+            </button>
+            <button type="button" className="admin-btn admin-btn-secondary h-8 min-h-8 justify-start px-2.5 text-[11px]" onClick={onAssign}>
+              Change assignee
+            </button>
+            <p className="mt-1 text-[9px] leading-4 text-[#a99c90]">
+              Every status, assignment, note, message and file action is audited.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </aside>
   );
 }

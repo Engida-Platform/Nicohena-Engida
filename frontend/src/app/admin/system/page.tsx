@@ -367,26 +367,22 @@ export default function AdminSystemPage() {
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleTriggerJob(job.name)}
-                    disabled={!canManage || triggeringJob === job.name || job.canTrigger === false}
-                    className="inline-flex items-center gap-2 self-start rounded-xl border border-[#d8d0c8] bg-[#faf5ee] px-3.5 py-2 text-xs font-bold text-[#3a302a] shadow-sm transition hover:bg-[#eae2da] hover:text-[#b3541e] disabled:opacity-50 disabled:cursor-not-allowed sm:self-auto"
-                    title={
-                      !canManage
-                        ? 'Requires system.manage permission'
-                        : job.canTrigger === false
-                          ? 'This job cannot be triggered ad-hoc'
-                          : 'Trigger job execution now'
-                    }
-                  >
-                    <Play
-                      className={`h-3.5 w-3.5 text-[#b3541e] ${
-                        triggeringJob === job.name ? 'animate-spin' : ''
-                      }`}
-                    />
-                    {triggeringJob === job.name ? 'Running...' : 'Run Now'}
-                  </button>
+                  {canManage && job.canTrigger !== false && (
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerJob(job.name)}
+                      disabled={triggeringJob === job.name}
+                      className="inline-flex items-center gap-2 self-start rounded-xl border border-[#d8d0c8] bg-[#faf5ee] px-3.5 py-2 text-xs font-bold text-[#3a302a] shadow-sm transition hover:bg-[#eae2da] hover:text-[#b3541e] disabled:opacity-50 disabled:cursor-not-allowed sm:self-auto cursor-pointer"
+                      title="Trigger job execution now"
+                    >
+                      <Play
+                        className={`h-3.5 w-3.5 text-[#b3541e] ${
+                          triggeringJob === job.name ? 'animate-spin' : ''
+                        }`}
+                      />
+                      {triggeringJob === job.name ? 'Running...' : 'Run Now'}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

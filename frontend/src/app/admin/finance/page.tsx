@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Download,
@@ -18,6 +18,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import AdminPageHeader from '../../../components/admin/AdminPageHeader';
+import AdminNoAccess from '../../../components/admin/AdminNoAccess';
 import { useAuth } from '../../../context/AuthContext';
 import { ADMIN_PERMISSIONS, can } from '../../../types/admin';
 import { apiFetch, downloadAuthedFile } from '../../../lib/api';
@@ -64,7 +65,94 @@ export default function AdminFinancePage() {
     settings: false,
   });
 
+  interface FinanceTabDef {
+    id: FinanceTabKey;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    count?: number;
+    permission?: (typeof ADMIN_PERMISSIONS)[keyof typeof ADMIN_PERMISSIONS];
+  }
+
+  const ALL_TABS: FinanceTabDef[] = useMemo(
+    () => [
+      {
+        id: 'overview',
+        label: 'Treasury Overview',
+        icon: Landmark,
+        permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
+      },
+      {
+        id: 'payments',
+        label: 'Captured Payments',
+        icon: Receipt,
+        permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
+      },
+      {
+        id: 'escrow',
+        label: 'Escrow Holds',
+        icon: Clock,
+        count: summary?.pendingQueues?.frozenEscrowHolds,
+        permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
+      },
+      {
+        id: 'refunds',
+        label: 'Refunds Review',
+        icon: RotateCcw,
+        count: summary?.pendingQueues?.pendingRefundApprovals,
+        permission: ADMIN_PERMISSIONS.FINANCE_REFUNDS,
+      },
+      {
+        id: 'payouts',
+        label: 'Host Payouts',
+        icon: Wallet,
+        count: summary?.pendingQueues?.pendingPayoutApprovals,
+        permission: ADMIN_PERMISSIONS.FINANCE_PAYOUTS,
+      },
+      {
+        id: 'accounts',
+        label: 'Payout Accounts',
+        icon: ShieldCheck,
+        permission: ADMIN_PERMISSIONS.FINANCE_PAYOUTS,
+      },
+      {
+        id: 'ledger',
+        label: 'General Ledger',
+        icon: Scale,
+        permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
+      },
+      {
+        id: 'reconciliation',
+        label: 'Reconciliation',
+        icon: FileCheck,
+        count: summary?.pendingQueues?.reconciliationIssues,
+        permission: ADMIN_PERMISSIONS.FINANCE_RECONCILE,
+      },
+      {
+        id: 'settings',
+        label: 'Settings & Rates',
+        icon: Sliders,
+        permission: ADMIN_PERMISSIONS.FINANCE_CONFIG,
+      },
+    ],
+    [summary?.pendingQueues],
+  );
+
+  const TABS = useMemo(
+    () => ALL_TABS.filter((tab) => !tab.permission || can(user?.permissions, tab.permission)),
+    [ALL_TABS, user?.permissions],
+  );
+
+  // Auto-correct activeTab if current tab is not accessible
+  useEffect(() => {
+    if (TABS.length > 0 && !TABS.some((tab) => tab.id === activeTab)) {
+      const fallbackTab = TABS[0].id;
+      setActiveTab(fallbackTab);
+      setVisitedTabs((prev) => ({ ...prev, [fallbackTab]: true }));
+    }
+  }, [TABS, activeTab]);
+
   const handleSelectTab = (tab: FinanceTabKey) => {
+    if (!TABS.some((t) => t.id === tab)) return;
     setActiveTab(tab);
     setVisitedTabs((prev) => (prev[tab] ? prev : { ...prev, [tab]: true }));
   };
@@ -116,51 +204,14 @@ export default function AdminFinancePage() {
 
   if (!can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_VIEW)) {
     return (
-      <div className="p-8 text-center bg-white rounded-2xl border border-[#d8d0c8] max-w-md mx-auto my-12">
-        <div className="w-12 h-12 rounded-2xl bg-[#f8e9e5] text-[#9a3f33] flex items-center justify-center mx-auto mb-3">
-          <Landmark className="w-6 h-6" />
-        </div>
-        <h2 className="font-serif text-lg font-bold text-[#3a302a]">
-          Finance Operations Access Required
-        </h2>
-        <p className="text-xs text-[#73776f] mt-1">
-          Your administrator role does not have the <code className="font-mono">finance.view</code> permission.
-        </p>
-      </div>
+      <AdminNoAccess
+        area="Finance & Escrow"
+        required={[ADMIN_PERMISSIONS.FINANCE_VIEW]}
+        backHref="/admin"
+        backLabel="Back to overview"
+      />
     );
   }
-
-  const TABS: Array<{ id: FinanceTabKey; label: string; icon: any; count?: number }> = [
-    { id: 'overview', label: 'Treasury Overview', icon: Landmark },
-    { id: 'payments', label: 'Captured Payments', icon: Receipt },
-    {
-      id: 'escrow',
-      label: 'Escrow Holds',
-      icon: Clock,
-      count: summary?.pendingQueues?.frozenEscrowHolds,
-    },
-    {
-      id: 'refunds',
-      label: 'Refunds Review',
-      icon: RotateCcw,
-      count: summary?.pendingQueues?.pendingRefundApprovals,
-    },
-    {
-      id: 'payouts',
-      label: 'Host Payouts',
-      icon: Wallet,
-      count: summary?.pendingQueues?.pendingPayoutApprovals,
-    },
-    { id: 'accounts', label: 'Payout Accounts', icon: ShieldCheck },
-    { id: 'ledger', label: 'General Ledger', icon: Scale },
-    {
-      id: 'reconciliation',
-      label: 'Reconciliation',
-      icon: FileCheck,
-      count: summary?.pendingQueues?.reconciliationIssues,
-    },
-    { id: 'settings', label: 'Settings & Rates', icon: Sliders },
-  ];
 
   return (
     <div className="space-y-6">
@@ -270,17 +321,17 @@ export default function AdminFinancePage() {
             <EscrowTab />
           </div>
         )}
-        {visitedTabs.refunds && (
+        {visitedTabs.refunds && can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_REFUNDS) && (
           <div className={activeTab === 'refunds' ? 'block' : 'hidden'}>
             <RefundsTab />
           </div>
         )}
-        {visitedTabs.payouts && (
+        {visitedTabs.payouts && can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_PAYOUTS) && (
           <div className={activeTab === 'payouts' ? 'block' : 'hidden'}>
             <PayoutsTab />
           </div>
         )}
-        {visitedTabs.accounts && (
+        {visitedTabs.accounts && can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_PAYOUTS) && (
           <div className={activeTab === 'accounts' ? 'block' : 'hidden'}>
             <AccountsTab />
           </div>
@@ -290,12 +341,12 @@ export default function AdminFinancePage() {
             <LedgerTab />
           </div>
         )}
-        {visitedTabs.reconciliation && (
+        {visitedTabs.reconciliation && can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_RECONCILE) && (
           <div className={activeTab === 'reconciliation' ? 'block' : 'hidden'}>
             <ReconciliationTab />
           </div>
         )}
-        {visitedTabs.settings && (
+        {visitedTabs.settings && can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_CONFIG) && (
           <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
             <SettingsTab onRefreshSummary={fetchSummary} />
           </div>

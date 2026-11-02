@@ -3,19 +3,26 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
+  Activity,
   AlertTriangle,
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  BarChart3,
   CalendarRange,
   ClipboardCheck,
   Clock3,
   EyeOff,
+  FileText,
   Flag,
+  Landmark,
+  MapPin,
   MessagesSquare,
   RefreshCw,
   ShieldCheck,
+  Sliders,
   Star,
+  Tag,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -207,6 +214,14 @@ export default function AdminOverviewPage() {
     },
   ];
 
+  const visiblePulseItems = useMemo(
+    () =>
+      pulseItems.filter(
+        (item) => !item.permission || can(user?.permissions, item.permission),
+      ),
+    [pulseItems, user?.permissions],
+  );
+
   const quickActions = useMemo(() => {
     const moderationActions = can(user?.permissions, ADMIN_PERMISSIONS.LISTINGS_REVIEW)
       ? [
@@ -247,6 +262,13 @@ export default function AdminOverviewPage() {
         permission: ADMIN_PERMISSIONS.CASES_VIEW,
       },
       {
+        href: '/admin/finance',
+        label: 'Finance & Escrow',
+        hint: 'Treasury, escrow custody and payout batches',
+        icon: Landmark,
+        permission: ADMIN_PERMISSIONS.FINANCE_VIEW,
+      },
+      {
         href: '/admin/users',
         label: 'Accounts & access',
         hint: 'Search, suspend and assign roles',
@@ -266,6 +288,48 @@ export default function AdminOverviewPage() {
         hint: 'Triage and resolve reports',
         icon: Flag,
         permission: ADMIN_PERMISSIONS.REPORTS_VIEW,
+      },
+      {
+        href: '/admin/analytics',
+        label: 'Analytics & BI',
+        hint: 'Marketplace trends, occupancy and revenue',
+        icon: BarChart3,
+        permission: ADMIN_PERMISSIONS.ANALYTICS_VIEW,
+      },
+      {
+        href: '/admin/coupons',
+        label: 'Coupons & Discounts',
+        hint: 'Campaign codes and promotional rules',
+        icon: Tag,
+        permission: ADMIN_PERMISSIONS.COUPONS_MANAGE,
+      },
+      {
+        href: '/admin/categories',
+        label: 'Catalog & Locations',
+        hint: 'Categories, destinations and amenities',
+        icon: MapPin,
+        permission: ADMIN_PERMISSIONS.CATALOG_MANAGE,
+      },
+      {
+        href: '/admin/content',
+        label: 'Content & CMS',
+        hint: 'FAQs, content blocks and policies',
+        icon: FileText,
+        permission: ADMIN_PERMISSIONS.CONTENT_MANAGE,
+      },
+      {
+        href: '/admin/settings',
+        label: 'Platform Settings',
+        hint: 'Marketplace configurations and thresholds',
+        icon: Sliders,
+        permission: ADMIN_PERMISSIONS.SETTINGS_VIEW,
+      },
+      {
+        href: '/admin/system',
+        label: 'System Health',
+        hint: 'Services, queues, databases and logs',
+        icon: Activity,
+        permission: ADMIN_PERMISSIONS.SYSTEM_VIEW,
       },
       {
         href: '/admin/audit',
@@ -349,73 +413,43 @@ export default function AdminOverviewPage() {
               ) : null}
             </div>
           </div>
-          <div className="admin-stats-strip border-t-0">
-            {canBookings ? (
-              <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
-                <p className="admin-stat-label">Awaiting host</p>
-                <p className="admin-stat-value">{displayValue(counts?.pendingBookings ?? 0)}</p>
-                <p className="admin-stat-note">Booking requests to watch</p>
-              </Link>
-            ) : (
-              <div className="admin-stat opacity-80">
-                <p className="admin-stat-label">Awaiting host</p>
-                <p className="admin-stat-value">{displayValue(counts?.pendingBookings ?? 0)}</p>
-                <p className="admin-stat-note">Booking requests</p>
-              </div>
+          <div className={`admin-stats-strip border-t-0 ${canBookings && canCases ? 'sm:grid-cols-4' : 'sm:grid-cols-2'}`}>
+            {canBookings && (
+              <>
+                <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
+                  <p className="admin-stat-label">Awaiting host</p>
+                  <p className="admin-stat-value">{displayValue(counts?.pendingBookings ?? 0)}</p>
+                  <p className="admin-stat-note">Booking requests to watch</p>
+                </Link>
+                <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
+                  <p className="admin-stat-label">Confirmed stays</p>
+                  <p className="admin-stat-value">{displayValue(counts?.confirmedBookings ?? 0)}</p>
+                  <p className="admin-stat-note">Reservations on the books</p>
+                </Link>
+              </>
             )}
-            {canBookings ? (
-              <Link href="/admin/bookings" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
-                <p className="admin-stat-label">Confirmed stays</p>
-                <p className="admin-stat-value">{displayValue(counts?.confirmedBookings ?? 0)}</p>
-                <p className="admin-stat-note">Reservations on the books</p>
-              </Link>
-            ) : (
-              <div className="admin-stat opacity-80">
-                <p className="admin-stat-label">Confirmed stays</p>
-                <p className="admin-stat-value">{displayValue(counts?.confirmedBookings ?? 0)}</p>
-                <p className="admin-stat-note">Reservations</p>
-              </div>
-            )}
-            {canCases ? (
-              <Link href="/admin/cases" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
-                <p className="admin-stat-label">Open cases</p>
-                <p className="admin-stat-value">{displayValue(counts?.openCases ?? 0)}</p>
-                <p className="admin-stat-note">Support work in the desk</p>
-              </Link>
-            ) : (
-              <div className="admin-stat opacity-80">
-                <p className="admin-stat-label">Open cases</p>
-                <p className="admin-stat-value">{displayValue(counts?.openCases ?? 0)}</p>
-                <p className="admin-stat-note">Support work</p>
-              </div>
-            )}
-            {canCases ? (
-              <Link
-                href="/admin/cases"
-                className="admin-stat group transition-colors hover:bg-[#f6f0e8]"
-              >
-                <p className="admin-stat-label">Overdue cases</p>
-                <p className="admin-stat-value text-[#9a3f33]">
-                  {displayValue(counts?.overdueCases ?? 0)}
-                </p>
-                <p className="admin-stat-note">
-                  {counts?.unassignedCases
-                    ? `${counts.unassignedCases} unassigned`
-                    : 'Past the resolution SLA'}
-                </p>
-              </Link>
-            ) : (
-              <div className="admin-stat opacity-80">
-                <p className="admin-stat-label">Overdue cases</p>
-                <p className="admin-stat-value text-[#9a3f33]">
-                  {displayValue(counts?.overdueCases ?? 0)}
-                </p>
-                <p className="admin-stat-note">
-                  {counts?.unassignedCases
-                    ? `${counts.unassignedCases} unassigned`
-                    : 'Past the resolution SLA'}
-                </p>
-              </div>
+            {canCases && (
+              <>
+                <Link href="/admin/cases" className="admin-stat group transition-colors hover:bg-[#f6f0e8]">
+                  <p className="admin-stat-label">Open cases</p>
+                  <p className="admin-stat-value">{displayValue(counts?.openCases ?? 0)}</p>
+                  <p className="admin-stat-note">Support work in the desk</p>
+                </Link>
+                <Link
+                  href="/admin/cases"
+                  className="admin-stat group transition-colors hover:bg-[#f6f0e8]"
+                >
+                  <p className="admin-stat-label">Overdue cases</p>
+                  <p className="admin-stat-value text-[#9a3f33]">
+                    {displayValue(counts?.overdueCases ?? 0)}
+                  </p>
+                  <p className="admin-stat-note">
+                    {counts?.unassignedCases
+                      ? `${counts.unassignedCases} unassigned`
+                      : 'Past the resolution SLA'}
+                  </p>
+                </Link>
+              </>
             )}
           </div>
         </section>
@@ -564,46 +598,53 @@ export default function AdminOverviewPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-px bg-[#ece4d9]">
-            {pulseItems.map((item) => {
-              const allowed = item.permission
-                ? can(user?.permissions, item.permission)
-                : false;
-              const content = (
-                <>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[11px] font-bold uppercase leading-4 tracking-[0.13em] text-[#6c5d52]">
-                      {item.label}
+          {visiblePulseItems.length > 0 ? (
+            <div className="grid grid-cols-2 gap-px bg-[#ece4d9]">
+              {visiblePulseItems.map((item) => {
+                const content = (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[11px] font-bold uppercase leading-4 tracking-[0.13em] text-[#6c5d52]">
+                        {item.label}
+                      </p>
+                      {item.href && (
+                        <ArrowUpRight
+                          className="h-3.5 w-3.5 shrink-0 text-[#d8d0c8] transition-colors group-hover:text-[#b3541e]"
+                          strokeWidth={1.8}
+                        />
+                      )}
+                    </div>
+                    <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
+                      {displayValue(item.value)}
                     </p>
-                    {allowed && (
-                      <ArrowUpRight
-                        className="h-3.5 w-3.5 shrink-0 text-[#d8d0c8] transition-colors group-hover:text-[#b3541e]"
-                        strokeWidth={1.8}
-                      />
-                    )}
-                  </div>
-                  <p className="admin-numeric mt-3 font-headline text-3xl font-semibold leading-none text-[#3a302a]">
-                    {displayValue(item.value)}
-                  </p>
-                  <p className="mt-2 text-xs leading-4 text-[#78706a]">{item.hint}</p>
-                </>
-              );
+                    <p className="mt-2 text-xs leading-4 text-[#78706a]">{item.hint}</p>
+                  </>
+                );
 
-              return allowed && item.href ? (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="group bg-white px-5 py-5 transition-colors hover:bg-[#fbf7f1]"
-                >
-                  {content}
-                </Link>
-              ) : (
-                <div key={item.label} className="bg-white px-5 py-5">
-                  {content}
-                </div>
-              );
-            })}
-          </div>
+                return item.href ? (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className="group bg-white px-5 py-5 transition-colors hover:bg-[#fbf7f1]"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div key={item.label} className="bg-white px-5 py-5">
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="px-5 py-10 text-center sm:px-6">
+              <ShieldCheck className="mx-auto h-7 w-7 text-[#c9bdb1]" strokeWidth={1.6} />
+              <p className="mt-3 text-sm font-semibold text-[#3a302a]">No marketplace metrics visible</p>
+              <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-[#78706a]">
+                Your role does not have permission to view marketplace pulse metrics.
+              </p>
+            </div>
+          )}
         </section>
       </div>
 
