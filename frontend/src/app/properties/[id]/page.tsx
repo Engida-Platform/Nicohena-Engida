@@ -585,7 +585,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
             This listing may have been unlisted, booked, or the link is invalid. Explore our verified properties across Ethiopia.
           </p>
           <Link
-            href="/properties"
+            href="/"
             className="mt-6 px-6 py-3 rounded-full bg-[#234B36] hover:bg-[#2D5E43] text-white text-sm font-semibold shadow-md transition active:scale-95"
           >
             Explore Verified Stays
@@ -604,7 +604,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
         {/* Breadcrumb Navigation & Action Bar */}
         <div className="flex items-center justify-between gap-4 mb-6">
           <Link
-            href="/properties"
+            href="/"
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#605850] hover:text-[#c2652a] transition-colors group active:scale-95"
           >
             <span className="material-symbols-outlined text-base transition-transform group-hover:-translate-x-1">

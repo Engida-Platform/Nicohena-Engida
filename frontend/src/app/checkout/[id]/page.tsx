@@ -277,7 +277,7 @@ function CheckoutContent() {
 
         {/* Breadcrumb */}
         <Link
-          href="/properties"
+          href="/"
           className="inline-flex items-center gap-1.5 text-xs text-[#73776F] hover:text-[#234B36] font-semibold mb-6 transition cursor-pointer group"
         >
           <span className="material-symbols-outlined text-base group-hover:-translate-x-0.5 transition-transform">arrow_back</span>

@@ -211,7 +211,7 @@ function PaymentSuccessContent() {
           View in My Bookings
         </Link>
         <Link
-          href="/properties"
+          href="/"
           className="flex-1 py-4 rounded-xl bg-white border border-[#E5E0D5] text-[#252923] text-sm font-semibold text-center hover:bg-[#EEF3EF] transition cursor-pointer"
         >
           Explore More Stays
