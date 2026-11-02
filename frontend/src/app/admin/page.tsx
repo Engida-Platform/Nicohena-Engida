@@ -13,21 +13,25 @@ import {
   ClipboardCheck,
   Clock3,
   EyeOff,
+  FileCheck,
   FileText,
   Flag,
   Landmark,
   MapPin,
   MessagesSquare,
   RefreshCw,
+  RotateCcw,
   ShieldCheck,
   Sliders,
   Star,
   Tag,
   UserCheck,
   Users,
+  Wallet,
 } from 'lucide-react';
 import { apiFetch } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { useRouter } from 'next/navigation';
 import AdminPageHeader from '../../components/admin/AdminPageHeader';
 import AdminNoAccess from '../../components/admin/AdminNoAccess';
 import {
@@ -36,6 +40,9 @@ import {
   formatAction,
   type AdminDashboardSummary,
 } from '../../types/admin';
+import { formatMinor } from '../../lib/finance-format';
+import type { FinanceSummary } from '../../types/admin-finance';
+import { firstAccessibleHref } from '../../components/admin/admin-nav';
 
 function relativeTime(value: string): string {
   const date = new Date(value);
@@ -62,7 +69,10 @@ interface QueueItem {
 interface PulseItem {
   label: string;
   hint: string;
-  value: number;
+  /** Numeric generic metric (rendered with the "—" placeholder while loading). */
+  value?: number;
+  /** Pre-formatted money metric for treasury tiles. */
+  display?: string;
   href?: string;
   permission?: (typeof ADMIN_PERMISSIONS)[keyof typeof ADMIN_PERMISSIONS];
 }
@@ -73,8 +83,21 @@ export default function AdminOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [financeError, setFinanceError] = useState<string | null>(null);
 
   const canViewDashboard = can(user?.permissions, ADMIN_PERMISSIONS.DASHBOARD_VIEW);
+  const canViewFinance = can(user?.permissions, ADMIN_PERMISSIONS.FINANCE_VIEW);
+
+  // Redirect to first accessible page if user can't view dashboard
+  useEffect(() => {
+    if (!canViewDashboard && user) {
+      const firstPage = firstAccessibleHref(user.permissions || []);
+      if (firstPage && firstPage !== '/admin') {
+        router.replace(firstPage);
+      }
+    }
+  }, [canViewDashboard, user, router]);
 
   useEffect(() => {
     if (!canViewDashboard) {
@@ -95,10 +118,24 @@ export default function AdminOverviewPage() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+    if (canViewFinance) {
+      apiFetch<FinanceSummary>('/admin/finance/summary')
+        .then((data) => {
+          if (cancelled) return;
+          setFinanceSummary(data);
+          setFinanceError(null);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setFinanceError(
+            err instanceof Error ? err.message : 'Could not load the treasury summary',
+          );
+        });
+    }
     return () => {
       cancelled = true;
     };
-  }, [refreshTick, canViewDashboard]);
+  }, [refreshTick, canViewDashboard, canViewFinance]);
 
   const refresh = () => {
     setLoading(true);
