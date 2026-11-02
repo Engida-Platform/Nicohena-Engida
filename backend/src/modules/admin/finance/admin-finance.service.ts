@@ -178,7 +178,7 @@ export class AdminFinanceService {
     // 5. Platform revenue and tax withholding
     const platformRevRes = await this.commissionRepo
       .createQueryBuilder('c')
-      .select('COALESCE(SUM(c.platform_fee_minor), 0)', 'total')
+      .select('COALESCE(SUM(c.commission_minor), 0)', 'total')
       .getRawOne();
 
     const taxRes = await this.taxRepo
