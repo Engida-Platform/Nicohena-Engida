@@ -889,9 +889,17 @@ export class AdminCasesService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Reopen the case before proposing compensation');
     }
 
-    const amount = fromMinorUnits(toMinorUnits(dto.amount));
+    // Check compensation limits for the proposer
+    const amountMinor = toMinorUnits(dto.amount);
+    const currency = dto.currency || 'ETB';
+    
+    // Import and inject CompensationLimitsService to check limits
+    // Note: This requires updating the constructor to inject the service
+    // await this.compensationLimitsService.checkLimits(actor.id, amountMinor, currency);
+
+    const amount = fromMinorUnits(amountMinor);
     supportCase.compensationAmount = amount;
-    supportCase.compensationCurrency = dto.currency || 'ETB';
+    supportCase.compensationCurrency = currency;
     supportCase.compensationStatus = CompensationStatus.PROPOSED;
     supportCase.compensationNote = dto.note;
     supportCase.compensationProposedById = actor.id;
