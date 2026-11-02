@@ -11,16 +11,16 @@ export default function AppFooter() {
           {/* Support */}
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold text-[#252923] uppercase tracking-wider">Support</span>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
-              Help Center
+            <Link href="/how-it-works#contact" className="text-xs hover:text-[#234B36] transition-colors">
+              Help Center & Contact Desk
             </Link>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
-              AirCover Protection
+            <a href="mailto:habtamushewamene905@gmail.com" className="text-xs hover:text-[#234B36] transition-colors truncate">
+              habtamushewamene905@gmail.com
+            </a>
+            <Link href="/how-it-works" className="text-xs hover:text-[#234B36] transition-colors">
+              AirCover & Escrow Safety
             </Link>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
-              Safety Information
-            </Link>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
+            <Link href="/how-it-works" className="text-xs hover:text-[#234B36] transition-colors">
               Cancellation Options
             </Link>
           </div>
@@ -62,17 +62,17 @@ export default function AppFooter() {
           {/* Engida */}
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold text-[#252923] uppercase tracking-wider">Engida</span>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
-              About Us
+            <Link href="/how-it-works" className="text-xs hover:text-[#234B36] transition-colors">
+              About Platform
             </Link>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
-              Newsroom
+            <a href="https://github.com/Engida-Platform/Nicohena-Engida" target="_blank" rel="noreferrer" className="text-xs hover:text-[#234B36] transition-colors">
+              GitHub Repository
+            </a>
+            <Link href="/experiences" className="text-xs hover:text-[#234B36] transition-colors">
+              Local Experiences
             </Link>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
-              Careers
-            </Link>
-            <Link href="/" className="text-xs hover:text-[#234B36] transition-colors">
-              Sustainability
+            <Link href="/how-it-works#contact" className="text-xs hover:text-[#234B36] transition-colors">
+              Direct Contact
             </Link>
           </div>
         </div>

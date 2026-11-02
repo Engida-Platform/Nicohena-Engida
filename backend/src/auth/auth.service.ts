@@ -139,6 +139,23 @@ export class AuthService {
     }
 
     if (matchedTokenRecord.isRevoked) {
+      // 30-second rotation grace period to handle concurrent requests or multiple browser tabs
+      const timeSinceRevocation = Date.now() - new Date(matchedTokenRecord.updatedAt).getTime();
+      if (timeSinceRevocation < 30000 && matchedTokenRecord.replacedByToken) {
+        this.logger.log(
+          `Refresh token grace period hit for user: ${matchedTokenRecord.userId}. Re-issuing active session.`,
+        );
+        const user = matchedTokenRecord.user;
+        if (user && user.isActive) {
+          const payload = { sub: user.id, email: user.email, role: user.role };
+          const accessToken = this.jwtService.sign(payload);
+          return {
+            accessToken,
+            refreshToken: matchedTokenRecord.replacedByToken,
+          };
+        }
+      }
+
       this.logger.warn(
         `Revoked refresh token reuse attempt detected for user: ${matchedTokenRecord.userId}`,
       );
@@ -163,7 +180,7 @@ export class AuthService {
     const newTokens = await this.generateTokens(user, userAgent, ipAddress);
 
     matchedTokenRecord.isRevoked = true;
-    matchedTokenRecord.replacedByToken = newTokens.refreshToken.substring(0, 16);
+    matchedTokenRecord.replacedByToken = newTokens.refreshToken;
     await this.refreshTokenRepository.save(matchedTokenRecord);
 
     return {
@@ -336,7 +353,7 @@ export class AuthService {
     const tokenHash = await bcrypt.hash(refreshTokenRaw, 10);
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    expiresAt.setDate(expiresAt.getDate() + 30);
 
     const refreshTokenEntity = this.refreshTokenRepository.create({
       userId: user.id,

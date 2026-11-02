@@ -16,6 +16,8 @@ import {
   ArrowRight,
   Headphones,
   Lock,
+  Mail,
+  MapPin,
 } from 'lucide-react';
 
 export default function HowItWorksSection() {
@@ -297,6 +299,80 @@ export default function HowItWorksSection() {
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* Contact & Platform Support Desk */}
+      <section id="contact" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-20">
+        <div className="bg-gradient-to-br from-[#234B36] to-[#163525] rounded-3xl p-8 sm:p-10 text-white shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 rounded-full bg-white/5 pointer-events-none" />
+          
+          <div className="relative z-10 max-w-2xl">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-white/15 backdrop-blur-md text-[#E8D7C8] mb-3">
+              <Headphones className="w-3.5 h-3.5" />
+              Direct Team & Concierge Support
+            </span>
+
+            <h2 className="text-2xl sm:text-3xl font-black font-headline text-white leading-tight">
+              Have Questions or Need Direct Booking Assistance?
+            </h2>
+
+            <p className="mt-2 text-xs sm:text-sm text-[#E5E0D5] leading-relaxed">
+              Whether you are planning a trip to Ethiopia, inquiring about host property verification, or registering as a licensed tour guide, reach out to our team directly.
+            </p>
+
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Email Contact */}
+              <a
+                href="mailto:habtamushewamene905@gmail.com"
+                className="flex items-center gap-3.5 p-4 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 transition group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div className="overflow-hidden">
+                  <span className="block text-[10px] uppercase font-bold text-[#D87836] tracking-wider">
+                    Direct Email
+                  </span>
+                  <span className="text-xs font-bold text-white truncate block">
+                    habtamushewamene905@gmail.com
+                  </span>
+                </div>
+              </a>
+
+              {/* GitHub Collaboration */}
+              <a
+                href="https://github.com/Engida-Platform/Nicohena-Engida"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3.5 p-4 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/15 transition group"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white shrink-0 group-hover:scale-105 transition-transform">
+                  <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" /></svg>
+                </div>
+                <div className="overflow-hidden">
+                  <span className="block text-[10px] uppercase font-bold text-[#D87836] tracking-wider">
+                    GitHub Team
+                  </span>
+                  <span className="text-xs font-bold text-white truncate block">
+                    Engida-Platform / Nicohena
+                  </span>
+                </div>
+              </a>
+            </div>
+
+            <div className="mt-6 flex flex-wrap items-center gap-4 text-xs text-[#E5E0D5]/90 pt-4 border-t border-white/10">
+              <span className="flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-[#D87836]" />
+                Addis Ababa, Ethiopia
+              </span>
+              <span>•</span>
+              <span className="flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                Verified Inquiries & 24/7 Response
+              </span>
+            </div>
+          </div>
         </div>
       </section>
     </div>

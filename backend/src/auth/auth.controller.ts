@@ -105,6 +105,7 @@ export class AuthController {
 
     return {
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
       user: result.user,
     };
   }
@@ -113,23 +114,31 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Refresh access token',
-    description: 'Exchanges a valid HttpOnly refreshToken cookie for a new JWT access token and rotates the refresh token.',
+    description: 'Exchanges a valid HttpOnly refreshToken cookie or body/header token for a new JWT access token and rotates the refresh token.',
   })
   @ApiResponse({ status: 200, description: 'Access token successfully refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    @Body() body: { refreshToken?: string },
     @Headers('user-agent') userAgent: string,
+    @Headers('x-refresh-token') headerToken: string,
     @Ip() ipAddress: string,
   ) {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken =
+      req.cookies?.refreshToken ||
+      body?.refreshToken ||
+      headerToken ||
+      (req.headers['x-refresh-token'] as string);
+
     const result = await this.authService.refreshTokens(refreshToken, userAgent, ipAddress);
 
     setRefreshCookie(res, result.refreshToken, this.configService);
 
     return {
       accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
     };
   }
 
@@ -143,8 +152,15 @@ export class AuthController {
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    @Body() body: { refreshToken?: string },
+    @Headers('x-refresh-token') headerToken: string,
   ) {
-    const refreshToken = req.cookies?.refreshToken;
+    const refreshToken =
+      req.cookies?.refreshToken ||
+      body?.refreshToken ||
+      headerToken ||
+      (req.headers['x-refresh-token'] as string);
+
     await this.authService.logout(refreshToken);
 
     clearRefreshCookie(res, this.configService);

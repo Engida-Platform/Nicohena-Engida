@@ -1,7 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiFetch, setAccessToken } from '../lib/api';
+import {
+  apiFetch,
+  setAccessToken,
+  setRefreshToken,
+  getAccessToken,
+  getRefreshToken,
+} from '../lib/api';
 import type { HostProfile } from '../types/host';
 import { getEffectivePermissions, type AdminRole, type Permission } from '../types/admin';
 
@@ -47,13 +53,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async (): Promise<User | null> => {
     try {
+      const storedToken = getAccessToken();
+      const storedRefresh = getRefreshToken();
+
+      // If stored access token is missing but refresh token exists, proactively refresh
+      if (!storedToken && storedRefresh) {
+        try {
+          await apiFetch('/auth/refresh', {
+            method: 'POST',
+            body: JSON.stringify({ refreshToken: storedRefresh }),
+            skipAuth: true,
+          });
+        } catch {
+          // If silent refresh throws, proceed to try /auth/me or check cookie
+        }
+      }
+
       // First attempt to get active user using stored token or silent refresh
       const userData = await apiFetch<User>('/auth/me');
       const enriched = enrichUser(userData);
       setUser(enriched);
       return enriched;
     } catch {
-      setUser(null);
+      // Only set user to null if neither access token nor refresh token remain
+      if (!getAccessToken() && !getRefreshToken()) {
+        setUser(null);
+      }
       return null;
     } finally {
       setLoading(false);
@@ -65,12 +90,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string): Promise<User> => {
-    const response = await apiFetch<{ accessToken: string; user: User }>('/auth/login', {
+    const response = await apiFetch<{
+      accessToken: string;
+      refreshToken?: string;
+      user: User;
+    }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
       skipAuth: true,
     });
+
     setAccessToken(response.accessToken);
+    if (response.refreshToken) {
+      setRefreshToken(response.refreshToken);
+    }
+
     const enriched = enrichUser(response.user);
     setUser(enriched);
     return enriched as User;
@@ -88,11 +122,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await apiFetch('/auth/logout', { method: 'POST' });
+      const currentRefresh = getRefreshToken();
+      await apiFetch('/auth/logout', {
+        method: 'POST',
+        body: JSON.stringify({ refreshToken: currentRefresh || undefined }),
+      });
     } catch {
       // Ignore logout errors
     } finally {
       setAccessToken(null);
+      setRefreshToken(null);
       setUser(null);
     }
   };

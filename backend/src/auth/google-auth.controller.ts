@@ -135,7 +135,7 @@ export class GoogleAuthController {
 
       return this.redirectToClient(
         res,
-        `/auth/google/callback?next=${encodeURIComponent(statePayload.next)}`,
+        `/auth/google/callback?next=${encodeURIComponent(statePayload.next)}&token=${encodeURIComponent(result.accessToken)}&refresh=${encodeURIComponent(result.refreshToken)}`,
       );
     } catch (err) {
       this.logger.warn(`Google sign-in failed: ${(err as Error).message}`);

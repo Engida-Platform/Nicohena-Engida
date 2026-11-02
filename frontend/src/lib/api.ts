@@ -11,17 +11,20 @@ export function getApiBaseUrl(): string {
   return 'http://localhost:3000';
 }
 
-
 const TOKEN_STORAGE_KEY = 'engida_access_token';
+const REFRESH_TOKEN_STORAGE_KEY = 'engida_refresh_token';
 
 let inMemoryToken: string | null = null;
+let inMemoryRefreshToken: string | null = null;
 
-// Initialize token from localStorage if in browser environment
+// Initialize tokens from localStorage if in browser environment
 if (typeof window !== 'undefined') {
   try {
     inMemoryToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+    inMemoryRefreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
   } catch {
     inMemoryToken = null;
+    inMemoryRefreshToken = null;
   }
 }
 
@@ -40,8 +43,27 @@ export function setAccessToken(token: string | null) {
   }
 }
 
+export function setRefreshToken(token: string | null) {
+  inMemoryRefreshToken = token;
+  if (typeof window !== 'undefined') {
+    try {
+      if (token) {
+        localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, token);
+      } else {
+        localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore localStorage write failures
+    }
+  }
+}
+
 export function getAccessToken(): string | null {
   return inMemoryToken;
+}
+
+export function getRefreshToken(): string | null {
+  return inMemoryRefreshToken;
 }
 
 interface FetchOptions extends RequestInit {
@@ -57,26 +79,47 @@ async function executeTokenRefresh(): Promise<string | null> {
   }
 
   const baseUrl = getApiBaseUrl();
+  const currentRefreshToken = getRefreshToken();
+
   refreshPromise = (async () => {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (currentRefreshToken) {
+        headers['x-refresh-token'] = currentRefreshToken;
+      }
+
       const refreshResponse = await fetch(`${baseUrl}/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
+        body: JSON.stringify({ refreshToken: currentRefreshToken || undefined }),
         credentials: 'include',
       });
 
       if (refreshResponse.ok) {
         const refreshData = await refreshResponse.json();
         const newToken = (refreshData.accessToken as string) || null;
+        const newRefreshToken = (refreshData.refreshToken as string) || null;
+
         setAccessToken(newToken);
+        if (newRefreshToken) {
+          setRefreshToken(newRefreshToken);
+        }
         return newToken;
-      } else {
+      } else if (refreshResponse.status === 401 || refreshResponse.status === 403) {
+        // Only clear credentials when server explicitly rejects the session
         setAccessToken(null);
+        setRefreshToken(null);
         return null;
+      } else {
+        // Ephemeral server error (500, 502, 503) -> DO NOT wipe tokens!
+        return inMemoryToken;
       }
-    } catch {
-      setAccessToken(null);
-      return null;
+    } catch (networkErr) {
+      console.warn('Network issue during session refresh; retaining local session:', networkErr);
+      // DO NOT clear tokens on offline/network glitches!
+      return inMemoryToken;
     } finally {
       refreshPromise = null;
     }
@@ -204,4 +247,3 @@ export function formatETB(amount: number): string {
 export function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
-

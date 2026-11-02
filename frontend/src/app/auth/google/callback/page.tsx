@@ -5,17 +5,35 @@ import { useRouter } from 'next/navigation';
 import { Building2, AlertCircle } from 'lucide-react';
 import { getSafeReturnPath } from '@/lib/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { setAccessToken, setRefreshToken } from '@/lib/api';
 
 /**
  * Landing page for the Google Sign-In callback.
  *
- * The backend has verified the Google identity and set the HttpOnly refresh cookie.
- * AuthProvider exchanges the cookie for session access and loads the user profile.
+ * The backend has verified the Google identity and passes tokens both via
+ * secure parameters and HttpOnly cookie for resilient cross-origin support.
  */
 export default function GoogleCallbackPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, refreshUser } = useAuth();
   const [status, setStatus] = useState<'working' | 'error'>('working');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      const refresh = params.get('refresh');
+      if (token) {
+        setAccessToken(token);
+      }
+      if (refresh) {
+        setRefreshToken(refresh);
+      }
+      if (token || refresh) {
+        refreshUser();
+      }
+    }
+  }, [refreshUser]);
 
   useEffect(() => {
     if (loading) return;
