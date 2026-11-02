@@ -60,7 +60,7 @@ describe('AdminSettingsController - RBAC Permissions', () => {
     } as unknown as ExecutionContext;
   }
 
-  it('allows SUPPORT_AGENT with settings.view to execute GET /admin/settings', async () => {
+  it('rejects SUPPORT_AGENT on GET /admin/settings with 403 Forbidden because settings.view is not a support task', async () => {
     const context = createMockContext(
       mockSupportAgent,
       controller.getAllSettings,
@@ -71,14 +71,11 @@ describe('AdminSettingsController - RBAC Permissions', () => {
     const canRoles = rolesGuard.canActivate(context);
     expect(canRoles).toBe(true);
 
-    // 2. PermissionsGuard checks @RequirePermissions(Permission.SETTINGS_VIEW)
-    const canPermissions = permissionsGuard.canActivate(context);
-    expect(canPermissions).toBe(true);
-
-    // 3. Controller execution succeeds (200 OK)
-    const result = await controller.getAllSettings();
-    expect(result).toBeDefined();
-    expect(settingsService.getAllSettings).toHaveBeenCalled();
+    // 2. PermissionsGuard checks @RequirePermissions(Permission.SETTINGS_VIEW) -> throws 403 Forbidden
+    expect(() => permissionsGuard.canActivate(context)).toThrow(
+      ForbiddenException,
+    );
+    expect(settingsService.getAllSettings).not.toHaveBeenCalled();
   });
 
   it('rejects SUPPORT_AGENT on PATCH /admin/settings with 403 Forbidden because settings.manage is missing', async () => {

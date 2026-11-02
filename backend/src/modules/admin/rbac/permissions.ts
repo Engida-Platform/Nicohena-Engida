@@ -49,13 +49,20 @@ export const ALL_PERMISSIONS: Permission[] = Object.values(Permission);
  * go through code review. Phase 2 adds the booking and case permissions here.
  * Phase 3 adds complete finance and escrow operations permissions.
  * Phase 4 adds catalog, growth, and content permissions.
+ *
+ * Each secondary role is granted ONLY the permission surface its job needs:
+ * the admin console (sidebar, route guard, page controls) is rendered strictly
+ * from these grants, so a role sees exactly its own work surface and nothing
+ * else. Keep in sync with `frontend/src/types/admin.ts`.
  */
 export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
   [AdminRole.SUPER_ADMIN]: ALL_PERMISSIONS,
 
+  /** Trust workflows only: listing review/hidden, host verification, guest
+   *  reviews, reports, catalog and CMS curation. Account management is
+   *  deliberately excluded (that is Support's job). */
   [AdminRole.PROPERTY_MODERATOR]: [
     Permission.DASHBOARD_VIEW,
-    Permission.USERS_VIEW,
     Permission.HOSTS_VIEW,
     Permission.HOSTS_VERIFY,
     Permission.LISTINGS_VIEW,
@@ -70,47 +77,46 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.ANALYTICS_VIEW,
   ],
 
+  /** Guest service: accounts, bookings, cases, reports and reviews. Host
+   *  identity stays read-only for dispute context; no listing powers, no
+   *  platform settings. */
   [AdminRole.SUPPORT_AGENT]: [
     Permission.DASHBOARD_VIEW,
     Permission.USERS_VIEW,
     Permission.USERS_MANAGE,
     Permission.HOSTS_VIEW,
-    Permission.LISTINGS_VIEW,
+    Permission.BOOKINGS_VIEW,
     Permission.REVIEWS_VIEW,
     Permission.REPORTS_VIEW,
     Permission.REPORTS_RESOLVE,
-    Permission.BOOKINGS_VIEW,
     Permission.CASES_VIEW,
     Permission.CASES_MANAGE,
     Permission.CASES_COMPENSATE,
     Permission.CONTENT_MANAGE,
     Permission.ANALYTICS_VIEW,
-    Permission.SETTINGS_VIEW,
   ],
 
+  /** Reservations desk: booking corrections, cancellation decisions, cases,
+   *  promotional campaigns and host identity lookups. No user management, no
+   *  trust reports, no moderation powers. */
   [AdminRole.BOOKING_MANAGER]: [
     Permission.DASHBOARD_VIEW,
-    Permission.USERS_VIEW,
-    Permission.HOSTS_VIEW,
-    Permission.LISTINGS_VIEW,
-    Permission.REVIEWS_VIEW,
-    Permission.REPORTS_VIEW,
     Permission.BOOKINGS_VIEW,
     Permission.BOOKINGS_MANAGE,
     Permission.CASES_VIEW,
     Permission.CASES_MANAGE,
     Permission.CASES_COMPENSATE,
+    Permission.HOSTS_VIEW,
+    Permission.REVIEWS_VIEW,
     Permission.COUPONS_MANAGE,
     Permission.ANALYTICS_VIEW,
-    Permission.SETTINGS_VIEW,
   ],
 
+  /** Treasury only: escrow custody, refunds, payouts, reconciliation, finance
+   *  configuration and the audit trail of money moves. No booking ledger, no
+   *  accounts, no moderation, no coupons. */
   [AdminRole.FINANCE_MANAGER]: [
     Permission.DASHBOARD_VIEW,
-    Permission.USERS_VIEW,
-    Permission.HOSTS_VIEW,
-    Permission.LISTINGS_VIEW,
-    Permission.BOOKINGS_VIEW,
     Permission.AUDIT_VIEW,
     Permission.FINANCE_VIEW,
     Permission.FINANCE_REFUNDS,
@@ -118,9 +124,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.FINANCE_RECONCILE,
     Permission.FINANCE_CONFIG,
     Permission.FINANCE_EXPORT,
-    Permission.COUPONS_MANAGE,
     Permission.ANALYTICS_VIEW,
-    Permission.SETTINGS_VIEW,
   ],
 };
 

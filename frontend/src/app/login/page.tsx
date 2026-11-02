@@ -8,13 +8,36 @@ import { Mail, Lock, Building2, AlertCircle, ArrowLeft, ArrowRight } from 'lucid
 import { getSafeReturnPath } from '../../lib/navigation';
 import GoogleButton from '../../components/auth/GoogleButton';
 import { googleErrorMessage } from '../../lib/google-auth';
+import {
+  canAccessNavItem,
+  findNavItemForPath,
+  firstAccessibleHref,
+} from '../../components/admin/admin-nav';
+import { getEffectivePermissions } from '../../types/admin';
+import type { User } from '../../context/AuthContext';
+
+/**
+ * The first page an admin should land on: the `next` path when their role can
+ * actually open it, otherwise the first page their permission set grants.
+ * Never a page the layout would refuse.
+ */
+function adminLanding(adminUser: User | null, returnPath: string): string {
+  if (returnPath.startsWith('/admin')) {
+    const routeItem = findNavItemForPath(returnPath);
+    const permissions = getEffectivePermissions(adminUser);
+    if (routeItem && canAccessNavItem(routeItem, permissions)) {
+      return returnPath;
+    }
+  }
+  return firstAccessibleHref(getEffectivePermissions(adminUser)) ?? '/admin';
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [returnPath, setReturnPath] = useState('/');
+  const [returnPath, setReturnPath] = useState('/dashboard');
 
   const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -22,7 +45,7 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paramReturn = params.get('next') || params.get('returnUrl') || params.get('redirect');
-    setReturnPath(getSafeReturnPath(paramReturn, '/'));
+    setReturnPath(getSafeReturnPath(paramReturn, '/dashboard'));
 
     const googleError = params.get('error');
     if (googleError) {
@@ -34,14 +57,13 @@ export default function LoginPage() {
   useEffect(() => {
     if (authLoading || !user) return;
     if (user.role === 'ADMIN') {
-      const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
-      router.replace(dest);
-    } else if (returnPath && returnPath !== '/') {
+      router.replace(adminLanding(user, returnPath));
+    } else if (returnPath && returnPath !== '/dashboard') {
       router.replace(returnPath);
     } else if (user.hostProfile) {
       router.replace('/host/dashboard');
     } else {
-      router.replace('/');
+      router.replace('/dashboard');
     }
   }, [authLoading, user, returnPath, router]);
 
@@ -63,14 +85,13 @@ export default function LoginPage() {
     try {
       const loggedUser = await login(email, password);
       if (loggedUser.role === 'ADMIN') {
-        const dest = returnPath && returnPath.startsWith('/admin') ? returnPath : '/admin';
-        router.push(dest);
-      } else if (returnPath && returnPath !== '/') {
+        router.push(adminLanding(loggedUser, returnPath));
+      } else if (returnPath && returnPath !== '/dashboard') {
         router.push(returnPath);
       } else if (loggedUser.hostProfile) {
         router.push('/host/dashboard');
       } else {
-        router.push('/');
+        router.push('/dashboard');
       }
     } catch (err: any) {
       setError(
@@ -197,7 +218,7 @@ export default function LoginPage() {
           <div className="mt-6 text-center text-sm font-body text-[#73776F]">
             Don&apos;t have an account?{' '}
             <Link
-              href={returnPath === '/' ? '/register' : `/register?next=${encodeURIComponent(returnPath)}`}
+              href={returnPath === '/dashboard' ? '/register' : `/register?next=${encodeURIComponent(returnPath)}`}
               className="font-semibold text-[#b2531b] hover:text-[#994413] hover:underline transition-colors"
             >
               Create an account

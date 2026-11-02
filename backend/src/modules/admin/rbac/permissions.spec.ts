@@ -57,9 +57,11 @@ describe('Admin RBAC permissions', () => {
         Permission.ANALYTICS_VIEW,
       ]),
     );
+    expect(permissions).not.toContain(Permission.USERS_VIEW);
     expect(permissions).not.toContain(Permission.USERS_MANAGE);
     expect(permissions).not.toContain(Permission.ADMINS_MANAGE);
     expect(permissions).not.toContain(Permission.AUDIT_VIEW);
+    expect(permissions).not.toContain(Permission.SETTINGS_VIEW);
   });
 
   it('gives support agents account and report access without listing powers', () => {
@@ -75,10 +77,12 @@ describe('Admin RBAC permissions', () => {
         Permission.REPORTS_RESOLVE,
       ]),
     );
+    expect(permissions).not.toContain(Permission.LISTINGS_VIEW);
     expect(permissions).not.toContain(Permission.LISTINGS_REVIEW);
     expect(permissions).not.toContain(Permission.REVIEWS_MODERATE);
     expect(permissions).not.toContain(Permission.ADMINS_MANAGE);
     expect(permissions).not.toContain(Permission.AUDIT_VIEW);
+    expect(permissions).not.toContain(Permission.SETTINGS_VIEW);
   });
 
   it('gives booking managers booking and case controls without moderation powers', () => {
@@ -90,17 +94,22 @@ describe('Admin RBAC permissions', () => {
     expect(permissions).toEqual(
       expect.arrayContaining([
         Permission.DASHBOARD_VIEW,
-        Permission.USERS_VIEW,
-        Permission.REPORTS_VIEW,
         Permission.BOOKINGS_VIEW,
         Permission.BOOKINGS_MANAGE,
         Permission.CASES_VIEW,
         Permission.CASES_MANAGE,
+        Permission.CASES_COMPENSATE,
+        Permission.COUPONS_MANAGE,
       ]),
     );
+    expect(permissions).not.toContain(Permission.USERS_VIEW);
     expect(permissions).not.toContain(Permission.USERS_MANAGE);
+    expect(permissions).not.toContain(Permission.REPORTS_VIEW);
     expect(permissions).not.toContain(Permission.REPORTS_RESOLVE);
+    expect(permissions).not.toContain(Permission.LISTINGS_REVIEW);
     expect(permissions).not.toContain(Permission.REVIEWS_MODERATE);
+    expect(permissions).not.toContain(Permission.SETTINGS_VIEW);
+    expect(permissions).not.toContain(Permission.FINANCE_VIEW);
   });
 
   it('gives finance managers audit access and finance capabilities without moderation powers', () => {
@@ -116,8 +125,14 @@ describe('Admin RBAC permissions', () => {
     expect(permissions).toContain(Permission.FINANCE_RECONCILE);
     expect(permissions).toContain(Permission.FINANCE_CONFIG);
     expect(permissions).toContain(Permission.FINANCE_EXPORT);
+    expect(permissions).not.toContain(Permission.USERS_VIEW);
+    expect(permissions).not.toContain(Permission.BOOKINGS_VIEW);
+    expect(permissions).not.toContain(Permission.HOSTS_VIEW);
+    expect(permissions).not.toContain(Permission.LISTINGS_VIEW);
     expect(permissions).not.toContain(Permission.REPORTS_VIEW);
     expect(permissions).not.toContain(Permission.REVIEWS_MODERATE);
+    expect(permissions).not.toContain(Permission.COUPONS_MANAGE);
+    expect(permissions).not.toContain(Permission.SETTINGS_VIEW);
   });
 
   it('supports single and any-of permission checks', () => {

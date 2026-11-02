@@ -96,6 +96,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     : undefined;
   const landingHref = firstAccessibleHref(effectivePermissions);
 
+  // When a role is deep-linked into an area it cannot open (for example a
+  // stale `?next=` from a previous session), silently deliver the admin to
+  // the first page their own role grants instead of showing a denial panel.
+  useEffect(() => {
+    if (loading) return;
+    if (!user || user.role !== 'ADMIN') return;
+    if (!routeItem || routeAllowed) return;
+    if (!landingHref || landingHref === pathname) return;
+    router.replace(landingHref);
+  }, [loading, user, routeItem, routeAllowed, landingHref, pathname, router]);
+
   if (loading) {
     return (
       <div className="admin-shell flex min-h-screen flex-col items-center justify-center bg-[#faf5ee]">
