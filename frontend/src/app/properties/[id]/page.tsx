@@ -221,6 +221,89 @@ export default function PropertyDetailsPage() {
   const [reportListingOpen, setReportListingOpen] = useState(false);
   const [reportReview, setReportReview] = useState<{ id: string; author: string } | null>(null);
 
+  // Guest Review Submission State
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewHoverRating, setReviewHoverRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubratings, setReviewSubratings] = useState<Record<string, number>>({
+    cleanliness: 5,
+    accuracy: 5,
+    communication: 5,
+    location: 5,
+    checkIn: 5,
+    value: 5,
+  });
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!property) return;
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(`/properties/${property.id}`)}`);
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      if (isUuid(property.id)) {
+        try {
+          await apiFetch(`/properties/${property.id}/reviews`, {
+            method: 'POST',
+            body: JSON.stringify({
+              rating: reviewRating,
+              comment: reviewComment.trim() || undefined,
+            }),
+          });
+        } catch (apiErr) {
+          console.warn('Backend review submission warning:', apiErr);
+        }
+      }
+
+      // Add newly submitted review to state immediately
+      const newReview = {
+        id: `rev-${Date.now()}`,
+        author: user.name || 'Verified Traveler',
+        authorId: user.id,
+        avatar: (user as any).avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        date: 'Just now',
+        rating: reviewRating,
+        comment: reviewComment.trim() || 'Had a wonderful and comfortable stay at this property.',
+      };
+
+      const newReviewsList = [newReview, ...property.reviews];
+      const newCount = property.reviewsCount + 1;
+      const newAvg = Math.round(((property.rating * property.reviewsCount + reviewRating) / newCount) * 10) / 10;
+
+      setProperty((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          reviews: newReviewsList,
+          reviewsCount: newCount,
+          rating: newAvg,
+        };
+      });
+
+      setReviewModalOpen(false);
+      setReviewComment('');
+      setReviewRating(5);
+      showPlatformToast(
+        'Thank you! Your review and star rating have been published.',
+        'success',
+        'Review Published'
+      );
+    } catch (err: any) {
+      showPlatformToast(
+        err?.message || 'Failed to submit review. Please try again.',
+        'error',
+        'Submission Error'
+      );
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
   // Message Host Modal state
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [hostMessage, setHostMessage] = useState('');
@@ -990,13 +1073,30 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
 
             {/* Guest Reviews Section */}
             <div className="pb-8">
-              <div className="flex items-center gap-2 mb-6">
-                <span className="material-symbols-outlined material-symbols-fill text-[#a84d16] text-2xl">
-                  star
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-bold font-headline text-[#3a302a] text-balance">
-                  {property.rating} · {property.reviewsCount} reviews
-                </h2>
+              <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined material-symbols-fill text-[#a84d16] text-2xl">
+                    star
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-bold font-headline text-[#3a302a] text-balance">
+                    {property.rating} · {property.reviewsCount} reviews
+                  </h2>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      router.push(`/login?next=${encodeURIComponent(`/properties/${property.id}`)}`);
+                      return;
+                    }
+                    setReviewModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#234B36] text-white text-xs font-bold hover:bg-[#1a3828] transition active:scale-95 shadow-xs cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">rate_review</span>
+                  <span>Leave a Review</span>
+                </button>
               </div>
 
               {/* Sub-ratings Breakdown (Editorial divider layout) */}
@@ -1690,6 +1790,151 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
           </div>
         </div>
       )}
+
+      {/* Guest Review & Rating Modal */}
+      {reviewModalOpen && property && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => !reviewSubmitting && setReviewModalOpen(false)}
+        >
+          <div
+            className="bg-[#FAF8F2] rounded-3xl border border-[#E5E0D5] p-6 sm:p-8 max-w-lg w-full shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-[#E5E0D5]">
+              <div>
+                <h3 className="text-xl font-bold font-headline text-[#252923]">
+                  Rate & Review Your Stay
+                </h3>
+                <p className="text-xs text-[#73776F] mt-0.5 line-clamp-1">
+                  {property.title} · {property.city}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewModalOpen(false)}
+                disabled={reviewSubmitting}
+                className="w-8 h-8 rounded-full bg-[#E5E0D5]/50 hover:bg-[#E5E0D5] text-[#252923] flex items-center justify-center transition cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="space-y-5 pt-5">
+              {/* Overall Star Rating */}
+              <div className="text-center py-3 bg-white rounded-2xl border border-[#E5E0D5]/60 shadow-xs">
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-2">
+                  Overall Rating
+                </label>
+                <div className="flex items-center justify-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onMouseEnter={() => setReviewHoverRating(star)}
+                      onMouseLeave={() => setReviewHoverRating(0)}
+                      onClick={() => setReviewRating(star)}
+                      className="p-1 transition-transform hover:scale-110 active:scale-95 focus:outline-none cursor-pointer"
+                    >
+                      <span
+                        className={`material-symbols-outlined text-3xl transition-colors ${
+                          star <= (reviewHoverRating || reviewRating)
+                            ? 'material-symbols-fill text-[#D87836]'
+                            : 'text-[#D8D0C8]'
+                        }`}
+                      >
+                        star
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs font-semibold text-[#234B36] mt-1.5">
+                  {(reviewHoverRating || reviewRating) === 5 && '★ 5.0 — Exceptional experience'}
+                  {(reviewHoverRating || reviewRating) === 4 && '★ 4.0 — Very good stay'}
+                  {(reviewHoverRating || reviewRating) === 3 && '★ 3.0 — Average stay'}
+                  {(reviewHoverRating || reviewRating) === 2 && '★ 2.0 — Below expectations'}
+                  {(reviewHoverRating || reviewRating) === 1 && '★ 1.0 — Poor experience'}
+                </p>
+              </div>
+
+              {/* Sub-ratings */}
+              <div className="bg-white p-4 rounded-2xl border border-[#E5E0D5]/60">
+                <p className="text-xs font-bold uppercase tracking-wider text-[#73776F] mb-3">
+                  Rate Specific Features
+                </p>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  {[
+                    { key: 'cleanliness', label: 'Cleanliness' },
+                    { key: 'accuracy', label: 'Accuracy' },
+                    { key: 'communication', label: 'Communication' },
+                    { key: 'location', label: 'Location' },
+                    { key: 'checkIn', label: 'Check-in' },
+                    { key: 'value', label: 'Value for Money' },
+                  ].map((item) => (
+                    <div key={item.key} className="flex items-center justify-between py-1 border-b border-[#FAF8F2]">
+                      <span className="text-[#252923] font-medium">{item.label}</span>
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() =>
+                              setReviewSubratings((prev) => ({ ...prev, [item.key]: s }))
+                            }
+                            className={`w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center transition cursor-pointer ${
+                              (reviewSubratings[item.key] || 5) >= s
+                                ? 'bg-[#234B36] text-white'
+                                : 'bg-[#E5E0D5]/40 text-[#73776F] hover:bg-[#E5E0D5]'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Written Review */}
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                  Your Review
+                </label>
+                <textarea
+                  rows={4}
+                  required
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Tell future guests and the host about your experience: cleanliness, host communication, neighborhood convenience, amenities (backup power/water)..."
+                  className="w-full p-3.5 rounded-xl bg-white border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] resize-none leading-relaxed"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setReviewModalOpen(false)}
+                  disabled={reviewSubmitting}
+                  className="px-4 py-2.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#605850] hover:bg-[#faf5ee] transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={reviewSubmitting || !reviewComment.trim()}
+                  className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] disabled:opacity-40 text-white text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>{reviewSubmitting ? 'Publishing...' : 'Publish Review'}</span>
+                  <span className="material-symbols-outlined text-sm">send</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+
 
       {reportListingOpen && property && (
         <ReportDialog

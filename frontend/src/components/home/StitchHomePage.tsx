@@ -13,6 +13,8 @@ import AiConversationalSearchModal from '@/components/search/AiConversationalSea
 import PersonalizedAiRecommendationsSection from '@/components/home/PersonalizedAiRecommendationsSection';
 import AiPropertyComparisonModal from '@/components/compare/AiPropertyComparisonModal';
 import AiBookingAssistantWidget from '@/components/assistant/AiBookingAssistantWidget';
+import ExperiencesSection from '@/components/experiences/ExperiencesSection';
+import HowItWorksSection from '@/components/home/HowItWorksSection';
 
 export interface PropertyListing {
   id: string;
@@ -179,6 +181,29 @@ interface StitchHomePageProps {
 
 export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }: StitchHomePageProps) {
   const { user, logout } = useAuth();
+
+  // Top Nav Tab State (Stays, Experiences, How it Works)
+  const [activeTab, setActiveTab] = useState<'stays' | 'destinations' | 'how-it-works'>(
+    (activeNavTab as any) || 'stays'
+  );
+
+  useEffect(() => {
+    if (activeNavTab) {
+      setActiveTab(activeNavTab as any);
+    }
+  }, [activeNavTab]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'experiences' || tabParam === 'destinations') {
+        setActiveTab('destinations');
+      } else if (tabParam === 'how-it-works' || tabParam === 'howitworks') {
+        setActiveTab('how-it-works');
+      }
+    }
+  }, []);
 
   // Search state
   const [activeSegment, setActiveSegment] = useState<'where' | 'when' | 'who' | null>(null);
@@ -677,9 +702,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           <nav className="hidden md:inline-flex items-center gap-1 p-1 rounded-full bg-[#FAF8F2] border border-[#E5E0D5]/80 shadow-2xs transition-all">
             <button
               type="button"
-              onClick={() => onNavigateTab?.('stays')}
+              onClick={() => {
+                setActiveTab('stays');
+                onNavigateTab?.('stays');
+              }}
               className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'stays' || activeNavTab === 'home'
+                activeTab === 'stays'
                   ? 'bg-[#234B36] text-white shadow-xs'
                   : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
               }`}
@@ -690,9 +718,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
 
             <button
               type="button"
-              onClick={() => onNavigateTab?.('destinations')}
+              onClick={() => {
+                setActiveTab('destinations');
+                onNavigateTab?.('destinations');
+              }}
               className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'destinations'
+                activeTab === 'destinations'
                   ? 'bg-[#234B36] text-white shadow-xs'
                   : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
               }`}
@@ -703,9 +734,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
 
             <button
               type="button"
-              onClick={() => onNavigateTab?.('how-it-works')}
+              onClick={() => {
+                setActiveTab('how-it-works');
+                onNavigateTab?.('how-it-works');
+              }}
               className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'how-it-works'
+                activeTab === 'how-it-works'
                   ? 'bg-[#234B36] text-white shadow-xs'
                   : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
               }`}
@@ -921,9 +955,15 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
 
       {/* Main content */}
       <main className="w-full">
-        {/* ============================================================ */}
-        {/* 2. SEARCH BAR SECTION                                        */}
-        {/* ============================================================ */}
+        {activeTab === 'destinations' ? (
+          <ExperiencesSection />
+        ) : activeTab === 'how-it-works' ? (
+          <HowItWorksSection />
+        ) : (
+          <>
+            {/* ============================================================ */}
+            {/* 2. SEARCH BAR SECTION                                        */}
+            {/* ============================================================ */}
         <section className="sticky top-0 z-[45] w-full px-4 sm:px-6 lg:px-12 pt-3 pb-3 flex flex-col items-center justify-center bg-[#F8F5ED]/95 backdrop-blur-md animate-fade-in-up">
           <div className="w-full max-w-4xl mx-auto flex justify-center relative">
             <div className="search-bar-container inline-flex flex-wrap sm:flex-nowrap items-center bg-white rounded-full border border-[#E5E0D5] shadow-[0_4px_16px_rgba(58,48,42,0.06)] hover:shadow-[0_8px_28px_rgba(194,101,42,0.16)] hover:border-[#234B36]/50 transition-all duration-300 pl-4 sm:pl-8 pr-2.5 py-2.5 gap-2 focus-within:ring-2 focus-within:ring-[#234B36]/40 focus-within:border-[#234B36]">
@@ -1743,6 +1783,8 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
             )}
           </button>
         </section>
+          </>
+        )}
       </main>
 
       {/* ============================================================ */}

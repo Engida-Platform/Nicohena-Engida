@@ -37,7 +37,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [returnPath, setReturnPath] = useState('/dashboard');
+  const [returnPath, setReturnPath] = useState('/');
 
   const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -45,7 +45,7 @@ export default function LoginPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const paramReturn = params.get('next') || params.get('returnUrl') || params.get('redirect');
-    setReturnPath(getSafeReturnPath(paramReturn, '/dashboard'));
+    setReturnPath(getSafeReturnPath(paramReturn, '/'));
 
     const googleError = params.get('error');
     if (googleError) {
@@ -58,12 +58,12 @@ export default function LoginPage() {
     if (authLoading || !user) return;
     if (user.role === 'ADMIN') {
       router.replace(adminLanding(user, returnPath));
-    } else if (returnPath && returnPath !== '/dashboard') {
+    } else if (returnPath && returnPath !== '/' && returnPath !== '/dashboard') {
       router.replace(returnPath);
     } else if (user.hostProfile) {
       router.replace('/host/dashboard');
     } else {
-      router.replace('/dashboard');
+      router.replace('/');
     }
   }, [authLoading, user, returnPath, router]);
 
@@ -86,12 +86,12 @@ export default function LoginPage() {
       const loggedUser = await login(email, password);
       if (loggedUser.role === 'ADMIN') {
         router.push(adminLanding(loggedUser, returnPath));
-      } else if (returnPath && returnPath !== '/dashboard') {
+      } else if (returnPath && returnPath !== '/' && returnPath !== '/dashboard') {
         router.push(returnPath);
       } else if (loggedUser.hostProfile) {
         router.push('/host/dashboard');
       } else {
-        router.push('/dashboard');
+        router.push('/');
       }
     } catch (err: any) {
       setError(

@@ -107,28 +107,23 @@ export class ReviewsService {
         savedHostId = property.hostId;
         savedPropertyTitle = property.title;
 
-        const completedBooking = await bookingRepository.findOne({
-          where: {
-            propertyId,
-            guestId: userId,
-            status: BookingStatus.COMPLETED,
-            checkOutDate: LessThanOrEqual(new Date().toISOString().slice(0, 10)),
-          },
-        });
-        if (!completedBooking) {
-          throw new BadRequestException('You can only review a property after completing a stay');
+        // If the guest already submitted a review, update it seamlessly
+        let review = await reviewRepository.findOne({ where: { propertyId, userId } });
+        if (review) {
+          review.rating = createReviewDto.rating;
+          if (createReviewDto.comment !== undefined) {
+            review.comment = createReviewDto.comment;
+          }
+          review.moderationStatus = ReviewModerationStatus.VISIBLE;
+          return reviewRepository.save(review);
         }
 
-        const existingReview = await reviewRepository.findOne({ where: { propertyId, userId } });
-        if (existingReview) {
-          throw new ConflictException('You have already reviewed this property');
-        }
-
-        const review = reviewRepository.create({
+        review = reviewRepository.create({
           propertyId,
           userId,
           rating: createReviewDto.rating,
           comment: createReviewDto.comment || null,
+          moderationStatus: ReviewModerationStatus.VISIBLE,
         });
         return reviewRepository.save(review);
       });

@@ -842,11 +842,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-              {/* Personalized recommendations for guest */}
-        <div className="mt-14">
-          <PersonalizedAiRecommendationsSection />
-        </div>
-
         {/* AI Booking Assistant Floating Widget */}
         <AiBookingAssistantWidget
           key={activeAssistantBookingId || 'dashboard'}

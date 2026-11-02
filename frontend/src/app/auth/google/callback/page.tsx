@@ -31,7 +31,7 @@ export default function GoogleCallbackPage() {
             : '/admin';
         router.replace(adminDest);
       } else {
-        const defaultFallback = user.hostProfile ? '/host/dashboard' : '/dashboard';
+        const defaultFallback = user.hostProfile ? '/host/dashboard' : '/';
         const nextPath = getSafeReturnPath(rawNext, defaultFallback);
         router.replace(nextPath);
       }
