@@ -444,6 +444,7 @@ export default function HostLocationPickerMapInner({
       center: currentCoords,
       zoom: 15,
       zoomControl: false,
+      attributionControl: false,
     });
 
     // Add zoom control in top-right
@@ -452,9 +453,7 @@ export default function HostLocationPickerMapInner({
     // Official OpenStreetMap standard tile layer
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(map);
+          }).addTo(map);
 
     // Custom Draggable Pin Marker
     const marker = L.marker(currentCoords, {

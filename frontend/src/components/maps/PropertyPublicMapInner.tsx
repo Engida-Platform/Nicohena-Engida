@@ -71,6 +71,7 @@ export default function PropertyPublicMapInner({
       center: [lat, lng],
       zoom: showExactPin ? 15 : 14,
       zoomControl: false,
+      attributionControl: false,
       scrollWheelZoom: false, // Prevent page scroll hijack
     });
 
@@ -78,8 +79,6 @@ export default function PropertyPublicMapInner({
 
     // Official OpenStreetMap standard tiles (100% free, no API key watermark)
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors',
       maxZoom: 19,
     }).addTo(map);
 

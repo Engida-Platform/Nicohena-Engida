@@ -1292,3 +1292,20 @@ body {
     grid-column: 1 / -1;
   }
 }
+
+
+/* Remove Leaflet attribution control totally */
+.leaflet-control-attribution,
+.leaflet-container .leaflet-control-attribution,
+.leaflet-bottom.leaflet-right .leaflet-control-attribution,
+.leaflet-bottom .leaflet-control-attribution {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+}
