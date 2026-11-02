@@ -12,6 +12,12 @@ import {
   Headers,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -24,6 +30,7 @@ import { User } from '../users/entities/user.entity';
 import { getAdminPermissions } from '../modules/admin/rbac/permissions';
 import { setRefreshCookie, clearRefreshCookie } from './refresh-cookie';
 
+@ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -34,29 +41,58 @@ export class AuthController {
 
   @Post('otp/send')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Send phone/email verification OTP',
+    description: 'Generates and sends a 6-digit one-time password to the specified email or phone number.',
+  })
+  @ApiResponse({ status: 200, description: 'OTP sent successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid phone/email target or delivery channel' })
   async sendOtp(@Body() dto: SendOtpDto) {
     return this.otpService.sendOtp(dto);
   }
 
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Verify phone/email OTP code',
+    description: 'Validates the 6-digit OTP code against the target phone number or email address.',
+  })
+  @ApiResponse({ status: 200, description: 'OTP verified successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired OTP code' })
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.otpService.verifyOtp(dto);
   }
 
   @Get('otp/status')
+  @ApiOperation({
+    summary: 'Check OTP provider status',
+    description: 'Returns health status and configured gateway for the SMS/email OTP service.',
+  })
+  @ApiResponse({ status: 200, description: 'Provider status returned' })
   getOtpProviderStatus() {
     return this.otpService.getProviderStatus();
   }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Register new user account',
+    description: 'Creates a new user with GUEST role. Requires email, password, and full name.',
+  })
+  @ApiResponse({ status: 201, description: 'User successfully registered' })
+  @ApiResponse({ status: 409, description: 'Email already registered' })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Authenticate and receive tokens',
+    description: 'Validates credentials and returns a short-lived JWT access token while setting an HttpOnly refreshToken cookie.',
+  })
+  @ApiResponse({ status: 200, description: 'Authenticated successfully; sets refreshToken HttpOnly cookie' })
+  @ApiResponse({ status: 401, description: 'Invalid email or password' })
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -75,6 +111,12 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Refresh access token',
+    description: 'Exchanges a valid HttpOnly refreshToken cookie for a new JWT access token and rotates the refresh token.',
+  })
+  @ApiResponse({ status: 200, description: 'Access token successfully refreshed' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -93,6 +135,11 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Logout user session',
+    description: 'Revokes the current refresh token session and clears the HttpOnly refreshToken cookie.',
+  })
+  @ApiResponse({ status: 200, description: 'Logged out successfully' })
   async logout(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -107,6 +154,13 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get current user profile',
+    description: 'Returns profile details, role, administrative permissions, and host profile of the currently authenticated user.',
+  })
+  @ApiResponse({ status: 200, description: 'Current user profile returned' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - invalid or missing Bearer token' })
   getProfile(@GetUser() user: User) {
     return {
       id: user.id,

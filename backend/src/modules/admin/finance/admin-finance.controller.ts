@@ -12,6 +12,14 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiProduces,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/guards/roles.guard';
@@ -29,6 +37,8 @@ import { ReconciliationService, SettlementRow } from '../../finance/services/rec
 import { FinanceSettingsService } from '../../finance/services/finance-settings.service';
 import { FinanceJobsService } from '../../finance/services/finance-jobs.service';
 
+@ApiTags('Admin - Finance & Payouts')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin/finance')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles(UserRole.ADMIN)
@@ -45,36 +55,50 @@ export class AdminFinanceController {
 
   @Get('summary')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'Finance overview summary' })
+  @ApiResponse({ status: 200, description: 'Escrow, payout, and platform revenue summary' })
   getSummary() {
     return this.adminFinanceService.getSummary();
   }
 
   @Get('payments')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'List platform financial transactions' })
+  @ApiResponse({ status: 200, description: 'Paginated payment transactions' })
   listPayments(@Query() query: any) {
     return this.adminFinanceService.listPayments(query);
   }
 
   @Get('payments/:id')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'Get payment transaction details' })
+  @ApiParam({ name: 'id', description: 'Transaction UUID' })
+  @ApiResponse({ status: 200, description: 'Transaction detail object' })
   getPaymentDetail(@Param('id') id: string) {
     return this.adminFinanceService.getPaymentDetail(id);
   }
 
   @Get('refunds')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'List refund requests' })
+  @ApiResponse({ status: 200, description: 'Paginated refunds list' })
   listRefunds(@Query() query: any) {
     return this.adminFinanceService.listRefunds(query);
   }
 
   @Get('refunds/:id')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'Get refund detail' })
+  @ApiParam({ name: 'id', description: 'Refund UUID' })
+  @ApiResponse({ status: 200, description: 'Refund details' })
   getRefundDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminFinanceService.getRefundDetail(id);
   }
 
   @Post('refunds')
   @RequirePermissions(Permission.FINANCE_REFUNDS)
+  @ApiOperation({ summary: 'Propose a new refund' })
+  @ApiResponse({ status: 201, description: 'Refund proposal created' })
   proposeRefund(
     @Body() dto: ProposeRefundDto,
     @GetUser() actor: User,
@@ -86,6 +110,9 @@ export class AdminFinanceController {
 
   @Post('refunds/:id/approve')
   @RequirePermissions(Permission.FINANCE_REFUNDS)
+  @ApiOperation({ summary: 'Approve refund proposal' })
+  @ApiParam({ name: 'id', description: 'Refund UUID' })
+  @ApiResponse({ status: 200, description: 'Refund approved' })
   approveRefund(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -98,6 +125,9 @@ export class AdminFinanceController {
 
   @Post('refunds/:id/reject')
   @RequirePermissions(Permission.FINANCE_REFUNDS)
+  @ApiOperation({ summary: 'Reject refund proposal' })
+  @ApiParam({ name: 'id', description: 'Refund UUID' })
+  @ApiResponse({ status: 200, description: 'Refund rejected' })
   rejectRefund(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -110,6 +140,9 @@ export class AdminFinanceController {
 
   @Post('refunds/:id/execute')
   @RequirePermissions(Permission.FINANCE_REFUNDS)
+  @ApiOperation({ summary: 'Execute approved refund with payment provider' })
+  @ApiParam({ name: 'id', description: 'Refund UUID' })
+  @ApiResponse({ status: 200, description: 'Refund executed' })
   executeRefund(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() actor: User,
@@ -121,6 +154,9 @@ export class AdminFinanceController {
 
   @Post('refunds/:id/retry')
   @RequirePermissions(Permission.FINANCE_REFUNDS)
+  @ApiOperation({ summary: 'Retry failed refund execution' })
+  @ApiParam({ name: 'id', description: 'Refund UUID' })
+  @ApiResponse({ status: 200, description: 'Refund retried' })
   retryRefund(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() actor: User,
@@ -132,18 +168,25 @@ export class AdminFinanceController {
 
   @Get('payouts')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'List host payouts' })
+  @ApiResponse({ status: 200, description: 'List of payouts' })
   listPayouts(@Query() query: any) {
     return this.adminFinanceService.listPayouts(query);
   }
 
   @Get('payouts/:id')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'Get payout statement and line items' })
+  @ApiParam({ name: 'id', description: 'Payout UUID' })
+  @ApiResponse({ status: 200, description: 'Payout detail object' })
   getPayoutDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminFinanceService.getPayoutDetail(id);
   }
 
   @Post(['payouts/batch', 'payouts/batch/generate'])
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Generate daily payout batch' })
+  @ApiResponse({ status: 200, description: 'Payout batch created' })
   async generateBatch(@GetUser() actor: User) {
     const res = await this.payoutsService.generateDailyPayoutBatch(actor);
     return {
@@ -156,6 +199,9 @@ export class AdminFinanceController {
 
   @Post('payouts/:id/approve')
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Approve host payout' })
+  @ApiParam({ name: 'id', description: 'Payout UUID' })
+  @ApiResponse({ status: 200, description: 'Payout approved' })
   approvePayout(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -168,6 +214,9 @@ export class AdminFinanceController {
 
   @Post('payouts/:id/reject')
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Reject host payout' })
+  @ApiParam({ name: 'id', description: 'Payout UUID' })
+  @ApiResponse({ status: 200, description: 'Payout rejected' })
   rejectPayout(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -180,6 +229,9 @@ export class AdminFinanceController {
 
   @Post('payouts/:id/execute')
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Disburse payout through bank/telebirr' })
+  @ApiParam({ name: 'id', description: 'Payout UUID' })
+  @ApiResponse({ status: 200, description: 'Payout disbursed' })
   executePayout(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() actor: User,
@@ -191,6 +243,9 @@ export class AdminFinanceController {
 
   @Post('payouts/:id/retry')
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Retry failed payout disbursement' })
+  @ApiParam({ name: 'id', description: 'Payout UUID' })
+  @ApiResponse({ status: 200, description: 'Payout disbursement retried' })
   retryPayout(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() actor: User,
@@ -202,12 +257,17 @@ export class AdminFinanceController {
 
   @Get('payout-accounts')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'List host payout banking accounts' })
+  @ApiResponse({ status: 200, description: 'Payout accounts list' })
   listPayoutAccounts(@Query() query: any) {
     return this.adminFinanceService.listPayoutAccounts(query);
   }
 
   @Post('payout-accounts/:id/verify')
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Verify host payout account' })
+  @ApiParam({ name: 'id', description: 'Account UUID' })
+  @ApiResponse({ status: 200, description: 'Account verified' })
   verifyPayoutAccount(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser() actor: User,
@@ -219,6 +279,9 @@ export class AdminFinanceController {
 
   @Post(['payout-accounts/:id/reject', 'payout-accounts/:id/disable'])
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Disable host payout account' })
+  @ApiParam({ name: 'id', description: 'Account UUID' })
+  @ApiResponse({ status: 200, description: 'Account disabled' })
   rejectPayoutAccount(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -236,24 +299,33 @@ export class AdminFinanceController {
 
   @Get(['ledger', 'ledger/transactions'])
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'Double-entry platform ledger journal' })
+  @ApiResponse({ status: 200, description: 'Paginated ledger transactions' })
   listLedger(@Query() query: any) {
     return this.adminFinanceService.listLedgerTransactions(query);
   }
 
   @Get('ledger/accounts')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'Chart of ledger accounts' })
+  @ApiResponse({ status: 200, description: 'Chart of accounts and balances' })
   listLedgerAccounts() {
     return this.adminFinanceService.listLedgerAccounts();
   }
 
   @Get(['escrow', 'escrow-holds'])
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'List active booking escrow holds' })
+  @ApiResponse({ status: 200, description: 'Escrow holds list' })
   listEscrow(@Query() query: any) {
     return this.adminFinanceService.listEscrowHolds(query);
   }
 
   @Post(['escrow/:id/release', 'escrow-holds/:id/release'])
   @RequirePermissions(Permission.FINANCE_PAYOUTS)
+  @ApiOperation({ summary: 'Release escrow hold into host payout balance' })
+  @ApiParam({ name: 'id', description: 'Escrow UUID' })
+  @ApiResponse({ status: 200, description: 'Escrow hold released' })
   releaseEscrow(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -264,6 +336,9 @@ export class AdminFinanceController {
 
   @Post(['escrow/:id/freeze', 'escrow-holds/:id/freeze'])
   @RequirePermissions(Permission.FINANCE_REFUNDS)
+  @ApiOperation({ summary: 'Freeze escrow hold pending dispute resolution' })
+  @ApiParam({ name: 'id', description: 'Escrow UUID' })
+  @ApiResponse({ status: 200, description: 'Escrow hold frozen' })
   freezeEscrow(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -276,6 +351,9 @@ export class AdminFinanceController {
 
   @Post(['escrow/:id/unfreeze', 'escrow-holds/:id/unfreeze'])
   @RequirePermissions(Permission.FINANCE_REFUNDS)
+  @ApiOperation({ summary: 'Unfreeze escrow hold' })
+  @ApiParam({ name: 'id', description: 'Escrow UUID' })
+  @ApiResponse({ status: 200, description: 'Escrow hold unchilled' })
   unfreezeEscrow(
     @Param('id', ParseUUIDPipe) id: string,
     @Body('reason') reason: string,
@@ -288,12 +366,16 @@ export class AdminFinanceController {
 
   @Get(['reconciliation', 'reconciliation/issues'])
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'List gateway reconciliation discrepancies' })
+  @ApiResponse({ status: 200, description: 'List of reconciliation issues' })
   listReconciliation(@Query() query: any) {
     return this.adminFinanceService.listReconciliationIssues(query);
   }
 
   @Post(['reconciliation/settlement-report', 'reconciliation/settlement'])
   @RequirePermissions(Permission.FINANCE_RECONCILE)
+  @ApiOperation({ summary: 'Ingest bank/gateway settlement report' })
+  @ApiResponse({ status: 200, description: 'Settlement matching result' })
   async ingestSettlementReport(
     @Body()
     body: {
@@ -337,6 +419,9 @@ export class AdminFinanceController {
 
   @Post(['reconciliation/:id/resolve', 'reconciliation/issues/:id/resolve'])
   @RequirePermissions(Permission.FINANCE_RECONCILE)
+  @ApiOperation({ summary: 'Resolve reconciliation discrepancy' })
+  @ApiParam({ name: 'id', description: 'Issue UUID' })
+  @ApiResponse({ status: 200, description: 'Issue marked resolved' })
   resolveReconciliationIssue(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: any,
@@ -355,12 +440,16 @@ export class AdminFinanceController {
 
   @Get('settings')
   @RequirePermissions(Permission.FINANCE_VIEW)
+  @ApiOperation({ summary: 'Get finance commission and payout rules' })
+  @ApiResponse({ status: 200, description: 'List of finance settings' })
   getSettings() {
     return this.settingsService.getRawSettingsList();
   }
 
   @Patch(['settings/:key', 'settings'])
   @RequirePermissions(Permission.FINANCE_CONFIG)
+  @ApiOperation({ summary: 'Update finance commission or payout parameter' })
+  @ApiResponse({ status: 200, description: 'Setting updated' })
   updateSettings(
     @Param('key') key: string | undefined,
     @Body() body: any,
@@ -386,6 +475,10 @@ export class AdminFinanceController {
 
   @Get('exports/:type.csv')
   @RequirePermissions(Permission.FINANCE_EXPORT)
+  @ApiOperation({ summary: 'Export finance ledger or statement CSV' })
+  @ApiParam({ name: 'type', description: 'Export type (payments, payouts, ledger)' })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file download' })
   async exportCsv(@Param('type') type: string, @Res() res: Response) {
     const csvContent = await this.adminFinanceService.exportCsv(type);
     res.setHeader('Content-Type', 'text/csv');

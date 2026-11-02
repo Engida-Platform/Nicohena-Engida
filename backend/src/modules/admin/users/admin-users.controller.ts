@@ -12,6 +12,14 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiProduces,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../../auth/guards/roles.guard';
@@ -29,6 +37,8 @@ import {
   UpdateUserStatusDto,
 } from './dto/admin-users.dto';
 
+@ApiTags('Admin - Users & Roles')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles(UserRole.ADMIN)
@@ -37,12 +47,16 @@ export class AdminUsersController {
 
   @Get('users')
   @RequirePermissions(Permission.USERS_VIEW)
+  @ApiOperation({ summary: 'List platform users with filters' })
+  @ApiResponse({ status: 200, description: 'Paginated user directory' })
   list(@Query() query: QueryAdminUsersDto) {
     return this.adminUsersService.list(query);
   }
 
   @Post('admins')
   @RequirePermissions(Permission.ADMINS_MANAGE)
+  @ApiOperation({ summary: 'Create new administrator account' })
+  @ApiResponse({ status: 201, description: 'Admin account created' })
   createAdmin(
     @Body() dto: CreateAdminUserDto,
     @GetUser() actor: User,
@@ -54,6 +68,9 @@ export class AdminUsersController {
 
   @Get('users/export.csv')
   @RequirePermissions(Permission.USERS_VIEW)
+  @ApiOperation({ summary: 'Export user directory CSV' })
+  @ApiProduces('text/csv')
+  @ApiResponse({ status: 200, description: 'CSV file download' })
   async export(
     @Query() query: QueryAdminUsersDto,
     @GetUser() actor: User,
@@ -75,12 +92,18 @@ export class AdminUsersController {
 
   @Get('users/:id')
   @RequirePermissions(Permission.USERS_VIEW)
+  @ApiOperation({ summary: 'Get user details by ID' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiResponse({ status: 200, description: 'User profile, activity, and role breakdown' })
   getDetail(@Param('id', ParseUUIDPipe) id: string) {
     return this.adminUsersService.getDetail(id);
   }
 
   @Patch('users/:id/status')
   @RequirePermissions(Permission.USERS_MANAGE)
+  @ApiOperation({ summary: 'Update user account status (suspend, ban, activate)' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiResponse({ status: 200, description: 'User status updated' })
   updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserStatusDto,
@@ -93,6 +116,9 @@ export class AdminUsersController {
 
   @Patch('users/:id/admin-role')
   @RequirePermissions(Permission.ADMINS_MANAGE)
+  @ApiOperation({ summary: 'Assign or modify RBAC admin role' })
+  @ApiParam({ name: 'id', description: 'User UUID' })
+  @ApiResponse({ status: 200, description: 'Admin role updated' })
   updateAdminRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAdminRoleDto,
@@ -100,9 +126,6 @@ export class AdminUsersController {
     @Ip() ipAddress: string,
     @Headers('user-agent') userAgent: string,
   ) {
-    return this.adminUsersService.updateAdminRole(id, dto, actor, {
-      ipAddress,
-      userAgent,
-    });
+    return this.adminUsersService.updateAdminRole(id, dto, actor, { ipAddress, userAgent });
   }
 }

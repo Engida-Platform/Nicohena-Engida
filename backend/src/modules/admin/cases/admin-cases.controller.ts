@@ -15,6 +15,14 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiParam,
+  ApiProduces,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../../../auth/guards/jwt-auth.guard';
@@ -49,6 +57,8 @@ import {
   CaseType,
 } from './entities/case.entity';
 
+@ApiTags('Admin - Cases & Disputes')
+@ApiBearerAuth('JWT-auth')
 @Controller('admin/cases')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Roles(UserRole.ADMIN)
@@ -57,6 +67,8 @@ export class AdminCasesController {
 
   @Get()
   @RequirePermissions(Permission.CASES_VIEW)
+  @ApiOperation({ summary: 'List customer support cases and disputes' })
+  @ApiResponse({ status: 200, description: 'Paginated cases list' })
   list(@Query() query: QueryAdminCasesDto) {
     return this.adminCasesService.list(query);
   }

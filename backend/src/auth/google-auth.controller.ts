@@ -11,6 +11,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { ApiTags, ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { GoogleAuthService } from './google-auth.service';
@@ -19,6 +20,7 @@ import { setRefreshCookie } from './refresh-cookie';
 const STATE_COOKIE = 'google_oauth_state';
 const STATE_COOKIE_TTL_MS = 10 * 60 * 1000;
 
+@ApiTags('Authentication')
 @Controller('auth/google')
 export class GoogleAuthController {
   private readonly logger = new Logger(GoogleAuthController.name);
@@ -34,6 +36,16 @@ export class GoogleAuthController {
    * screen with a short-lived, signed state parameter.
    */
   @Get()
+  @ApiOperation({
+    summary: 'Initiate Google OAuth 2.0 flow',
+    description: 'Generates CSRF state and redirects browser to Google OAuth consent screen.',
+  })
+  @ApiQuery({
+    name: 'next',
+    required: false,
+    description: 'Destination URL on frontend after successful sign-in (default: /dashboard)',
+  })
+  @ApiResponse({ status: 302, description: 'Redirects to Google OAuth authorization consent screen' })
   async startGoogleAuth(
     @Query('next') next: string | undefined,
     @Res() res: Response,
@@ -63,6 +75,14 @@ export class GoogleAuthController {
    */
   @Get('callback')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Google OAuth callback handler',
+    description: 'Internal callback endpoint where Google redirects with auth code. Validates CSRF state, exchanges code for user profile, and establishes session.',
+  })
+  @ApiQuery({ name: 'code', required: false, description: 'Google OAuth authorization code' })
+  @ApiQuery({ name: 'state', required: false, description: 'State verification token' })
+  @ApiQuery({ name: 'error', required: false, description: 'Google OAuth error code if rejected' })
+  @ApiResponse({ status: 302, description: 'Redirects user back to frontend callback handler' })
   async googleCallback(
     @Query('code') code: string | undefined,
     @Query('state') state: string | undefined,
