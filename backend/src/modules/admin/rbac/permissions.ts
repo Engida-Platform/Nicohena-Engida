@@ -58,9 +58,10 @@ export const ALL_PERMISSIONS: Permission[] = Object.values(Permission);
 export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
   [AdminRole.SUPER_ADMIN]: ALL_PERMISSIONS,
 
-  /** Trust workflows only: listing review/hidden, host verification, guest
-   *  reviews, reports, catalog and CMS curation. Account management is
-   *  deliberately excluded (that is Support's job). */
+  /** Trust & safety workflows with contextual information for dispute resolution.
+   *  Read-only access to bookings and cases provides context when moderating
+   *  disputed listings, investigating reports, and making trust decisions.
+   *  Account management deliberately excluded (that is Support's job). */
   [AdminRole.PROPERTY_MODERATOR]: [
     Permission.DASHBOARD_VIEW,
     Permission.HOSTS_VIEW,
@@ -75,6 +76,9 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.CATALOG_MANAGE,
     Permission.CONTENT_MANAGE,
     Permission.ANALYTICS_VIEW,
+    // Read-only context for informed moderation decisions
+    Permission.BOOKINGS_VIEW,
+    Permission.CASES_VIEW,
   ],
 
   /** Guest service: accounts, bookings, cases, reports and reviews. Host
@@ -96,9 +100,10 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.ANALYTICS_VIEW,
   ],
 
-  /** Reservations desk: booking corrections, cancellation decisions, cases,
-   *  promotional campaigns and host identity lookups. No user management, no
-   *  trust reports, no moderation powers. */
+  /** Reservations desk with property context for informed booking decisions.
+   *  Read-only access to listings allows viewing property details, availability
+   *  rules, and pricing when handling booking corrections and cancellations.
+   *  No user management, no trust reports, no moderation powers. */
   [AdminRole.BOOKING_MANAGER]: [
     Permission.DASHBOARD_VIEW,
     Permission.BOOKINGS_VIEW,
@@ -110,11 +115,14 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.REVIEWS_VIEW,
     Permission.COUPONS_MANAGE,
     Permission.ANALYTICS_VIEW,
+    // Read-only context for informed booking decisions
+    Permission.LISTINGS_VIEW,
   ],
 
-  /** Treasury only: escrow custody, refunds, payouts, reconciliation, finance
-   *  configuration and the audit trail of money moves. No booking ledger, no
-   *  accounts, no moderation, no coupons. */
+  /** Treasury operations with contextual information for informed decisions.
+   *  Read-only access to bookings, users, cases, and hosts allows Finance to
+   *  verify refund requests, validate payout recipients, and detect fraud
+   *  patterns without ability to modify non-financial data. */
   [AdminRole.FINANCE_MANAGER]: [
     Permission.DASHBOARD_VIEW,
     Permission.AUDIT_VIEW,
@@ -125,6 +133,11 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     Permission.FINANCE_CONFIG,
     Permission.FINANCE_EXPORT,
     Permission.ANALYTICS_VIEW,
+    // Read-only context for informed financial decisions
+    Permission.BOOKINGS_VIEW,
+    Permission.USERS_VIEW,
+    Permission.CASES_VIEW,
+    Permission.HOSTS_VIEW,
   ],
 };
 
