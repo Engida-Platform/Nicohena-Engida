@@ -173,7 +173,7 @@ export default function AdminCategoriesPage() {
         apiFetch<AmenityCategory[]>('/admin/catalog/amenities/categories').catch(() => [
           'ESSENTIALS' as AmenityCategory,
           'SAFETY' as AmenityCategory,
-          'OUTDOORS' as AmenityCategory,
+          'OUTDOOR' as AmenityCategory,
         ]),
       ]);
       setCategories(cats || []);
@@ -185,7 +185,7 @@ export default function AdminCategoriesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canManage]);
 
   useEffect(() => {
     loadData();
