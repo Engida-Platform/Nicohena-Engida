@@ -30,6 +30,9 @@ export interface PropertyListing {
   propertyType?: string;
   instantBook?: boolean;
   isSuperhost?: boolean;
+  bedrooms?: number;
+  bathrooms?: number;
+  amenities?: string[];
 }
 
 // Stitch curated luxury stays from the design
@@ -246,6 +249,11 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               propertyType: p.propertyType,
               instantBook: true,
               isSuperhost: true,
+              bedrooms: p.bedrooms || 2,
+              bathrooms: p.bathrooms || 1,
+              amenities: p.amenities && p.amenities.length > 0
+                ? p.amenities.map((a: any) => (typeof a === 'string' ? a : a.name || ''))
+                : ['Wi-Fi', 'Standby Generator', 'Water Tank', 'Kitchen', 'Free Parking'],
               badge: isRental ? (price > 5000 ? 'Rare Find' : 'Guest Favorite') : 'For Sale',
             };
           });
@@ -272,6 +280,23 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
   const [sortOption, setSortOption] = useState<'recommended' | 'price-asc' | 'price-desc' | 'rating'>('recommended');
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
+
+  // Comprehensive Marketplace Filter State
+  const [minPrice, setMinPrice] = useState<number | null>(null);
+  const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [selectedBedrooms, setSelectedBedrooms] = useState<number | 'any'>('any');
+  const [selectedBathrooms, setSelectedBathrooms] = useState<number | 'any'>('any');
+  const [selectedPropertyType, setSelectedPropertyType] = useState<string>('all');
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+
+  const totalActiveFilterCount =
+    activeFilters.length +
+    (minPrice !== null ? 1 : 0) +
+    (maxPrice !== null ? 1 : 0) +
+    (selectedBedrooms !== 'any' ? 1 : 0) +
+    (selectedBathrooms !== 'any' ? 1 : 0) +
+    (selectedPropertyType !== 'all' ? 1 : 0) +
+    selectedAmenities.length;
 
   // Wishlist state
   const [wishlist, setWishlist] = useState<Record<string, boolean>>({});
@@ -365,6 +390,12 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     setDestinationSearch('');
     setGuestCount(1);
     setDatesSelected('');
+    setMinPrice(null);
+    setMaxPrice(null);
+    setSelectedBedrooms('any');
+    setSelectedBathrooms('any');
+    setSelectedPropertyType('all');
+    setSelectedAmenities([]);
   };
 
   // Filter and sort listings
@@ -424,6 +455,67 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           return false;
         }
       }
+      // Min price filter (ETB)
+      if (minPrice !== null && item.pricePerNight < minPrice) {
+        return false;
+      }
+      // Max price filter (ETB)
+      if (maxPrice !== null && item.pricePerNight > maxPrice) {
+        return false;
+      }
+      // Bedrooms filter
+      if (selectedBedrooms !== 'any') {
+        const bedMatch = item.details.match(/(\d+)\s*bedrooms?/i);
+        const beds = item.bedrooms || (bedMatch ? parseInt(bedMatch[1], 10) : 1);
+        if (beds < selectedBedrooms) {
+          return false;
+        }
+      }
+      // Bathrooms filter
+      if (selectedBathrooms !== 'any') {
+        const bathMatch = item.details.match(/(\d+)\s*baths?/i);
+        const baths = item.bathrooms || (bathMatch ? parseInt(bathMatch[1], 10) : 1);
+        if (baths < selectedBathrooms) {
+          return false;
+        }
+      }
+      // Property type filter
+      if (selectedPropertyType !== 'all') {
+        const pType = (item.propertyType || item.category || '').toLowerCase();
+        if (!pType.includes(selectedPropertyType.toLowerCase())) {
+          return false;
+        }
+      }
+      // Amenities filter (Ethiopian Essentials & Stays Amenities)
+      if (selectedAmenities.length > 0) {
+        const searchable = `${item.title} ${item.details} ${item.subLocation} ${(item.amenities || []).join(' ')}`.toLowerCase();
+        const matchesAll = selectedAmenities.every((amenity) => {
+          const am = amenity.toLowerCase();
+          if (am.includes('generator') || am.includes('power')) {
+            return searchable.includes('generator') || searchable.includes('power') || searchable.includes('backup') || searchable.includes('standby');
+          }
+          if (am.includes('water')) {
+            return searchable.includes('water') || searchable.includes('tank') || searchable.includes('reserve');
+          }
+          if (am.includes('wifi') || am.includes('wi-fi') || am.includes('internet')) {
+            return searchable.includes('wifi') || searchable.includes('wi-fi') || searchable.includes('broadband') || searchable.includes('fiber') || searchable.includes('internet');
+          }
+          if (am.includes('parking')) {
+            return searchable.includes('parking') || searchable.includes('garage');
+          }
+          if (am.includes('kitchen')) {
+            return searchable.includes('kitchen') || searchable.includes('cooking');
+          }
+          if (am.includes('security') || am.includes('gated')) {
+            return searchable.includes('security') || searchable.includes('gated') || searchable.includes('guard');
+          }
+          if (am.includes('workspace')) {
+            return searchable.includes('workspace') || searchable.includes('desk') || searchable.includes('office');
+          }
+          return searchable.includes(am);
+        });
+        if (!matchesAll) return false;
+      }
       return true;
     }).sort((a, b) => {
       if (sortOption === 'price-asc') return a.pricePerNight - b.pricePerNight;
@@ -431,7 +523,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       if (sortOption === 'rating') return b.rating - a.rating;
       return 0; // recommended
     });
-  }, [sourceListings, selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption]);
+  }, [sourceListings, selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption, minPrice, maxPrice, selectedBedrooms, selectedBathrooms, selectedPropertyType, selectedAmenities]);
 
   const displayedListings = useMemo(() => {
     return filteredListings.slice(0, visibleCount);
@@ -913,15 +1005,19 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(true)}
-                className="filter-action-btn flex items-center gap-1.5 px-4 py-2 rounded-full bg-white border border-[#E5E0D5] text-[#252923] hover:text-[#234B36] hover:border-[#234B36]/50 shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(194,101,42,0.15)] active:scale-95 transition-all duration-200 cursor-pointer"
+                className={`filter-action-btn flex items-center gap-1.5 px-4 py-2 rounded-full transition-all duration-200 cursor-pointer ${
+                  totalActiveFilterCount > 0
+                    ? 'bg-[#234B36] text-white border border-[#234B36] shadow-sm hover:bg-[#1a3828]'
+                    : 'bg-white border border-[#E5E0D5] text-[#252923] hover:text-[#234B36] hover:border-[#234B36]/50 shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(194,101,42,0.15)] active:scale-95'
+                }`}
               >
                 <span className="material-symbols-outlined text-lg transition-transform duration-200 hover:rotate-45">
                   tune
                 </span>
                 <span className="text-sm font-semibold">Filters</span>
-                {activeFilters.length > 0 && (
-                  <span className="inline-flex items-center justify-center w-5 h-5 ml-1 text-xs font-bold rounded-full bg-[#234B36] text-white">
-                    {activeFilters.length}
+                {totalActiveFilterCount > 0 && (
+                  <span className="inline-flex items-center justify-center w-5 h-5 ml-1 text-xs font-bold rounded-full bg-white text-[#234B36]">
+                    {totalActiveFilterCount}
                   </span>
                 )}
               </button>
@@ -1047,6 +1143,84 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                   </button>
                 </span>
               )}
+
+              {/* Price Range Chip */}
+              {(minPrice !== null || maxPrice !== null) && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>💰 {minPrice !== null && maxPrice !== null ? `ETB ${minPrice.toLocaleString()} - ${maxPrice.toLocaleString()}` : minPrice !== null ? `≥ ETB ${minPrice.toLocaleString()}` : maxPrice !== null ? `≤ ETB ${maxPrice.toLocaleString()}` : ''}</span>
+                  <button
+                    type="button"
+                    aria-label="Remove price filter"
+                    onClick={() => { setMinPrice(null); setMaxPrice(null); }}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Bedrooms Chip */}
+              {selectedBedrooms !== 'any' && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>🛏️ {selectedBedrooms}+ beds</span>
+                  <button
+                    type="button"
+                    aria-label="Remove bedrooms filter"
+                    onClick={() => setSelectedBedrooms('any')}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Bathrooms Chip */}
+              {selectedBathrooms !== 'any' && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>🚿 {selectedBathrooms}+ baths</span>
+                  <button
+                    type="button"
+                    aria-label="Remove bathrooms filter"
+                    onClick={() => setSelectedBathrooms('any')}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Property Type Chip */}
+              {selectedPropertyType !== 'all' && (
+                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
+                  <span>🏡 {selectedPropertyType}</span>
+                  <button
+                    type="button"
+                    aria-label="Remove property type filter"
+                    onClick={() => setSelectedPropertyType('all')}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              )}
+
+              {/* Amenities Chips */}
+              {selectedAmenities.map((amenity) => (
+                <span
+                  key={amenity}
+                  className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs"
+                >
+                  <span>✓ {amenity}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove amenity ${amenity}`}
+                    onClick={() => setSelectedAmenities((prev) => prev.filter((a) => a !== amenity))}
+                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm leading-none">close</span>
+                  </button>
+                </span>
+              ))}
 
               {/* Standard active filters */}
               {activeFilters.map((chip) => (
@@ -1396,103 +1570,310 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
         </div>
       )}
 
-      {/* 7. FILTER MODAL                                              */}
+      {/* 7. COMPREHENSIVE FILTER MODAL                                */}
       {/* ============================================================ */}
       {filterModalOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in-up"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-sm animate-fade-in-up"
           onClick={(e) => {
             if (e.target === e.currentTarget) setFilterModalOpen(false);
           }}
         >
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-[#E5E0D5] relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-[#E5E0D5]/50">
-              <h3 className="text-lg font-bold font-headline text-[#252923]">Filters</h3>
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-[#E5E0D5] relative max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[#E5E0D5]/70 flex items-center justify-between bg-[#FAF8F2]/60">
+              <div className="flex items-center gap-2.5">
+                <span className="material-symbols-outlined text-[#234B36] text-xl">tune</span>
+                <h3 className="text-lg font-bold font-headline text-[#252923]">Filter Properties</h3>
+                {totalActiveFilterCount > 0 && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#234B36] text-white text-xs font-bold">
+                    {totalActiveFilterCount} active
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(false)}
-                className="text-[#73776F] hover:text-[#234B36] p-1 rounded-full hover:bg-[#F8F5ED]"
+                className="w-8 h-8 rounded-full bg-white hover:bg-[#EEF3EF] flex items-center justify-center text-[#73776F] hover:text-[#234B36] transition cursor-pointer border border-[#E5E0D5]"
               >
-                <span className="material-symbols-outlined text-lg">close</span>
+                <span className="material-symbols-outlined text-base">close</span>
               </button>
             </div>
 
-            <div className="py-4 space-y-6">
-              {/* Filter: Instant Book */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-[#252923]">Instant Book</p>
-                  <p className="text-xs text-[#73776F]">Listings you can book without host approval wait</p>
+            {/* Modal Scrollable Body */}
+            <div className="p-6 space-y-7 overflow-y-auto flex-1">
+              {/* 1. PRICE RANGE (ETB) */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-bold text-sm text-[#252923]">Price Range (ETB per night)</h4>
+                  {(minPrice !== null || maxPrice !== null) && (
+                    <button
+                      type="button"
+                      onClick={() => { setMinPrice(null); setMaxPrice(null); }}
+                      className="text-xs text-[#234B36] font-semibold underline cursor-pointer"
+                    >
+                      Reset Price
+                    </button>
+                  )}
                 </div>
-                <input
-                  type="checkbox"
-                  checked={activeFilters.includes('Instant Book')}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setActiveFilters((prev) => [...prev, 'Instant Book']);
-                    } else {
-                      setActiveFilters((prev) => prev.filter((f) => f !== 'Instant Book'));
-                    }
-                  }}
-                  className="w-5 h-5 accent-[#234B36] rounded cursor-pointer"
-                />
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="text-[11px] font-semibold text-[#73776F] block mb-1">Minimum Price</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#73776F]">ETB</span>
+                      <input
+                        type="number"
+                        placeholder="1,000"
+                        value={minPrice ?? ''}
+                        onChange={(e) => setMinPrice(e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null)}
+                        className="w-full pl-12 pr-3 py-2 rounded-xl border border-[#E5E0D5] bg-[#FAF8F2] text-sm font-semibold text-[#252923] focus:outline-none focus:border-[#234B36]"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-[#73776F] block mb-1">Maximum Price</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#73776F]">ETB</span>
+                      <input
+                        type="number"
+                        placeholder="25,000+"
+                        value={maxPrice ?? ''}
+                        onChange={(e) => setMaxPrice(e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : null)}
+                        className="w-full pl-12 pr-3 py-2 rounded-xl border border-[#E5E0D5] bg-[#FAF8F2] text-sm font-semibold text-[#252923] focus:outline-none focus:border-[#234B36]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Price Tier Pills */}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {[
+                    { label: 'Under 4,000 ETB', min: null, max: 4000 },
+                    { label: '4,000 – 8,000 ETB', min: 4000, max: 8000 },
+                    { label: '8,000 – 15,000 ETB', min: 8000, max: 15000 },
+                    { label: '15,000+ ETB', min: 15000, max: null },
+                  ].map((tier) => {
+                    const isSelected = minPrice === tier.min && maxPrice === tier.max;
+                    return (
+                      <button
+                        key={tier.label}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setMinPrice(null);
+                            setMaxPrice(null);
+                          } else {
+                            setMinPrice(tier.min);
+                            setMaxPrice(tier.max);
+                          }
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#234B36] text-white border-[#234B36]'
+                            : 'bg-white border-[#E5E0D5] text-[#252923] hover:border-[#234B36]/60 hover:bg-[#EEF3EF]'
+                        }`}
+                      >
+                        {tier.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Filter: Superhost */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-[#252923]">Superhost</p>
-                  <p className="text-xs text-[#73776F]">Stay with recognized high-rated hosts</p>
+              {/* 2. PROPERTY TYPE */}
+              <div>
+                <h4 className="font-bold text-sm text-[#252923] mb-3">Property Type</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  {[
+                    { id: 'all', label: 'Any Type', icon: 'domain' },
+                    { id: 'apartment', label: 'Apartment', icon: 'apartment' },
+                    { id: 'villa', label: 'Villa', icon: 'villa' },
+                    { id: 'house', label: 'House', icon: 'home' },
+                  ].map((type) => {
+                    const isSelected = selectedPropertyType === type.id;
+                    return (
+                      <button
+                        key={type.id}
+                        type="button"
+                        onClick={() => setSelectedPropertyType(type.id)}
+                        className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition cursor-pointer ${
+                          isSelected
+                            ? 'border-[#234B36] bg-[#234B36]/5 ring-1 ring-[#234B36]'
+                            : 'border-[#E5E0D5] bg-white hover:border-[#234B36]/50'
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined text-xl mb-1.5 ${isSelected ? 'text-[#234B36]' : 'text-[#73776F]'}`}>
+                          {type.icon}
+                        </span>
+                        <span className="text-xs font-bold text-[#252923]">{type.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
-                <input
-                  type="checkbox"
-                  checked={activeFilters.includes('Superhost')}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setActiveFilters((prev) => [...prev, 'Superhost']);
-                    } else {
-                      setActiveFilters((prev) => prev.filter((f) => f !== 'Superhost'));
-                    }
-                  }}
-                  className="w-5 h-5 accent-[#234B36] rounded cursor-pointer"
-                />
               </div>
 
-              {/* Filter: Entire home */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-bold text-sm text-[#252923]">Entire home</p>
-                  <p className="text-xs text-[#73776F]">Have a whole place to yourself</p>
+              {/* 3. ROOMS & BEDS */}
+              <div>
+                <h4 className="font-bold text-sm text-[#252923] mb-3">Rooms and Beds</h4>
+                <div className="space-y-3.5">
+                  <div>
+                    <span className="text-xs text-[#73776F] block mb-1.5 font-medium">Bedrooms</span>
+                    <div className="flex gap-2">
+                      {(['any', 1, 2, 3, 4] as const).map((num) => {
+                        const isSelected = selectedBedrooms === num;
+                        return (
+                          <button
+                            key={String(num)}
+                            type="button"
+                            onClick={() => setSelectedBedrooms(num)}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#234B36] text-white border-[#234B36]'
+                                : 'bg-white border-[#E5E0D5] text-[#252923] hover:border-[#234B36]/50'
+                            }`}
+                          >
+                            {num === 'any' ? 'Any' : `${num}+`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-xs text-[#73776F] block mb-1.5 font-medium">Bathrooms</span>
+                    <div className="flex gap-2">
+                      {(['any', 1, 2, 3] as const).map((num) => {
+                        const isSelected = selectedBathrooms === num;
+                        return (
+                          <button
+                            key={String(num)}
+                            type="button"
+                            onClick={() => setSelectedBathrooms(num)}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#234B36] text-white border-[#234B36]'
+                                : 'bg-white border-[#E5E0D5] text-[#252923] hover:border-[#234B36]/50'
+                            }`}
+                          >
+                            {num === 'any' ? 'Any' : `${num}+`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={activeFilters.includes('Entire home')}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setActiveFilters((prev) => [...prev, 'Entire home']);
-                    } else {
-                      setActiveFilters((prev) => prev.filter((f) => f !== 'Entire home'));
-                    }
-                  }}
-                  className="w-5 h-5 accent-[#234B36] rounded cursor-pointer"
-                />
+              </div>
+
+              {/* 4. ETHIOPIAN ESSENTIALS & AMENITIES */}
+              <div>
+                <h4 className="font-bold text-sm text-[#252923] mb-3">Ethiopian Essentials & Amenities</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {[
+                    { id: 'Standby Generator', label: 'Standby Generator (24/7 Power)', icon: 'bolt' },
+                    { id: 'Water Tank', label: 'Water Reserve Tank', icon: 'water_drop' },
+                    { id: 'Wi-Fi', label: 'High-Speed Fiber Wi-Fi', icon: 'wifi' },
+                    { id: 'Free Parking', label: 'Free Dedicated Parking', icon: 'local_parking' },
+                    { id: 'Kitchen', label: 'Fully Equipped Kitchen', icon: 'kitchen' },
+                    { id: 'Security', label: 'Gated Compound / 24/7 Guard', icon: 'shield' },
+                    { id: 'Workspace', label: 'Dedicated Workspace', icon: 'desk' },
+                  ].map((amenity) => {
+                    const isSelected = selectedAmenities.includes(amenity.id);
+                    return (
+                      <button
+                        key={amenity.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedAmenities((prev) => prev.filter((a) => a !== amenity.id));
+                          } else {
+                            setSelectedAmenities((prev) => [...prev, amenity.id]);
+                          }
+                        }}
+                        className={`p-3 rounded-2xl border text-left flex items-center gap-3 transition cursor-pointer ${
+                          isSelected
+                            ? 'border-[#234B36] bg-[#234B36]/5 text-[#234B36]'
+                            : 'border-[#E5E0D5] bg-white text-[#252923] hover:border-[#234B36]/50'
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined text-lg ${isSelected ? 'text-[#234B36]' : 'text-[#73776F]'}`}>
+                          {amenity.icon}
+                        </span>
+                        <span className="text-xs font-semibold flex-1">{amenity.label}</span>
+                        {isSelected && (
+                          <span className="material-symbols-outlined text-sm text-[#234B36]">check_circle</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 5. BOOKING OPTIONS */}
+              <div>
+                <h4 className="font-bold text-sm text-[#252923] mb-3">Booking Options</h4>
+                <div className="space-y-3">
+                  {[
+                    {
+                      id: 'Instant Book',
+                      title: 'Instant Book',
+                      desc: 'Listings you can book without waiting for host confirmation',
+                    },
+                    {
+                      id: 'Superhost',
+                      title: 'Superhost',
+                      desc: 'Recognized, experienced hosts with 4.9+ star ratings',
+                    },
+                    {
+                      id: 'Entire home',
+                      title: 'Entire Home',
+                      desc: 'Exclusive private stay with no shared host spaces',
+                    },
+                  ].map((opt) => {
+                    const isChecked = activeFilters.includes(opt.id);
+                    return (
+                      <label
+                        key={opt.id}
+                        className="flex items-center justify-between p-3.5 rounded-2xl border border-[#E5E0D5] bg-white hover:bg-[#FAF8F2]/60 cursor-pointer"
+                      >
+                        <div className="pr-4">
+                          <p className="font-bold text-xs sm:text-sm text-[#252923]">{opt.title}</p>
+                          <p className="text-[11px] sm:text-xs text-[#73776F]">{opt.desc}</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setActiveFilters((prev) => [...prev, opt.id]);
+                            } else {
+                              setActiveFilters((prev) => prev.filter((f) => f !== opt.id));
+                            }
+                          }}
+                          className="w-5 h-5 accent-[#234B36] rounded cursor-pointer shrink-0"
+                        />
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-[#E5E0D5]/50">
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-[#E5E0D5]/70 flex items-center justify-between bg-[#FAF8F2]/80">
               <button
                 type="button"
-                onClick={() => setActiveFilters([])}
-                className="text-xs font-bold text-[#73776F] underline hover:text-[#234B36]"
+                onClick={clearAllFilters}
+                className="text-xs font-bold text-[#73776F] hover:text-[#234B36] underline cursor-pointer"
               >
-                Clear all
+                Clear all filters
               </button>
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(false)}
-                className="px-6 py-2.5 rounded-xl bg-[#234B36] text-white text-sm font-semibold shadow hover:bg-[#2D5E43]"
+                className="px-6 py-3 rounded-2xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs sm:text-sm font-bold shadow-md transition active:scale-95 cursor-pointer flex items-center gap-1.5"
               >
-                Show stays
+                <span>Show {filteredListings.length} {filteredListings.length === 1 ? 'stay' : 'stays'}</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
               </button>
             </div>
           </div>
