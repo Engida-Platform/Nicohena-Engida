@@ -10,6 +10,7 @@ import AppHeader from '@/components/layout/AppHeader';
 import AppFooter from '@/components/layout/AppFooter';
 import ReportDialog from '@/components/reports/ReportDialog';
 import PropertyPublicMap from '@/components/maps/PropertyPublicMap';
+import AiBookingAssistantWidget from '@/components/assistant/AiBookingAssistantWidget';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -40,6 +41,10 @@ interface DetailedProperty {
   reviewsCount: number;
   pricePerNight: number;
   cleaningFee?: number | string;
+  salePrice?: number | null;
+  listingType?: 'RENTAL' | 'SALE';
+  areaSqm?: number | null;
+  parkingSpaces?: number | null;
   currency: string;
   badge?: string;
   isSuperhost?: boolean;
@@ -80,261 +85,107 @@ interface DetailedProperty {
   images: string[];
 }
 
-const CURATED_DETAILS: Record<string, DetailedProperty> = {
-  'stitch-1': {
-    id: 'stitch-1',
-    title: 'The Glass Pavilion at Big Sur',
-    location: 'Big Sur, California',
-    subLocation: 'Pacific Coast Highway Panorama',
-    city: 'Big Sur',
-    country: 'United States',
-    details: '6 guests · 3 bedrooms · 4 beds · 3 baths',
-    guests: 6,
-    bedrooms: 3,
-    beds: 4,
-    baths: 3,
-    dates: 'Oct 12 – 17',
-    rating: 4.98,
-    reviewsCount: 142,
-    pricePerNight: 580,
-    currency: '$',
-    badge: 'Superhost',
+
+
+
+// ─── Adapt Backend Property to Rich ViewModel ──────────────────────────────
+function adaptBackendProperty(data: Property): DetailedProperty {
+  const isSale = String(data.listingType || '').toUpperCase() === 'SALE';
+  const nightly = Number(data.pricePerNight) || 0;
+  const sale = data.salePrice ? Number(data.salePrice) : null;
+  const rawReviews = data.reviews || [];
+  const reviewsCount = rawReviews.length;
+  const computedRating = reviewsCount > 0
+    ? Math.round((rawReviews.reduce((sum: number, r: { rating?: number }) => sum + (r.rating || 5), 0) / reviewsCount) * 10) / 10
+    : 5.0;
+
+  return {
+    id: data.id,
+    title: data.title,
+    location: `${data.city}, ${data.country}`,
+    subLocation: data.address || `${data.city} neighborhood`,
+    city: data.city,
+    country: data.country,
+    address: data.address || '',
+    subCity: data.subCity || '',
+    neighborhood: data.neighborhood || '',
+    latitude: data.latitude ? Number(data.latitude) : null,
+    longitude: data.longitude ? Number(data.longitude) : null,
+    details: `${data.maxGuests || 4} guests · ${data.bedrooms || 2} bedrooms · ${data.bathrooms || 1} baths`,
+    guests: data.maxGuests || 4,
+    bedrooms: data.bedrooms || 2,
+    beds: data.bedrooms || 2,
+    baths: data.bathrooms || 1,
+    dates: 'Available this season',
+    rating: computedRating,
+    reviewsCount: reviewsCount > 0 ? reviewsCount : 0,
+    pricePerNight: isSale ? 0 : (nightly > 0 ? nightly : 4500),
+    salePrice: sale,
+    listingType: isSale ? 'SALE' : 'RENTAL',
+    areaSqm: data.areaSqm ? Number(data.areaSqm) : null,
+    parkingSpaces: data.parkingSpaces ? Number(data.parkingSpaces) : 1,
+    badge: isSale ? 'For Sale' : (nightly > 5000 ? 'Rare Find' : 'Guest Favorite'),
+    currency: 'ETB',
     isSuperhost: true,
-    instantBook: true,
-    category: 'architectural',
-    description:
-      'Suspended dramatically over the dramatic Pacific coastline, The Glass Pavilion is a masterclass in modern brutalist restraint and organic transparency. Floor-to-ceiling ultra-clear structural glass walls dissolve the boundary between cantilevered living pavilions and the crashing ocean spray below. Crafted with locally quarried slate stone, hand-finished cedar joinery, and an oceanfront cantilevered infinity plunge pool that appears to merge seamlessly into the horizon.',
+    instantBook: !isSale,
+    category: data.propertyType?.toLowerCase() || 'apartment',
+    description: data.description || 'A serene property in Ethiopia crafted for restorative living.',
     host: {
-      name: 'Elena Rostova',
+      name: data.host?.name || data.host?.hostProfile?.displayName || 'Verified Engida Host',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
       isSuperhost: true,
-      joinedYear: 2019,
+      joinedYear: 2022,
       responseRate: '100% within an hour',
     },
     highlights: [
       {
-        title: 'Architectural Digest Icon',
-        description: 'Featured in Global Architectural Monographs 2024 for cantilevered residential design.',
-        icon: 'architecture',
+        title: 'Verified Property',
+        description: 'Authentic listing verified by ENGIDA for guest comfort and security.',
+        icon: 'verified',
       },
       {
-        title: 'Heated Oceanfront Plunge Pool',
-        description: 'Year-round 38°C saltwater infinity pool overlooking the whale migration corridor.',
-        icon: 'pool',
+        title: 'Prime Location',
+        description: `${data.subCity ? data.subCity + ', ' : ''}${data.city}`,
+        icon: 'location_on',
       },
       {
-        title: 'Seamless Self Check-in',
-        description: 'Arrive at your leisure with secure private electronic gate and smart lock entry.',
-        icon: 'key',
+        title: 'Reliable Utilities',
+        description: 'Backup water and power amenities available for guests.',
+        icon: 'bolt',
       },
     ],
     sleepingArrangements: [
-      { room: 'Primary Sanctuary', bed: '1 King Bed · Ocean Vista', icon: 'king_bed' },
-      { room: 'Cantilever Suite', bed: '1 Queen Bed · Canyon View', icon: 'single_bed' },
-      { room: 'Garden Pavilion', bed: '2 Twin Beds · Private Terrace', icon: 'bed' },
+      { room: 'Primary Suite', bed: '1 King Bed', icon: 'king_bed' },
+      { room: 'Guest Bedroom', bed: '1 Queen Bed', icon: 'single_bed' },
     ],
-    amenities: [
-      { name: 'Cantilevered infinity pool', icon: 'pool', category: 'Scenic & Wellness' },
-      { name: 'Panoramic Pacific ocean views', icon: 'visibility', category: 'Scenic & Wellness' },
-      { name: 'Private cedar dry sauna', icon: 'hot_tub', category: 'Scenic & Wellness' },
-      { name: 'Chef-grade Miele kitchen', icon: 'soup_kitchen', category: 'Kitchen & Dining' },
-      { name: 'Starlink Ultra-fast WiFi (220 Mbps)', icon: 'wifi', category: 'Work & Connectivity' },
-      { name: 'Wood-burning indoor stone hearth', icon: 'fireplace', category: 'Comfort' },
-      { name: 'Sonos Architectural audio throughout', icon: 'speaker', category: 'Entertainment' },
-      { name: 'Level 2 EV vehicle charging', icon: 'electric_car', category: 'Parking & Facilities' },
+    amenities: (data.amenities || []).map((a) => ({
+      name: typeof a === 'string' ? a : a.name || 'Verified amenity',
+      icon: 'check_circle',
+      category: 'Features',
+    })),
+    reviews: rawReviews.map((r) => ({
+      id: r.id,
+      authorId: r.user?.id,
+      author: r.user?.name || 'Curated Traveler',
+      date: r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : 'Recent Stay',
+      rating: r.rating || 5,
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
+      comment: r.comment || 'Remarkable property. Clean, tranquil, and exceeds expectations.',
+    })),
+    images: data.images && data.images.length > 0 ? data.images : [
+      data.coverImage || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
     ],
-    reviews: [
-      {
-        author: 'Marcus Vance',
-        date: 'September 2024',
-        rating: 5,
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-        comment:
-          'Easily the most breathtaking residential experience on the California coast. Watching the sunset from the glass living room while the stone fireplace crackles is something we will never forget.',
-      },
-      {
-        author: 'Amara Selassie',
-        date: 'August 2024',
-        rating: 5,
-        avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=150&q=80',
-        comment:
-          'Impeccable architectural craft. Every corner, from the linen curtains to the bespoke stone basins, feels quiet, deliberate, and luxuriously serene. Elena is an exceptional host.',
-      },
-    ],
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAPM4jx02eqhhbSUpV7SAtgWiPPvbcycxQ_otuQ8FpvWgaF9SvBJDqgovycPBbbllSPoSzUT3NiwTqE3mj3m9WsXixzZ3fyBO9YHCvBzcshHCRYji650QWGZLZZXKOLN5Rw8XKocpkc847Nm94EYfphKVn5MgFMsSch_LR94qimX1rBgdcm8FznTKWWsSOrNwiuGdMwpH0AxV_SiXn-W2T_XIjnSiSeks4OW7UTU_GrBXzSt1K-JD0s',
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
-    ],
-  },
-  'eth-1': {
-    id: 'eth-1',
-    title: 'Bole Skyline Penthouse',
-    location: 'Addis Ababa, Ethiopia',
-    subLocation: 'Central Bole Diplomatic Zone',
-    city: 'Addis Ababa',
-    country: 'Ethiopia',
-    details: '4 guests · 2 bedrooms · 2 beds · 2.5 baths',
-    guests: 4,
-    bedrooms: 2,
-    beds: 2,
-    baths: 2.5,
-    dates: 'Nov 12 – 18',
-    rating: 4.97,
-    reviewsCount: 52,
-    pricePerNight: 180,
-    currency: '$',
-    badge: 'Guest Favorite',
-    isSuperhost: true,
-    instantBook: true,
-    category: 'penthouses',
-    description:
-      'Perched atop one of Bole’s premier contemporary residences, this penthouse pairs mid-century Ethiopian art collections with panoramic floor-to-ceiling vistas across the Addis Ababa skyline and the surrounding Entoto mountain range. Features polished terrazzo floors, custom eucalyptus furniture by local craftsmen, and a sunset terrace made for enjoying single-origin Yirgacheffe roasts.',
-    host: {
-      name: 'Dawit Mengistu',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-      isSuperhost: true,
-      joinedYear: 2021,
-      responseRate: '100% within an hour',
-    },
-    highlights: [
-      {
-        title: '360° Panoramic Capital Views',
-        description: 'Unobstructed mountain sunrises and twinkling nocturnal skyline vistas.',
-        icon: 'mountain_flag',
-      },
-      {
-        title: 'Curated Ethiopian Fine Art',
-        description: 'Original paintings and hand-carved woodwork by celebrated contemporary artisans.',
-        icon: 'palette',
-      },
-      {
-        title: 'Dedicated Work & Espresso Bar',
-        description: 'Dual-monitor ergonomic desk with local high-altitude single origin coffee beans included.',
-        icon: 'coffee',
-      },
-    ],
-    sleepingArrangements: [
-      { room: 'Master Panoramic Suite', bed: '1 King Bed · Mountain Vista', icon: 'king_bed' },
-      { room: 'Executive Skyline Room', bed: '1 Queen Bed · City View', icon: 'single_bed' },
-    ],
-    amenities: [
-      { name: 'Wraparound skyline balcony', icon: 'balcony', category: 'Outdoor' },
-      { name: 'Ultra-fast fiber broadband (150 Mbps)', icon: 'wifi', category: 'Work' },
-      { name: 'Full backup solar & generator power', icon: 'bolt', category: 'Essentials' },
-      { name: 'Italian espresso bar & grinder', icon: 'coffee', category: 'Dining' },
-      { name: '24/7 Diplomatic building security', icon: 'security', category: 'Safety' },
-      { name: 'Secure underground parking', icon: 'local_parking', category: 'Facilities' },
-    ],
-    reviews: [
-      {
-        author: 'Sarah Jenkins',
-        date: 'October 2024',
-        rating: 5,
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=150&q=80',
-        comment:
-          'The most stylish and comfortable apartment in Addis Ababa. The location in Bole is walking distance to top restaurants, and the sunset from the terrace is pure magic.',
-      },
-    ],
-    images: [
-      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1505691938895-1758d7feb511?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1513694203232-719a280e022f?auto=format&fit=crop&w=1200&q=80',
-    ],
-  },
-  'eth-2': {
-    id: 'eth-2',
-    title: 'Kuriftu Lakefront Haven',
-    location: 'Bishoftu, Ethiopia',
-    subLocation: 'Crater Lake Vista',
-    city: 'Bishoftu',
-    country: 'Ethiopia',
-    details: '6 guests · 3 bedrooms · 3 beds · 3 baths',
-    guests: 6,
-    bedrooms: 3,
-    beds: 3,
-    baths: 3,
-    dates: 'Dec 4 – 10',
-    rating: 4.94,
-    reviewsCount: 88,
-    pricePerNight: 260,
-    currency: '$',
-    badge: 'Superhost',
-    isSuperhost: true,
-    instantBook: true,
-    category: 'lakefront',
-    description:
-      'Immerse yourself in tranquil crater lake breezes just an hour south of the capital. This private architectural retreat features thatched high timber ceilings, dry-stacked volcanic stone terraces, and an infinity plunge pool perched over Lake Kuriftu. Awaken to bird calls over the volcanic water and spend evenings around a sunken lakeside stone firepit.',
-    host: {
-      name: 'Tseday Haile',
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80',
-      isSuperhost: true,
-      joinedYear: 2020,
-      responseRate: '100% within 30 minutes',
-    },
-    highlights: [
-      {
-        title: 'Direct Volcanic Crater Lake Waterway',
-        description: 'Private wooden pier with wooden kayaks and sunset boat access.',
-        icon: 'houseboat',
-      },
-      {
-        title: 'Heated Infinity Plunge Pool',
-        description: 'Seamless glass boundary looking down into the calm crater waters.',
-        icon: 'pool',
-      },
-      {
-        title: 'Sunken Outdoor Stone Firepit',
-        description: 'Gather under ancient acacia canopies for evening stargazing.',
-        icon: 'fireplace',
-      },
-    ],
-    sleepingArrangements: [
-      { room: 'Lakefront Master Bungalow', bed: '1 King Bed · Lake Overlook', icon: 'king_bed' },
-      { room: 'Volcanic Stone Pavilion', bed: '1 Queen Bed · Garden View', icon: 'single_bed' },
-      { room: 'Acacia Loft', bed: '1 Queen Bed · Private Balcony', icon: 'single_bed' },
-    ],
-    amenities: [
-      { name: 'Private crater lake pier', icon: 'houseboat', category: 'Outdoors' },
-      { name: 'Heated infinity plunge pool', icon: 'pool', category: 'Wellness' },
-      { name: 'Outdoor lakeside dining pergola', icon: 'deck', category: 'Dining' },
-      { name: 'Kayaks & life vests included', icon: 'kayaking', category: 'Activities' },
-      { name: 'High-speed Starlink WiFi', icon: 'wifi', category: 'Connectivity' },
-      { name: 'Dedicated private security guard', icon: 'security', category: 'Safety' },
-    ],
-    reviews: [
-      {
-        author: 'Bereket Alemayehu',
-        date: 'October 2024',
-        rating: 5,
-        avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=150&q=80',
-        comment:
-          'Absolute sanctuary. The calm of Lake Kuriftu, the architecture blending with nature, and the hospitality were world-class. We will be back every season.',
-      },
-    ],
-    images: [
-      'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=80',
-    ],
-  },
-};
+  };
+}
 
 export default function PropertyDetailsPage() {
   const params = useParams();
   const router = useRouter();
-  const id = (params?.id as string) || 'stitch-1';
+  const id = (params?.id as string) || '';
 
-  const [property, setProperty] = useState<DetailedProperty | null>(() => {
-    return CURATED_DETAILS[id] || CURATED_DETAILS['stitch-1'] || null;
-  });
-  const [loading, setLoading] = useState(false);
+  const [property, setProperty] = useState<DetailedProperty | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [activePhotoModal, setActivePhotoModal] = useState<number | null>(null);
   const [reportListingOpen, setReportListingOpen] = useState(false);
@@ -347,6 +198,71 @@ export default function PropertyDetailsPage() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
   const [sentConversationId, setSentConversationId] = useState<string | null>(null);
+  // Dedicated In-Person Viewing Request state (For Sale properties)
+  const [viewingModalOpen, setViewingModalOpen] = useState(false);
+  const [viewingDate, setViewingDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 2);
+    return d.toISOString().split('T')[0];
+  });
+  const [viewingTimeSlot, setViewingTimeSlot] = useState<'morning' | 'afternoon' | 'weekend'>('morning');
+  const [viewingPhone, setViewingPhone] = useState('');
+  const [viewingNotes, setViewingNotes] = useState('');
+  const [submittingViewing, setSubmittingViewing] = useState(false);
+  const [viewingSuccess, setViewingSuccess] = useState(false);
+  const [viewingError, setViewingError] = useState<string | null>(null);
+
+  const handleScheduleViewing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!property || submittingViewing) return;
+
+    if (!user) {
+      router.push(`/login?next=${encodeURIComponent(`/properties/${property.id}`)}`);
+      return;
+    }
+
+    setSubmittingViewing(true);
+    setViewingError(null);
+    try {
+      let targetPropertyId = property.id;
+      if (!isUuid(targetPropertyId)) {
+        try {
+          const res = await apiFetch<{ data: Property[] } | Property[]>('/properties?limit=1', { skipAuth: true });
+          const items = Array.isArray(res) ? res : (res as any).data;
+          if (items && items.length > 0) {
+            targetPropertyId = items[0].id;
+          }
+        } catch {}
+      }
+
+      const slotLabels = {
+        morning: 'Morning (9:00 AM - 12:00 PM)',
+        afternoon: 'Afternoon (2:00 PM - 5:00 PM)',
+        weekend: 'Weekend Flexible',
+      };
+
+      const viewingContent = `📅 Private In-Person Viewing Request:
+Property: ${property.title}
+Preferred Date: ${viewingDate}
+Preferred Time Slot: ${slotLabels[viewingTimeSlot]}
+Contact Phone: ${viewingPhone.trim() || 'Via Engida Direct Chat'}
+${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim();
+
+      const res = await apiFetch<{ id: string; conversationId: string }>('/messages/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          propertyId: targetPropertyId,
+          content: viewingContent,
+        }),
+      });
+      setSentConversationId(res.conversationId);
+      setViewingSuccess(true);
+    } catch (err: unknown) {
+      setViewingError(err instanceof Error ? err.message : 'Failed to submit viewing request');
+    } finally {
+      setSubmittingViewing(false);
+    }
+  };
 
   const handleSendInquiry = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -361,10 +277,29 @@ export default function PropertyDetailsPage() {
     setSendingMessage(true);
     setMessageError(null);
     try {
+      let targetPropertyId = property.id;
+      if (!isUuid(targetPropertyId)) {
+        try {
+          const res = await apiFetch<{ data: Property[] } | Property[]>('/properties?limit=1', { skipAuth: true });
+          const items = Array.isArray(res) ? res : (res as any).data;
+          if (items && items.length > 0) {
+            targetPropertyId = items[0].id;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!isUuid(targetPropertyId)) {
+        setMessageError('Host messaging is available on active verified listings.');
+        setSendingMessage(false);
+        return;
+      }
+
       const res = await apiFetch<{ id: string; conversationId: string }>('/messages/send', {
         method: 'POST',
         body: JSON.stringify({
-          propertyId: property.id,
+          propertyId: targetPropertyId,
           content: text,
         }),
       });
@@ -377,100 +312,57 @@ export default function PropertyDetailsPage() {
     }
   };
 
-  // Booking widget interactive state
-  const [checkIn, setCheckIn] = useState('2026-11-15');
-  const [checkOut, setCheckOut] = useState('2026-11-20');
+  // Dynamic default dates (tomorrow -> +4 nights)
+  const defaultDates = useMemo(() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    const start = t.toISOString().split('T')[0];
+    t.setDate(t.getDate() + 4);
+    const end = t.toISOString().split('T')[0];
+    return { start, end };
+  }, []);
+
+  const [checkIn, setCheckIn] = useState(defaultDates.start);
+  const [checkOut, setCheckOut] = useState(defaultDates.end);
   const [guests, setGuests] = useState(2);
   const [isBookingSuccess, setIsBookingSuccess] = useState(false);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
 
   useEffect(() => {
-    // 1. First check if it matches our rich curated catalogue
-    if (CURATED_DETAILS[id]) {
-      setProperty(CURATED_DETAILS[id]);
-      setLoading(false);
+    // 1. If ID is NOT a UUID (e.g. stitch-1, stitch-2):
+    // Resolve to the real database property and canonicalize the URL to eliminate invalid IDs
+    if (!isUuid(id)) {
+      setLoading(true);
+      apiFetch<{ data: Property[] } | Property[]>('/properties?limit=12', { skipAuth: true })
+        .then((res) => {
+          const items = Array.isArray(res) ? res : res.data;
+          if (items && items.length > 0) {
+            const num = parseInt(id.replace(/\D/g, ''), 10) || 0;
+            const chosen = items[num % items.length] || items[0];
+            if (chosen && chosen.id) {
+              router.replace(`/properties/${chosen.id}`);
+              return;
+            }
+            setProperty(adaptBackendProperty(chosen));
+          } else {
+            setNotFound(true);
+          }
+        })
+        .catch(() => {
+          setNotFound(true);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
       return;
     }
 
     setLoading(true);
 
-    // 2. Otherwise query backend API
+    // 2. Real UUID from database
     apiFetch<Property>(`/properties/${id}`, { skipAuth: true })
       .then((data) => {
-        // Adapt backend Property model into rich view model
-        const rawReviews = data.reviews || [];
-        const reviewsCount = rawReviews.length;
-        const computedRating = reviewsCount > 0
-          ? Math.round((rawReviews.reduce((sum: number, r: { rating?: number }) => sum + (r.rating || 5), 0) / reviewsCount) * 10) / 10
-          : 5.0;
-
-        const adapted: DetailedProperty = {
-          id: data.id,
-          title: data.title,
-          location: `${data.city}, ${data.country}`,
-          subLocation: data.address || `${data.city} neighborhood`,
-          city: data.city,
-          country: data.country,
-          address: data.address || '',
-          subCity: data.subCity || '',
-          neighborhood: data.neighborhood || '',
-          latitude: data.latitude ? Number(data.latitude) : null,
-          longitude: data.longitude ? Number(data.longitude) : null,
-          details: `${data.maxGuests || 4} guests · ${data.bedrooms || 2} bedrooms · ${data.bedrooms || 2} beds · ${data.bathrooms || 2} baths`,
-          guests: data.maxGuests || 4,
-          bedrooms: data.bedrooms || 2,
-          beds: data.bedrooms || 2,
-          baths: data.bathrooms || 2,
-          dates: 'Available this season',
-          rating: computedRating,
-          reviewsCount: reviewsCount > 0 ? reviewsCount : 0,
-          pricePerNight: Number(data.pricePerNight) || 250,
-          currency: 'ETB',
-          isSuperhost: true,
-          instantBook: true,
-          category: data.propertyType?.toLowerCase() || 'architectural',
-          description: data.description || 'A serene architectural property crafted for restorative living.',
-          host: {
-            name: data.host?.name || 'Verified Engida Host',
-            avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-            isSuperhost: true,
-            joinedYear: 2022,
-            responseRate: '100% within an hour',
-          },
-          highlights: [
-            {
-              title: 'Architectural Excellence',
-              description: 'Designed to harmonize interior light with panoramic landscape vistas.',
-              icon: 'architecture',
-            },
-            {
-              title: 'Self Check-in',
-              description: 'Seamless arrival with digital keypad lockbox.',
-              icon: 'key',
-            },
-          ],
-          sleepingArrangements: [
-            { room: 'Primary Bedroom', bed: '1 King Bed', icon: 'king_bed' },
-            { room: 'Guest Bedroom', bed: '1 Queen Bed', icon: 'single_bed' },
-          ],
-          amenities: (data.amenities || []).map((a) => ({
-            name: typeof a === 'string' ? a : a.name || 'Verified amenity',
-            icon: 'check_circle',
-            category: 'Features',
-          })),
-          reviews: rawReviews.map((r) => ({
-            id: r.id,
-            authorId: r.user?.id,
-            author: r.user?.name || 'Curated Traveler',
-            date: r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : 'Recent Stay',
-            rating: r.rating || 5,
-            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80',
-            comment: r.comment || 'Remarkable property. Clean, tranquil, and exceeds expectations.',
-          })),
-          images: data.images && data.images.length > 0 ? data.images : [
-            'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
-          ],
-        };
+        const adapted = adaptBackendProperty(data);
         setProperty(adapted);
 
         // Fetch availability blocks for UUID properties (best-effort, non-fatal)
@@ -513,8 +405,8 @@ export default function PropertyDetailsPage() {
           });
       })
       .catch(() => {
-        // Fallback gracefully to default premier property
-        setProperty(CURATED_DETAILS['stitch-1']);
+        // Graceful error state if property fails to load
+        setNotFound(true);
       })
       .finally(() => {
         setLoading(false);
@@ -575,10 +467,10 @@ export default function PropertyDetailsPage() {
 
   const nightlyPrice = quote?.pricePerNight ?? (property?.pricePerNight || 350);
   const subtotal = quote?.basePrice ?? (nightlyPrice * nightsCount);
-  const cleaningFee = quote ? quote.cleaningFee : (nightsCount > 0 ? (Number(property?.cleaningFee) || 0) : 0);
+  const cleaningFee = quote ? quote.cleaningFee : (nightsCount > 0 ? (Number(property?.cleaningFee) || 500) : 0);
   const discount = quote?.discount ?? 0;
-  const totalPrice = quote?.totalPrice ?? (subtotal + cleaningFee);
-
+  const serviceFee = quote?.serviceFee ?? (nightsCount > 0 ? Math.round(subtotal * 0.08) : 0);
+  const totalPrice = quote?.totalPrice ?? (subtotal + cleaningFee + serviceFee);
   // Booking & messaging states
   const [isBookingLoading, setIsBookingLoading] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -587,15 +479,15 @@ export default function PropertyDetailsPage() {
   const openListingReport = () => {
     if (!property || !isUuid(property.id)) return;
     if (!user) {
-      router.push(`/login?next=${encodeURIComponent(`/properties/${id}`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/properties/${property.id}`)}`);
       return;
     }
     setReportListingOpen(true);
   };
 
   const openReviewReport = (reviewId: string, author: string) => {
-    if (!user) {
-      router.push(`/login?next=${encodeURIComponent(`/properties/${id}`)}`);
+    if (!user || !property) {
+      router.push(`/login?next=${encodeURIComponent(`/properties/${property?.id || id}`)}`);
       return;
     }
     setReportReview({ id: reviewId, author });
@@ -605,9 +497,9 @@ export default function PropertyDetailsPage() {
     if (nightsCount < 1 || !property) return;
     setBookingError(null);
 
-    // If user is unauthenticated, redirect to login with safe returnUrl
+    // If user is unauthenticated, redirect to login with safe next parameter
     if (!user) {
-      router.push(`/login?next=${encodeURIComponent(`/properties/${id}`)}`);
+      router.push(`/login?next=${encodeURIComponent(`/properties/${property?.id || id}`)}`);
       return;
     }
 
@@ -644,14 +536,38 @@ export default function PropertyDetailsPage() {
     setActivePhotoModal(Math.min(targetIndex, maxIdx));
   };
 
-  if (loading || !property) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-[#faf5ee] flex flex-col font-body">
+      <div className="min-h-screen bg-[#F8F5ED] flex flex-col font-body">
         <AppHeader />
         <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-12 py-10 w-full animate-pulse">
           <div className="h-8 w-96 bg-white/70 rounded-xl mb-4" />
           <div className="h-4 w-64 bg-white/50 rounded-lg mb-8" />
           <div className="w-full aspect-[21/9] bg-white/60 rounded-3xl" />
+        </main>
+        <AppFooter />
+      </div>
+    );
+  }
+
+  if (notFound || !property) {
+    return (
+      <div className="min-h-screen bg-[#F8F5ED] flex flex-col font-body">
+        <AppHeader />
+        <main className="max-w-2xl mx-auto px-4 py-24 text-center flex flex-col items-center">
+          <div className="w-20 h-20 rounded-full bg-[#EEF3EF] flex items-center justify-center mb-6">
+            <span className="material-symbols-outlined text-4xl text-[#234B36]">cottage</span>
+          </div>
+          <h1 className="text-2xl font-bold font-headline text-[#252923]">Property Not Found</h1>
+          <p className="mt-2 text-sm text-[#73776F] max-w-md">
+            This listing may have been unlisted, booked, or the link is invalid. Explore our verified properties across Ethiopia.
+          </p>
+          <Link
+            href="/properties"
+            className="mt-6 px-6 py-3 rounded-full bg-[#234B36] hover:bg-[#2D5E43] text-white text-sm font-semibold shadow-md transition active:scale-95"
+          >
+            Explore Verified Stays
+          </Link>
         </main>
         <AppFooter />
       </div>
@@ -707,16 +623,7 @@ export default function PropertyDetailsPage() {
               <span>{isWishlisted ? 'Saved' : 'Save'}</span>
             </button>
 
-            {isUuid(property.id) && (
-              <button
-                type="button"
-                onClick={openListingReport}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white border border-[#d8d0c8]/60 text-xs font-semibold text-[#3a302a] hover:bg-[#f2ece4] hover:text-[#a84d16] transition active:scale-95 shadow-2xs cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">flag</span>
-                <span>Report</span>
-              </button>
-            )}
+            
           </div>
         </div>
 
@@ -763,65 +670,111 @@ export default function PropertyDetailsPage() {
 
         {/* 5-Photo Architectural Showcase Mosaic */}
         <section className="mb-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-3.5 h-[360px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative group">
-            {/* Primary Hero Image (Takes Left 2 Columns) */}
+          {property.images.length === 1 ? (
             <div
-              className="md:col-span-2 relative h-full overflow-hidden cursor-pointer"
+              className="relative h-[340px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden cursor-pointer group"
               onClick={() => openPhotoModal(0)}
             >
               <img
-                src={property.images[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'}
+                src={property.images[0]}
                 alt={property.title}
                 className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
               />
             </div>
-
-            {/* Sub-photo 1 */}
-            <div
-              className="hidden md:block relative h-full overflow-hidden cursor-pointer"
-              onClick={() => openPhotoModal(1)}
-            >
-              <img
-                src={property.images[1] || property.images[0]}
-                alt="Interior view 1"
-                className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
-              />
-            </div>
-
-            {/* Sub-photo 2 & 3 Stacked in Column 4 */}
-            <div className="hidden md:flex flex-col gap-3.5 h-full">
+          ) : property.images.length === 2 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 h-[340px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative">
               <div
-                className="relative h-1/2 overflow-hidden cursor-pointer"
-                onClick={() => openPhotoModal(2)}
+                className="relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(0)}
               >
                 <img
-                  src={property.images[2] || property.images[0]}
-                  alt="Interior view 2"
+                  src={property.images[0]}
+                  alt={property.title}
                   className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                 />
               </div>
               <div
-                className="relative h-1/2 overflow-hidden cursor-pointer"
-                onClick={() => openPhotoModal(3)}
+                className="relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(1)}
               >
                 <img
-                  src={property.images[3] || property.images[0]}
-                  alt="Interior view 3"
+                  src={property.images[1]}
+                  alt="Interior view"
                   className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => openPhotoModal(0)}
+                className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
+              >
+                <span className="material-symbols-outlined text-sm">grid_view</span>
+                <span>View all {property.images.length} photos</span>
+              </button>
             </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-3.5 h-[360px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative group">
+              {/* Primary Hero Image */}
+              <div
+                className="md:col-span-2 relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(0)}
+              >
+                <img
+                  src={property.images[0] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80'}
+                  alt={property.title}
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                />
+              </div>
 
-            {/* "Show all photos" Pill Button */}
-            <button
-              type="button"
-              onClick={() => openPhotoModal(0)}
-              className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
-            >
-              <span className="material-symbols-outlined text-sm">grid_view</span>
-              <span>View all {property.images.length} photos</span>
-            </button>
-          </div>
+              {/* Sub-photo 1 */}
+              <div
+                className="hidden md:block relative h-full overflow-hidden cursor-pointer"
+                onClick={() => openPhotoModal(1)}
+              >
+                <img
+                  src={property.images[1] || property.images[0]}
+                  alt="Interior view 1"
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                />
+              </div>
+
+              {/* Sub-photo 2 & 3 Stacked in Column 4 */}
+              <div className="hidden md:flex flex-col gap-3.5 h-full">
+                <div
+                  className="relative h-1/2 overflow-hidden cursor-pointer"
+                  onClick={() => openPhotoModal(2)}
+                >
+                  <img
+                    src={property.images[2] || property.images[0]}
+                    alt="Interior view 2"
+                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  />
+                </div>
+                <div
+                  className="relative h-1/2 overflow-hidden cursor-pointer"
+                  onClick={() => openPhotoModal(3)}
+                >
+                  <img
+                    src={property.images[3] || property.images[1] || property.images[0]}
+                    alt="Interior view 3"
+                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                  />
+                </div>
+              </div>
+
+              {/* "Show all photos" Pill Button */}
+              {property.images.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => openPhotoModal(0)}
+                  className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
+                >
+                  <span className="material-symbols-outlined text-sm">grid_view</span>
+                  <span>View all {property.images.length} photos</span>
+                </button>
+              )}
+            </div>
+          )}
         </section>
 
         {/* 2-Column Content Grid: Left Story + Right Sticky Reservation Widget */}
@@ -854,17 +807,7 @@ export default function PropertyDetailsPage() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMessageSent(false);
-                  setMessageModalOpen(true);
-                }}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-[#d8d0c8] bg-white hover:bg-[#f2ece4] text-[#3a302a] text-xs font-semibold transition active:scale-95 shadow-2xs cursor-pointer shrink-0"
-              >
-                <span className="material-symbols-outlined text-base text-[#a84d16]">chat_bubble</span>
-                <span>Message Host</span>
-              </button>
+              
             </div>
 
             {/* Highlights List */}
@@ -951,6 +894,18 @@ export default function PropertyDetailsPage() {
                 neighborhood={property.neighborhood}
                 showExactPin={true}
               />
+              {isUuid(property.id) && (
+                <div className="pt-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={openListingReport}
+                    className="inline-flex items-center gap-1.5 text-xs text-[#73776F] hover:text-red-700 underline transition cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">flag</span>
+                    <span>Report this listing</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Guest Reviews Section */}
@@ -1031,168 +986,244 @@ export default function PropertyDetailsPage() {
             </div>
           </div>
 
-          {/* Right Column (4 cols): Sticky Reservation Card */}
+          {/* Right Column (4 cols): Sticky Reservation / Purchase Card */}
           <aside className="lg:col-span-5 xl:col-span-4 sticky top-28">
             <div className="bg-white rounded-3xl border border-[#d8d0c8] p-6 sm:p-8 shadow-[0_12px_40px_rgba(58,48,42,0.08)]">
-              {/* Price & Rating Header */}
-              <div className="flex items-baseline justify-between mb-6">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-3xl font-bold font-headline text-[#3a302a]">
-                    {property.currency}{property.pricePerNight}
-                  </span>
-                  <span className="text-sm text-[#605850] font-normal">/ night</span>
-                </div>
-
-                <div className="flex items-center gap-1 text-xs font-semibold text-[#3a302a]">
-                  <span className="text-[#a84d16] material-symbols-outlined material-symbols-fill text-sm">star</span>
-                  <span>{property.rating}</span>
-                  <span className="text-[#605850]">({property.reviewsCount})</span>
-                </div>
-              </div>
-
-              {/* Date & Guests Selection Grid (Border-less tint to avoid nested cards) */}
-              <div className="bg-[#faf5ee]/70 rounded-2xl p-4 mb-5 space-y-3">
-                <div className="grid grid-cols-2 gap-3 pb-3 border-b border-[#d8d0c8]/70">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#605850]">
-                      Check-in
-                    </label>
-                    <input
-                      type="date"
-                      value={checkIn}
-                      onChange={(e) => setCheckIn(e.target.value)}
-                      className="w-full bg-transparent text-xs font-semibold text-[#3a302a] focus:outline-none cursor-pointer mt-1"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#605850]">
-                      Checkout
-                    </label>
-                    <input
-                      type="date"
-                      value={checkOut}
-                      onChange={(e) => setCheckOut(e.target.value)}
-                      className="w-full bg-transparent text-xs font-semibold text-[#3a302a] focus:outline-none cursor-pointer mt-1"
-                    />
-                  </div>
-                </div>
-
-                {blockedDates.length > 0 && (
-                  <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">event_busy</span>
-                    {blockedDates.length} date{blockedDates.length !== 1 ? "s" : ""} unavailable
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-1">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-[#605850]">
-                      Guests
-                    </label>
-                    <span className="text-xs font-semibold text-[#3a302a]">
-                      {guests} {guests === 1 ? 'guest' : 'guests'} (max {property.guests})
+              {property.listingType === 'SALE' ? (
+                <div>
+                  {/* Real Estate Sale Header */}
+                  <div className="mb-6">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#D87836] bg-[#D87836]/10 px-2.5 py-1 rounded-full">
+                      Property For Sale
                     </span>
+                    <div className="mt-3 flex items-baseline gap-2">
+                      <span className="text-3xl font-bold font-headline text-[#234B36]">
+                        ETB {Number(property.salePrice || 0).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#73776F] mt-1">
+                      Freehold Title Deed · Certified Ownership
+                    </p>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={guests <= 1}
-                      onClick={() => setGuests((g) => Math.max(1, g - 1))}
-                      className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#3a302a] hover:bg-[#ede4d8] disabled:opacity-30 cursor-pointer shadow-2xs"
-                    >
-                      -
-                    </button>
-                    <button
-                      type="button"
-                      disabled={guests >= property.guests}
-                      onClick={() => setGuests((g) => Math.min(property.guests, g + 1))}
-                      className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#3a302a] hover:bg-[#ede4d8] disabled:opacity-30 cursor-pointer shadow-2xs"
-                    >
-                      +
-                    </button>
+                  {/* Property Specifications Summary */}
+                  <div className="bg-[#FAF8F2] rounded-2xl p-4 mb-5 space-y-2.5 border border-[#E5E0D5]">
+                    <div className="grid grid-cols-2 gap-3 text-xs text-[#252923]">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-[#73776F] block">Bedrooms</span>
+                        <span className="font-semibold">{property.bedrooms} Bedrooms</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-[#73776F] block">Bathrooms</span>
+                        <span className="font-semibold">{property.baths} Bathrooms</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-[#73776F] block">Total Area</span>
+                        <span className="font-semibold">{property.areaSqm ? `${property.areaSqm} m²` : 'Spacious Layout'}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-[#73776F] block">Parking</span>
+                        <span className="font-semibold">{property.parkingSpaces || 1} Dedicated Space</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Primary CTA: Schedule Viewing */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewingSuccess(false);
+                      setViewingError(null);
+                      setViewingModalOpen(true);
+                    }}
+                    className="w-full py-4 px-4 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-[#234B36]/25 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-base">calendar_month</span>
+                    <span>Schedule Private Viewing</span>
+                  </button>
+
+                  {/* Secondary Clean Action: Contact Host / Broker */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHostMessage(`Hello ${property.host.name}, I would like to inquire about the purchase terms and title deed documentation for ${property.title}.`);
+                      setMessageSent(false);
+                      setMessageModalOpen(true);
+                    }}
+                    className="w-full mt-3 py-1.5 text-xs font-medium text-[#73776F] hover:text-[#234B36] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">chat</span>
+                    <span>Have questions? Contact host / broker</span>
+                  </button>
+
+                  {/* Reassurance Badge */}
+                  <div className="mt-5 p-3.5 rounded-2xl bg-[#EEF3EF] border border-[#234B36]/20 flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-[#234B36] text-xl">verified_user</span>
+                    <div className="text-[11px] text-[#252923] leading-snug">
+                      <span className="font-bold text-[#234B36]">ENGIDA Real Estate Guarantee:</span> Title deed authentication and secure legal escrow assistance included.
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  {/* Price & Rating Header */}
+                  <div className="flex items-baseline justify-between mb-6">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-3xl font-bold font-headline text-[#3a302a]">
+                        {property.currency} {property.pricePerNight.toLocaleString()}
+                      </span>
+                      <span className="text-sm text-[#605850] font-normal">/ night</span>
+                    </div>
 
-              {/* Reserve Button */}
-              <button
-                type="button"
-                disabled={nightsCount < 1 || isBookingLoading}
-                onClick={handleBooking}
-                className="w-full py-4 px-4 rounded-xl bg-[#b2531b] hover:bg-[#994413] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-[#b2531b]/25 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
-              >
-                {isBookingLoading ? (
-                  <span>Processing Reservation...</span>
-                ) : (
-                  <>
-                    <span>{nightsCount < 1 ? 'Select valid dates' : 'Reserve this Stay'}</span>
-                    <span className="material-symbols-outlined text-base">arrow_forward</span>
-                  </>
-                )}
-              </button>
+                    <div className="flex items-center gap-1 text-xs font-semibold text-[#3a302a]">
+                      <span className="text-[#a84d16] material-symbols-outlined material-symbols-fill text-sm">star</span>
+                      <span>{property.rating}</span>
+                      <span className="text-[#605850]">({property.reviewsCount})</span>
+                    </div>
+                  </div>
 
-              {/* Message Host Secondary Action Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setMessageSent(false);
-                  setMessageModalOpen(true);
-                }}
-                className="w-full mt-2.5 py-3 px-4 rounded-xl bg-[#faf5ee] hover:bg-[#ede4d8] text-[#3a302a] font-semibold text-xs transition-all duration-200 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
-              >
-                <span className="material-symbols-outlined text-base text-[#a84d16]">chat_bubble</span>
-                <span>Message Host</span>
-              </button>
+                  {/* Date & Guests Selection Grid (Border-less tint to avoid nested cards) */}
+                  <div className="bg-[#faf5ee]/70 rounded-2xl p-4 mb-5 space-y-3">
+                    <div className="grid grid-cols-2 gap-3 pb-3 border-b border-[#d8d0c8]/70">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-[#605850]">
+                          Check-in
+                        </label>
+                        <input
+                          type="date"
+                          value={checkIn}
+                          onChange={(e) => setCheckIn(e.target.value)}
+                          className="w-full bg-transparent text-xs font-semibold text-[#3a302a] focus:outline-none cursor-pointer mt-1"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-[#605850]">
+                          Checkout
+                        </label>
+                        <input
+                          type="date"
+                          value={checkOut}
+                          onChange={(e) => setCheckOut(e.target.value)}
+                          className="w-full bg-transparent text-xs font-semibold text-[#3a302a] focus:outline-none cursor-pointer mt-1"
+                        />
+                      </div>
+                    </div>
 
-              {isBookingSuccess && (
-                <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center animate-fade-in-up">
-                  Reservation request sent! Host typically responds within 2 hours.
-                </div>
+                    {blockedDates.length > 0 && (
+                      <div className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">event_busy</span>
+                        {blockedDates.length} date{blockedDates.length !== 1 ? "s" : ""} unavailable
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-[#605850]">
+                          Guests
+                        </label>
+                        <span className="text-xs font-semibold text-[#3a302a]">
+                          {guests} {guests === 1 ? 'guest' : 'guests'} (max {property.guests})
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={guests <= 1}
+                          onClick={() => setGuests((g) => Math.max(1, g - 1))}
+                          className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#3a302a] hover:bg-[#ede4d8] disabled:opacity-30 cursor-pointer shadow-2xs"
+                        >
+                          -
+                        </button>
+                        <button
+                          type="button"
+                          disabled={guests >= property.guests}
+                          onClick={() => setGuests((g) => Math.min(property.guests, g + 1))}
+                          className="w-7 h-7 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#3a302a] hover:bg-[#ede4d8] disabled:opacity-30 cursor-pointer shadow-2xs"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Reserve Button */}
+                  <button
+                    type="button"
+                    disabled={nightsCount < 1 || isBookingLoading}
+                    onClick={handleBooking}
+                    className="w-full py-4 px-4 rounded-xl bg-[#b2531b] hover:bg-[#994413] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-[#b2531b]/25 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    {isBookingLoading ? (
+                      <span>Processing Reservation...</span>
+                    ) : (
+                      <>
+                        <span>{nightsCount < 1 ? 'Select valid dates' : 'Reserve this Stay'}</span>
+                        <span className="material-symbols-outlined text-base">arrow_forward</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Secondary Action: Contact Host */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHostMessage('');
+                      setMessageSent(false);
+                      setMessageModalOpen(true);
+                    }}
+                    className="w-full mt-2.5 text-xs font-medium text-[#73776F] hover:text-[#234B36] transition-colors cursor-pointer flex items-center justify-center gap-1.5 hover:underline"
+                  >
+                    <span className="material-symbols-outlined text-sm">mail</span>
+                    <span>Contact host about this property</span>
+                  </button>
+
+                  {isBookingSuccess && (
+                    <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center animate-fade-in-up">
+                      Reservation request sent! Host will confirm within 2 hours.
+                    </div>
+                  )}
+
+                  {bookingError && (
+                    <div className="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold text-center animate-fade-in-up">
+                      {bookingError}
+                    </div>
+                  )}
+
+                  <p className="text-center text-xs text-[#605850] mt-3">
+                    You won&apos;t be charged yet
+                  </p>
+
+                  {/* Transparent Price Breakdown */}
+                  <div className="mt-6 pt-6 border-t border-[#d8d0c8]/60 flex flex-col gap-3 text-xs text-[#605850]">
+                    <div className="flex justify-between items-center">
+                      <span className="underline">{property.currency} {nightlyPrice.toLocaleString()} × {nightsCount} nights</span>
+                      <span className="text-[#3a302a] font-medium">{property.currency} {subtotal.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="underline">Cleaning fee</span>
+                      <span className="text-[#3a302a] font-medium">{property.currency} {cleaningFee.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="underline">Engida service fee</span>
+                      <span className="text-[#3a302a] font-medium">{property.currency} {serviceFee.toLocaleString()}</span>
+                    </div>
+
+                    <div className="mt-3 pt-3 border-t border-[#d8d0c8]/60 flex justify-between items-center text-sm font-bold text-[#3a302a]">
+                      <span>Total before taxes</span>
+                      <span>{property.currency} {totalPrice.toLocaleString()}</span>
+                    </div>
+                  </div>
+
+                  {/* Reassurance Badge */}
+                  <div className="mt-6 p-4 rounded-2xl bg-[#f2ece4]/60 border border-[#d8d0c8]/50 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-[#a84d16] text-xl">verified_user</span>
+                    <div className="text-xs text-[#605850] leading-snug">
+                      <span className="font-bold text-[#3a302a]">ENGIDA Guarantee:</span> Every booking on ENGIDA is protected. Verified hosts, secure payments, and your trust is our priority.
+                    </div>
+                  </div>
+                </>
               )}
-
-              {bookingError && (
-                <div className="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold text-center animate-fade-in-up">
-                  {bookingError}
-                </div>
-              )}
-
-              <p className="text-center text-xs text-[#605850] mt-3">
-                You will be redirected to secure checkout
-              </p>
-
-              {/* Transparent Price Breakdown */}
-              <div className="mt-6 pt-6 border-t border-[#d8d0c8]/60 flex flex-col gap-3 text-xs text-[#605850]">
-                <div className="flex justify-between items-center">
-                  <span className="underline">{property.currency}{nightlyPrice} × {nightsCount} nights</span>
-                  <span className="text-[#3a302a] font-medium">{property.currency}{subtotal}</span>
-                </div>
-                {cleaningFee > 0 && (
-                  <div className="flex justify-between items-center">
-                    <span className="underline">Cleaning fee</span>
-                    <span className="text-[#3a302a] font-medium">{property.currency}{cleaningFee}</span>
-                  </div>
-                )}
-                {discount > 0 && (
-                  <div className="flex justify-between items-center text-emerald-700">
-                    <span className="underline">Promotional discount</span>
-                    <span className="font-medium">-{property.currency}{discount}</span>
-                  </div>
-                )}
-
-                <div className="mt-3 pt-3 border-t border-[#d8d0c8]/60 flex justify-between items-center text-sm font-bold text-[#3a302a]">
-                  <span>Total</span>
-                  <span>{property.currency}{totalPrice}</span>
-                </div>
-              </div>
-
-              {/* Reassurance Badge */}
-              <div className="mt-6 p-4 rounded-2xl bg-[#f2ece4]/60 border border-[#d8d0c8]/50 flex items-center gap-3">
-                <span className="material-symbols-outlined text-[#a84d16] text-xl">verified_user</span>
-                <div className="text-xs text-[#605850] leading-snug">
-                  <span className="font-bold text-[#3a302a]">ENGIDA Guarantee:</span> Every booking on ENGIDA is protected. Verified hosts, secure payments, and your trust is our priority.
-                </div>
-              </div>
             </div>
           </aside>
         </div>
@@ -1329,11 +1360,18 @@ export default function PropertyDetailsPage() {
                       Common Inquiries
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      {[
-                        'Is early check-in possible?',
-                        'Can I arrange airport transfer?',
-                        'Is the WiFi suitable for video calls?',
-                      ].map((prompt, idx) => (
+                      {(property.listingType === 'SALE'
+                        ? [
+                            'Can I schedule a viewing this week?',
+                            'Are title deeds and documents ready for inspection?',
+                            'Is the price negotiable?',
+                          ]
+                        : [
+                            'Is early check-in possible?',
+                            'Can I arrange airport transfer?',
+                            'Is the WiFi suitable for video calls?',
+                          ]
+                      ).map((prompt, idx) => (
                         <button
                           key={idx}
                           type="button"
@@ -1384,6 +1422,175 @@ export default function PropertyDetailsPage() {
         </div>
       )}
 
+      
+      {/* Dedicated In-Person Viewing Scheduler Modal */}
+      {viewingModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in-up">
+          <div className="bg-white rounded-3xl border border-[#d8d0c8] w-full max-w-lg overflow-hidden shadow-2xl">
+            {/* Header */}
+            <div className="p-6 border-b border-[#d8d0c8]/60 flex items-center justify-between bg-[#faf5ee]/60">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#234B36] text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-xl">calendar_month</span>
+                </div>
+                <div>
+                  <h3 className="font-headline font-bold text-lg text-[#252923] leading-tight">
+                    Schedule Private Viewing
+                  </h3>
+                  <p className="text-xs text-[#73776F] truncate max-w-xs">
+                    {property.title}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setViewingModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white border border-[#d8d0c8] hover:bg-[#faf5ee] flex items-center justify-center text-[#605850] hover:text-[#3a302a] transition cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6">
+              {viewingSuccess ? (
+                <div className="py-6 text-center flex flex-col items-center">
+                  <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mb-4">
+                    <span className="material-symbols-outlined text-3xl">check_circle</span>
+                  </div>
+                  <h4 className="font-headline font-bold text-xl text-[#252923]">
+                    Viewing Request Submitted!
+                  </h4>
+                  <p className="text-xs text-[#73776F] mt-2 max-w-sm leading-relaxed">
+                    Your appointment request for {property.title} on {viewingDate} has been sent to {property.host.name}. The host or broker will confirm availability shortly.
+                  </p>
+                  <div className="mt-6 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setViewingModalOpen(false);
+                        if (sentConversationId) {
+                          router.push(`/messages?conversationId=${sentConversationId}`);
+                        } else {
+                          router.push('/messages');
+                        }
+                      }}
+                      className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs font-semibold transition active:scale-95 shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">chat</span>
+                      <span>View in Messages</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewingModalOpen(false)}
+                      className="px-5 py-2.5 rounded-xl border border-[#d8d0c8] hover:bg-[#faf5ee] text-xs font-semibold text-[#605850] transition cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleScheduleViewing} className="space-y-4">
+                  {viewingError && (
+                    <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-medium">
+                      {viewingError}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Preferred Date
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      min={new Date().toISOString().split('T')[0]}
+                      value={viewingDate}
+                      onChange={(e) => setViewingDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F2] border border-[#E5E0D5] text-xs font-semibold text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Preferred Time Window
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'morning', label: 'Morning', time: '9am - 12pm' },
+                        { id: 'afternoon', label: 'Afternoon', time: '2pm - 5pm' },
+                        { id: 'weekend', label: 'Weekend', time: 'Flexible' },
+                      ].map((slot) => (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          onClick={() => setViewingTimeSlot(slot.id as any)}
+                          className={`p-2.5 rounded-xl border text-center transition cursor-pointer ${
+                            viewingTimeSlot === slot.id
+                              ? 'bg-[#234B36] text-white border-[#234B36] shadow-2xs'
+                              : 'bg-[#FAF8F2] hover:bg-white text-[#252923] border-[#E5E0D5]'
+                          }`}
+                        >
+                          <div className="text-xs font-bold">{slot.label}</div>
+                          <div className={`text-[10px] ${viewingTimeSlot === slot.id ? 'text-white/80' : 'text-[#73776F]'}`}>
+                            {slot.time}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Phone Number (Optional contact for gate security)
+                    </label>
+                    <input
+                      type="tel"
+                      value={viewingPhone}
+                      onChange={(e) => setViewingPhone(e.target.value)}
+                      placeholder="+251 9... or 09..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F2] border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                      Specific Inquiries / Notes (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={viewingNotes}
+                      onChange={(e) => setViewingNotes(e.target.value)}
+                      placeholder="e.g. Inquiring regarding title deeds, parking access, or mortgage support..."
+                      className="w-full p-3 rounded-xl bg-[#FAF8F2] border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setViewingModalOpen(false)}
+                      className="px-4 py-2.5 rounded-xl border border-[#d8d0c8] text-xs font-semibold text-[#605850] hover:bg-[#faf5ee] transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingViewing}
+                      className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] disabled:opacity-40 text-white text-xs font-semibold transition active:scale-95 shadow-sm cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>{submittingViewing ? 'Submitting...' : 'Request Appointment'}</span>
+                      <span className="material-symbols-outlined text-sm">calendar_month</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {reportListingOpen && property && (
         <ReportDialog
           open={reportListingOpen}
@@ -1402,6 +1609,10 @@ export default function PropertyDetailsPage() {
           targetId={reportReview.id}
           targetLabel={`${reportReview.author}'s review`}
         />
+      )}
+
+      {property && (
+        <AiBookingAssistantWidget propertyId={property.id} />
       )}
 
       <AppFooter />

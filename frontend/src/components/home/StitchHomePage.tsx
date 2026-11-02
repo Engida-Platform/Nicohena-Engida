@@ -5,6 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { apiFetch } from '@/lib/api';
+import type { Property } from '@/types';
+import AiConversationalSearchModal from '@/components/search/AiConversationalSearchModal';
+import PersonalizedAiRecommendationsSection from '@/components/home/PersonalizedAiRecommendationsSection';
+import AiPropertyComparisonModal from '@/components/compare/AiPropertyComparisonModal';
+import AiBookingAssistantWidget from '@/components/assistant/AiBookingAssistantWidget';
 
 export interface PropertyListing {
   id: string;
@@ -27,245 +32,138 @@ export interface PropertyListing {
 }
 
 // Stitch curated luxury stays from the design
-const STITCH_CURATED_PROPERTIES: PropertyListing[] = [
+const ETHIOPIAN_FALLBACK_PROPERTIES: PropertyListing[] = [
   {
-    id: 'stitch-1',
-    title: 'The Glass Pavilion',
-    location: 'Big Sur, California',
-    subLocation: '240 miles away',
-    details: '6 guests · 3 bedrooms · Oceanfront infinity pool',
-    dates: 'Oct 12 – 17',
+    id: '3d600de0-423b-4678-a361-962d3edcfb13',
+    title: 'Executive Luxury Penthouse overlooking Bole Medhanialem',
+    location: 'Bole, Addis Ababa',
+    subLocation: 'Bole Medhanialem Cathedral Area',
+    details: '6 guests · 3 bedrooms · Panoramic capital skyline views',
+    dates: 'Available this season',
     rating: 4.98,
-    reviewsCount: 142,
-    pricePerNight: 580,
-    currency: '$',
-    totalBeforeTaxes: 2900,
+    reviewsCount: 38,
+    pricePerNight: 6500,
+    currency: 'ETB',
+    totalBeforeTaxes: 32500,
     badge: 'Superhost',
     isSuperhost: true,
     instantBook: true,
-    category: 'architectural',
+    category: 'apartment',
+    propertyType: 'APARTMENT',
     images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAPM4jx02eqhhbSUpV7SAtgWiPPvbcycxQ_otuQ8FpvWgaF9SvBJDqgovycPBbbllSPoSzUT3NiwTqE3mj3m9WsXixzZ3fyBO9YHCvBzcshHCRYji650QWGZLZZXKOLN5Rw8XKocpkc847Nm94EYfphKVn5MgFMsSch_LR94qimX1rBgdcm8FznTKWWsSOrNwiuGdMwpH0AxV_SiXn-W2T_XIjnSiSeks4OW7UTU_GrBXzSt1K-JD0s',
+      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
     ],
   },
   {
-    id: 'stitch-2',
-    title: 'Villa Solaria',
-    location: 'Amalfi, Italy',
-    subLocation: 'Coastal views',
-    details: '4 guests · 2 bedrooms · Panoramic Mediterranean terrace',
-    dates: 'Nov 3 – 8',
-    rating: 4.95,
-    reviewsCount: 89,
-    pricePerNight: 420,
-    currency: '$',
-    totalBeforeTaxes: 2100,
-    badge: 'Guest Favorite',
-    instantBook: true,
-    category: 'beachfront',
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDmqZ8ojS1z6wN6eErn21jAQ3USBdOHWRUHQImJqA-c-2_nJtcAu_6rPvqv8tOQq5ultDlbKwDyAYS9Pz5Uzauo9h4RFH-AqkV_Og8eC3AGY7YSaM54tBOVne5EFR1v9gCJygmbsGoLaY5vC-iL6iV_sR3vUsReDlvUgPgtk9Cl5rUj65AXgT0YMI0t3oDLimLUL33Y2IyuQ7wppmJH-RqnkbYgXkb5l2QPVq_Ow-r-CcztvAiEz5tJ',
-    ],
-  },
-  {
-    id: 'stitch-3',
-    title: 'Nordic Timber Chalet',
-    location: 'Tromsø, Norway',
-    subLocation: 'Arctic mountain valley',
-    details: '8 guests · 4 bedrooms · Private cedar sauna & Aurora views',
-    dates: 'Dec 1 – 6',
-    rating: 4.92,
-    reviewsCount: 114,
-    pricePerNight: 360,
-    currency: '$',
-    totalBeforeTaxes: 1800,
-    category: 'cabins',
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBgYPHRjRio3dltCIIttryQac4wRsD_08a7muTfyGDYfT3E2O12bMzQ8NEd2Hb4sz7MZfPeX5nDKsXNapubtn3MNxmivtBewM1g-HCFluoCFfvrlM2nUiAHScC3RgSjq2sdJR7YO06i_QF0ciSjBeUeJKtrcTUii1QBuqmX3SjSgPh1fN7LPOL2eF6VlhTOhbPgp4pakxAMnxD1tQ53LLjZTl0FebePT2lnCV3eoBtxcaGFPmuPS4io',
-    ],
-  },
-  {
-    id: 'stitch-4',
-    title: 'Komorebi Modern Villa',
-    location: 'Kyoto, Japan',
-    subLocation: 'Historic Arashiyama district',
-    details: '4 guests · 2 bedrooms · Traditional rock garden & onsen',
-    dates: 'Nov 18 – 23',
-    rating: 4.97,
-    reviewsCount: 96,
-    pricePerNight: 310,
-    currency: '$',
-    totalBeforeTaxes: 1550,
-    badge: 'Superhost',
-    isSuperhost: true,
-    category: 'architectural',
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCj782Qh7xr3tfXv8eqxfLt8wZ00M_CWa9sdXO5nfFoetfekqE-NkUd-fmxz5kT6qW3ZJKydV1FFE3ctmju2xfGaydPG9A9UOPsCLPZhfWKuyFtNagjDKKFPxn52KiFJa6tWBMbBA4cZWt__T0SSBnKMFX3UPIfjSdn018u2SWAfniO6A6hOeXIksojZWuWrbMbBtb2rek-5hX0KB7fzcBcMfFUnVzFC5C3Z_sLu5fa4OgXurolU1eN',
-    ],
-  },
-  {
-    id: 'stitch-5',
-    title: 'Desert Horizon Sanctuary',
-    location: 'Scottsdale, Arizona',
-    subLocation: 'Sonoran desert preserve',
-    details: '6 guests · 3 bedrooms · Cactus garden & heated firepit',
-    dates: 'Oct 24 – 29',
-    rating: 4.89,
-    reviewsCount: 78,
-    pricePerNight: 290,
-    currency: '$',
-    totalBeforeTaxes: 1450,
-    instantBook: true,
-    category: 'desert',
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBwpxptkbTjz4ok_kG2dUTbqyYzMrwgUbhKXZHqIrFBhATBRJYrwRp3xSrp6jP7E8At1KMEMcfc_7slamK81jXv91FcR3k--Qby1EPG9cvzPig9-X-soeFwg5gwiqHIrUwQ_39i2ciqTprnJLGg_En8EpaRRIBQcBQgovLDJHP6WOb4-K3bg_SDxbBYNea8jzRniq8rWPC2e5QBkrhsaooyih_dY8b_iexf7GBd-QOMCx7KP1QxRThw',
-    ],
-  },
-  {
-    id: 'stitch-6',
-    title: 'Cliffside Azure Haven',
-    location: 'Santorini, Greece',
-    subLocation: 'Oia Cliff edge',
-    details: '2 guests · 1 bedroom · Caldera sunset terrace & plunge pool',
-    dates: 'Nov 10 – 15',
-    rating: 4.99,
-    reviewsCount: 210,
-    pricePerNight: 490,
-    currency: '$',
-    totalBeforeTaxes: 2450,
-    badge: 'Rare Find',
-    isSuperhost: true,
-    category: 'beachfront',
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuDK3442M4g1p3ZQYVcU3sp2TR5v2HjiB-syVEpjFR_AcxhZaTXFH5XvAnQcrEM8SlxbhY9_KVAucxnzDCKRq2l-8xGAKSzmIHLME_5_vHX4otUFc_f_H9UDq4gpl5xN7uCHHObfnbrlDSFU1WyDnwlZdUBKulG5mQ1maukFde63KjFRkeUNoi6r7Hr_q4uaICZiS8JRMGIxBv-Hm4rP_bgNOo8bHYcQ9lxx_pRojqJC1WQXKzZt3vQX',
-    ],
-  },
-  {
-    id: 'stitch-7',
-    title: 'Highland Eco Cabin',
-    location: 'Isle of Skye, Scotland',
-    subLocation: 'Waterfront seclusion',
-    details: '4 guests · 2 bedrooms · Loch views & wood-burning stove',
-    dates: 'Oct 28 – Nov 2',
-    rating: 4.91,
-    reviewsCount: 65,
-    pricePerNight: 240,
-    currency: '$',
-    totalBeforeTaxes: 1200,
-    category: 'countryside',
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuCeYmTsFw5IqrjHHeii4hBUGH3ieAbMXarG0DscIkFZdO_fYu0UTM_3h57o5Idqn_4qKt__e3GreXcWwEE2pyTbVuo1beBqh5uADh7FBhLzM1muVmpPzyi0P1CgOCuiIlVRc_IsvuZoTM05yaRSlP8STOZrKr8Gq92fPIJNbqX1ODtldw0UKfcsc0yakYT58l5jJjxgvlNNsroj-5vi10YffNrLIfKh3A-nsMTorU6yh1xJpZzF4g7-',
-    ],
-  },
-  {
-    id: 'stitch-8',
-    title: 'Lake Como Contemporary',
-    location: 'Bellagio, Italy',
-    subLocation: 'Private water frontage',
-    details: '10 guests · 5 bedrooms · Private boat dock & mountain vista',
-    dates: 'Nov 5 – 11',
-    rating: 4.96,
-    reviewsCount: 180,
-    pricePerNight: 750,
-    currency: '$',
-    totalBeforeTaxes: 4500,
-    badge: 'Superhost',
-    isSuperhost: true,
-    instantBook: true,
-    category: 'lakefront',
-    images: [
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAyVtDbBgtZzH31M54riPgOGc6-vS_fK2Yabs_ueF5HtoB7gaWXkkUOXcOhFV8oIbic6e5XqPp1ZYfAisLSTGEhi36LSNOWl5_3RGi1-EqNyzgWcrLj4ubGFi_KCraemwcT6_lyXIbnFMDpPK8vhDQf4DQg8hYZipk6T_wODU6mp6LasyejQQmlC2DtycmT6-sXaa44ig4QipbgsShGAOUJQxYBOtYFy0-u6XoCNp8O7RLX-J4MM1_j',
-    ],
-  },
-  // Ethiopian Architectural Landmarks & Luxury Getaways
-  {
-    id: 'eth-1',
-    title: 'Bole Skyline Penthouse',
-    location: 'Addis Ababa, Ethiopia',
-    subLocation: 'Central Bole Diplomatic Zone',
-    details: '4 guests · 2 bedrooms · Panoramic capital mountain views',
-    dates: 'Nov 12 – 18',
-    rating: 4.97,
-    reviewsCount: 52,
-    pricePerNight: 180,
-    currency: '$',
-    totalBeforeTaxes: 1080,
-    badge: 'Guest Favorite',
-    isSuperhost: true,
-    instantBook: true,
-    category: 'penthouses',
-    images: [
-      'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?auto=format&fit=crop&w=1200&q=80',
-    ],
-  },
-  {
-    id: 'eth-2',
-    title: 'Kuriftu Lakefront Haven',
-    location: 'Bishoftu, Ethiopia',
-    subLocation: 'Crater Lake Vista',
-    details: '6 guests · 3 bedrooms · Traditional spa, infinity lake pool',
-    dates: 'Dec 4 – 10',
+    id: '65645631-a442-405a-bb92-400e8c7cea7d',
+    title: 'Sleek Diplomatic Suite in Kazanchis',
+    location: 'Kazanchis, Addis Ababa',
+    subLocation: 'UN-ECA Diplomatic Enclave',
+    details: '3 guests · 1 bedroom · Fiber broadband & standby generator',
+    dates: 'Available this season',
     rating: 4.94,
-    reviewsCount: 88,
-    pricePerNight: 260,
-    currency: '$',
-    totalBeforeTaxes: 1560,
-    badge: 'Superhost',
-    isSuperhost: true,
+    reviewsCount: 29,
+    pricePerNight: 4800,
+    currency: 'ETB',
+    totalBeforeTaxes: 24000,
+    badge: 'Guest Favorite',
     instantBook: true,
-    category: 'lakefront',
+    category: 'apartment',
+    propertyType: 'APARTMENT',
     images: [
-      'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80',
     ],
   },
   {
-    id: 'eth-3',
-    title: 'Entoto Eucalyptus Mountain Lodge',
-    location: 'Entoto, Addis Ababa',
-    subLocation: 'High-Altitude Forest Preserve',
-    details: '4 guests · 2 bedrooms · Fireplace, horseback riding & trekking',
-    dates: 'Oct 29 – Nov 3',
-    rating: 4.93,
-    reviewsCount: 41,
-    pricePerNight: 210,
-    currency: '$',
-    totalBeforeTaxes: 1050,
-    badge: 'Rare Find',
-    category: 'cabins',
+    id: '5eebd2cd-0f04-49e1-9e5f-0894add2a727',
+    title: 'Lake Tana Shoreline Retreat Villa with Sunset Views',
+    location: 'Bahir Dar, Ethiopia',
+    subLocation: 'Lake Tana Shoreline Promenade',
+    details: '8 guests · 4 bedrooms · Private lawn & private kayak pier',
+    dates: 'Available this season',
+    rating: 4.96,
+    reviewsCount: 42,
+    pricePerNight: 5200,
+    currency: 'ETB',
+    totalBeforeTaxes: 26000,
+    badge: 'Superhost',
+    isSuperhost: true,
+    category: 'villa',
+    propertyType: 'VILLA',
     images: [
       'https://images.unsplash.com/photo-1518780664697-55e3ad937233?auto=format&fit=crop&w=1200&q=80',
     ],
   },
   {
-    id: 'eth-4',
-    title: 'Acacia Sunset Sanctuary',
-    location: 'Hawassa, Ethiopia',
-    subLocation: 'Lake Hawassa Shoreline',
-    details: '8 guests · 4 bedrooms · Private bird sanctuary, canoe pier',
-    dates: 'Nov 20 – 26',
-    rating: 4.96,
-    reviewsCount: 67,
-    pricePerNight: 230,
-    currency: '$',
-    totalBeforeTaxes: 1380,
-    isSuperhost: true,
-    category: 'lakefront',
+    id: '7ca67992-278d-408d-aff5-4213baa46de9',
+    title: 'Babogaya Crater Lakefront Infinity Villa',
+    location: 'Bishoftu, Ethiopia',
+    subLocation: 'Crater Lake Babogaya Rim',
+    details: '6 guests · 3 bedrooms · Volcanic crater panoramas & plunge pool',
+    dates: 'Available this season',
+    rating: 4.97,
+    reviewsCount: 54,
+    pricePerNight: 8000,
+    currency: 'ETB',
+    totalBeforeTaxes: 40000,
+    badge: 'Rare Find',
+    instantBook: true,
+    category: 'villa',
+    propertyType: 'VILLA',
     images: [
       'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80',
+    ],
+  },
+  {
+    id: '65d3b9c4-b4bd-4657-8ff0-06ea805d5370',
+    title: 'Waterfront Serenity Resort Villa on Lake Hawassa',
+    location: 'Hawassa, Ethiopia',
+    subLocation: 'Lake Hawassa Waterfront Strip',
+    details: '6 guests · 3 bedrooms · Tropical gardens & lake breeze veranda',
+    dates: 'Available this season',
+    rating: 4.91,
+    reviewsCount: 31,
+    pricePerNight: 7500,
+    currency: 'ETB',
+    totalBeforeTaxes: 37500,
+    badge: 'Superhost',
+    isSuperhost: true,
+    category: 'villa',
+    propertyType: 'VILLA',
+    images: [
+      'https://images.unsplash.com/photo-1582719508461-905c673771fd?auto=format&fit=crop&w=1200&q=80',
+    ],
+  },
+  {
+    id: '549aa254-d365-4e99-ad4b-24a037bbb884',
+    title: 'Fasil Ghebbi Heritage Guest Estate',
+    location: 'Gondar, Ethiopia',
+    subLocation: 'Royal Enclosure Historic Buffer Zone',
+    details: '4 guests · 2 bedrooms · Traditional masonry stone architecture',
+    dates: 'Available this season',
+    rating: 4.93,
+    reviewsCount: 26,
+    pricePerNight: 3800,
+    currency: 'ETB',
+    totalBeforeTaxes: 19000,
+    badge: 'Guest Favorite',
+    category: 'house',
+    propertyType: 'HOUSE',
+    images: [
+      'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
     ],
   },
 ];
 
 const CATEGORIES = [
-  { id: 'all', label: 'All Homes', icon: 'apps' },
-  { id: 'beachfront', label: 'Beachfront', icon: 'waves' },
-  { id: 'cabins', label: 'Modern Cabins', icon: 'cabin' },
-  { id: 'architectural', label: 'Architectural', icon: 'architecture' },
-  { id: 'lakefront', label: 'Lakefront', icon: 'houseboat' },
-  { id: 'desert', label: 'Desert Retreats', icon: 'wb_sunny' },
-  { id: 'countryside', label: 'Countryside', icon: 'nature' },
-  { id: 'penthouses', label: 'Luxury Penthouses', icon: 'apartment' },
-  { id: 'treehouses', label: 'Treehouses', icon: 'park' },
+  { id: 'all', label: 'All Stays', icon: 'apps' },
+  { id: 'apartment', label: 'Apartments', icon: 'apartment' },
+  { id: 'villa', label: 'Villas', icon: 'villa' },
+  { id: 'house', label: 'Houses', icon: 'home' },
+  { id: 'studio', label: 'Studios', icon: 'bed' },
+  { id: 'lakefront', label: 'Lakefront Stays', icon: 'water' },
+  { id: 'for-sale', label: 'For Sale', icon: 'real_estate_agent' },
+  { id: 'bole', label: 'Bole Central', icon: 'location_city' },
 ];
 
 interface StitchHomePageProps {
@@ -282,9 +180,79 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
   const [datesSelected, setDatesSelected] = useState('');
   const [guestCount, setGuestCount] = useState(1);
   const [searchPopoverOpen, setSearchPopoverOpen] = useState(false);
+  const [aiSearchModalOpen, setAiSearchModalOpen] = useState(false);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+
+  const handleToggleCompare = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedForCompare((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      }
+      if (prev.length >= 4) {
+        alert('You can compare up to 4 properties at a time.');
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
   const [popularDestinations, setPopularDestinations] = useState<string[]>([
     'Addis Ababa', 'Bishoftu', 'Hawassa', 'Bahir Dar', 'Lalibela'
   ]);
+  const [realProperties, setRealProperties] = useState<PropertyListing[]>([]);
+
+  // Fetch real properties from database
+  useEffect(() => {
+    apiFetch<{ data: Property[] } | Property[]>('/properties?limit=30', { skipAuth: true })
+      .then((res) => {
+        const items = Array.isArray(res) ? res : res.data;
+        if (Array.isArray(items) && items.length > 0) {
+          // Prioritize rental stays at the top of the feed for Stays exploration
+          const sortedItems = [...items].sort((a, b) => {
+            const aIsSale = String(a.listingType || '').toUpperCase() === 'SALE';
+            const bIsSale = String(b.listingType || '').toUpperCase() === 'SALE';
+            if (aIsSale && !bIsSale) return 1;
+            if (!aIsSale && bIsSale) return -1;
+            return 0;
+          });
+
+          const mapped: PropertyListing[] = sortedItems.map((p) => {
+            const cover =
+              p.coverImage ||
+              (p.images && p.images[0]) ||
+              'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=1200&q=80';
+            const isRental = !p.listingType || p.listingType === 'RENTAL';
+            let price = isRental ? Number(p.pricePerNight) : Number(p.salePrice);
+            if (!price || price <= 0) {
+              price = isRental ? 3500 : 8500000;
+            }
+            return {
+              id: p.id,
+              title: p.title,
+              location: `${p.subCity ? p.subCity + ', ' : ''}${p.city}`,
+              subLocation: p.address || `${p.city} neighborhood`,
+              details: `${p.maxGuests || 4} guests · ${p.bedrooms || 2} bedrooms · ${p.bathrooms || 1} baths`,
+              dates: 'Available this season',
+              rating: 4.95,
+              reviewsCount: 24,
+              pricePerNight: price,
+              currency: 'ETB',
+              totalBeforeTaxes: price * 5,
+              images: p.images && p.images.length > 0 ? p.images : [cover],
+              category: p.propertyType?.toLowerCase() || 'apartment',
+              propertyType: p.propertyType,
+              instantBook: true,
+              isSuperhost: true,
+              badge: isRental ? (price > 5000 ? 'Rare Find' : 'Guest Favorite') : 'For Sale',
+            };
+          });
+          setRealProperties(mapped);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Load featured destinations from catalog if available
   useEffect(() => {
@@ -329,11 +297,11 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const formatPrice = (usdAmount: number) => {
+  const formatPrice = (amount: number) => {
     if (currency === 'ETB') {
-      return `${Math.round(usdAmount * 120).toLocaleString()} ETB`;
+      return `ETB ${Math.round(amount).toLocaleString()}`;
     }
-    return `$${usdAmount.toLocaleString()}`;
+    return `$${Math.round(amount / 125).toLocaleString()}`;
   };
 
   // Load wishlist from localStorage on mount
@@ -377,11 +345,22 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
   };
 
   // Filter and sort listings
+  const sourceListings = realProperties.length > 0 ? realProperties : ETHIOPIAN_FALLBACK_PROPERTIES;
   const filteredListings = useMemo(() => {
-    return STITCH_CURATED_PROPERTIES.filter((item) => {
-      // Category filter
-      if (selectedCategory !== 'all' && item.category !== selectedCategory) {
-        return false;
+    return sourceListings.filter((item) => {
+      // Category filter with smart fuzzy matching
+      if (selectedCategory !== 'all') {
+        const cat = selectedCategory.toLowerCase();
+        const pType = (item.propertyType || '').toLowerCase();
+        const itemCat = (item.category || '').toLowerCase();
+        const loc = (item.location || '').toLowerCase();
+        const title = (item.title || '').toLowerCase();
+        const match =
+          pType.includes(cat) ||
+          itemCat.includes(cat) ||
+          loc.includes(cat) ||
+          title.includes(cat);
+        if (!match) return false;
       }
       // Text search
       if (destinationSearch.trim()) {
@@ -429,7 +408,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       if (sortOption === 'rating') return b.rating - a.rating;
       return 0; // recommended
     });
-  }, [selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption]);
+  }, [sourceListings, selectedCategory, destinationSearch, guestCount, datesSelected, activeFilters, sortOption]);
 
   const displayedListings = useMemo(() => {
     return filteredListings.slice(0, visibleCount);
@@ -468,6 +447,48 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               </span>
             </Link>
           </div>
+
+                    {/* Center Segmented Navigation Bar (Stays / Experiences / How it Works) */}
+          <nav className="hidden md:inline-flex items-center gap-1 p-1 rounded-full bg-[#FAF8F2] border border-[#E5E0D5]/80 shadow-2xs transition-all">
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('stays')}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
+                activeNavTab === 'stays' || activeNavTab === 'home'
+                  ? 'bg-[#234B36] text-white shadow-xs'
+                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">cottage</span>
+              <span>Stays</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('destinations')}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
+                activeNavTab === 'destinations'
+                  ? 'bg-[#234B36] text-white shadow-xs'
+                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">local_activity</span>
+              <span>Experiences</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab?.('how-it-works')}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-xs transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
+                activeNavTab === 'how-it-works'
+                  ? 'bg-[#234B36] text-white shadow-xs'
+                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">help_outline</span>
+              <span>How it Works</span>
+            </button>
+          </nav>
 
           {/* Right Actions: Become a Host & User Profile */}
           <div className="flex items-center gap-4">
@@ -633,49 +654,6 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           </div>
         </div>
 
-        {/* Center Segmented Navigation Bar (Stays / Experiences / How it Works) */}
-        <div className="w-full px-4 sm:px-6 lg:px-12 py-2 flex items-center justify-center">
-          <nav className="inline-flex items-center gap-1 p-1 rounded-full bg-white border border-[#E5E0D5]/60 shadow-sm transition-all">
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.('stays')}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-sm transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'stays' || activeNavTab === 'home'
-                  ? 'bg-[#234B36] text-white shadow-sm'
-                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">cottage</span>
-              <span>Stays</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.('destinations')}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-sm transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'destinations'
-                  ? 'bg-[#234B36] text-white shadow-sm'
-                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">local_activity</span>
-              <span>Experiences</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.('how-it-works')}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full font-semibold text-sm transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer ${
-                activeNavTab === 'how-it-works'
-                  ? 'bg-[#234B36] text-white shadow-sm'
-                  : 'text-[#252923] hover:text-[#234B36] hover:bg-[#EEF3EF]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">help_outline</span>
-              <span>How it Works</span>
-            </button>
-          </nav>
-        </div>
       </header>
 
       {/* Main content */}
@@ -683,7 +661,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
         {/* ============================================================ */}
         {/* 2. SEARCH BAR SECTION                                        */}
         {/* ============================================================ */}
-        <section className="sticky top-0 z-[45] w-full px-4 sm:px-6 lg:px-12 pt-6 pb-6 flex flex-col items-center justify-center bg-[#F8F5ED]/95 backdrop-blur-md animate-fade-in-up">
+        <section className="sticky top-0 z-[45] w-full px-4 sm:px-6 lg:px-12 pt-3 pb-3 flex flex-col items-center justify-center bg-[#F8F5ED]/95 backdrop-blur-md animate-fade-in-up">
           <div className="w-full max-w-4xl mx-auto flex justify-center relative">
             <div className="search-bar-container inline-flex flex-wrap sm:flex-nowrap items-center bg-white rounded-full border border-[#E5E0D5] shadow-[0_4px_16px_rgba(58,48,42,0.06)] hover:shadow-[0_8px_28px_rgba(194,101,42,0.16)] hover:border-[#234B36]/50 transition-all duration-300 pl-4 sm:pl-8 pr-2.5 py-2.5 gap-2 focus-within:ring-2 focus-within:ring-[#234B36]/40 focus-within:border-[#234B36]">
               {/* WHERE SEGMENT */}
@@ -757,6 +735,17 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                   search
                 </span>
               </button>
+
+              {/* AI NATURAL LANGUAGE SEARCH BUTTON */}
+              <button
+                type="button"
+                onClick={() => setAiSearchModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-[#234B36]/30 bg-[#FAF8F2] hover:bg-[#EEF3EF] text-[#234B36] text-xs font-semibold shadow-2xs hover:scale-105 active:scale-95 transition-all duration-200 ml-1 cursor-pointer"
+                title="Search with AI natural language"
+              >
+                <span className="material-symbols-outlined text-sm text-[#D87836]">auto_awesome</span>
+                <span className="hidden sm:inline">AI Search</span>
+              </button>
             </div>
 
             {/* Interactive Search Popover */}
@@ -785,7 +774,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                     <input
                       type="text"
                       autoFocus
-                      placeholder="e.g. Addis Ababa, Big Sur, Lake Como, Amalfi..."
+                      placeholder="e.g. Addis Ababa, Bole, Hawassa, Bahir Dar..."
                       value={destinationSearch}
                       onChange={(e) => setDestinationSearch(e.target.value)}
                       className="w-full px-4 py-3 rounded-xl bg-[#F8F5ED] border border-[#E5E0D5] text-sm text-[#252923] focus:outline-none focus:border-[#234B36]"
@@ -1004,6 +993,8 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           </div>
         </section>
 
+
+
         {/* ============================================================ */}
         {/* 5. CURATED PROPERTY LISTINGS GRID                            */}
         {/* ============================================================ */}
@@ -1034,21 +1025,24 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                     {/* Media Container with 4:3 Aspect Ratio */}
                     <div className="relative w-full aspect-[4/3] overflow-hidden bg-[#EEF3EF]">
                       <img
-                        src={property.images[0]}
+                        src={property.images[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'}
                         alt={property.title}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
+                        }}
                         className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105"
                       />
 
-                      {/* Floating Badge */}
+                      {/* Floating Badge (Isolated on Top Left) */}
                       {property.badge && (
-                        <div className="absolute top-2.5 left-2.5">
+                        <div className="absolute top-2.5 left-2.5 z-10">
                           <span
-                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-white font-semibold text-[11px] uppercase tracking-wider shadow-sm transition-transform duration-200 group-hover:scale-105 ${
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-white font-semibold text-[10px] uppercase tracking-wider shadow-sm transition-transform duration-200 group-hover:scale-105 ${
                               property.badge === 'Superhost'
                                 ? 'bg-[#234B36]'
                                 : property.badge === 'Guest Favorite'
                                 ? 'bg-[#2D5E43]'
-                                : 'bg-[#8c3c3c]'
+                                : 'bg-[#D87836]'
                             }`}
                           >
                             {property.badge}
@@ -1056,22 +1050,41 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                         </div>
                       )}
 
-                      {/* Wishlist Heart Button */}
-                      <button
-                        type="button"
-                        aria-label="Add to wishlist"
-                        onClick={(e) => toggleWishlist(property.id, e)}
-                        className={`wishlist-btn absolute top-2.5 right-2.5 z-10 w-9 h-9 rounded-full bg-white/90 backdrop-blur-sm border border-[#E5E0D5]/60 flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer ${
-                          isSaved ? 'text-[#234B36]' : 'text-[#252923]'
-                        }`}
-                      >
-                        <span
-                          className="material-symbols-outlined text-xl transition-all duration-200"
-                          style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                      {/* Top Right Action Cluster: Compare & Wishlist */}
+                      <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5">
+                        {/* Subtle Compare Toggle */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleToggleCompare(property.id, e)}
+                          title={selectedForCompare.includes(property.id) ? 'Remove from compare' : 'Compare stay'}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+                            selectedForCompare.includes(property.id)
+                              ? 'bg-[#234B36] text-white shadow-md ring-2 ring-white scale-105 opacity-100'
+                              : 'bg-white/90 hover:bg-white text-[#252923] opacity-0 group-hover:opacity-100'
+                          }`}
                         >
-                          favorite
-                        </span>
-                      </button>
+                          <span className="material-symbols-outlined text-sm">
+                            {selectedForCompare.includes(property.id) ? 'check' : 'balance'}
+                          </span>
+                        </button>
+
+                        {/* Wishlist Heart Button */}
+                        <button
+                          type="button"
+                          aria-label="Add to wishlist"
+                          onClick={(e) => toggleWishlist(property.id, e)}
+                          className={`wishlist-btn w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-[#E5E0D5]/60 flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer ${
+                            isSaved ? 'text-[#234B36]' : 'text-[#252923]'
+                          }`}
+                        >
+                          <span
+                            className="material-symbols-outlined text-lg transition-all duration-200"
+                            style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
+                          >
+                            favorite
+                          </span>
+                        </button>
+                      </div>
 
                       {/* Gallery Indicator Dots */}
                       <div className="absolute bottom-2.5 left-0 right-0 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -1111,15 +1124,27 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                       </p>
 
                       <div className="mt-4 pt-2 flex items-baseline justify-between border-t border-[#E5E0D5]/40">
-                        <div>
-                          <span className="text-lg font-bold text-[#252923] font-headline">
-                            {formatPrice(property.pricePerNight)}
-                          </span>
-                          <span className="text-xs text-[#73776F]"> / night</span>
-                          <span className="block text-[11px] text-[#73776F]/80">
-                            {formatPrice(property.totalBeforeTaxes)} total before taxes
-                          </span>
-                        </div>
+                        {property.badge === 'For Sale' ? (
+                          <div>
+                            <span className="text-lg font-bold text-[#234B36] font-headline">
+                              {formatPrice(property.pricePerNight)}
+                            </span>
+                            <span className="text-xs font-semibold text-[#D87836] ml-1.5">· For Sale</span>
+                            <span className="block text-[11px] text-[#73776F]/80">
+                              Verified title deed & direct inquiry
+                            </span>
+                          </div>
+                        ) : (
+                          <div>
+                            <span className="text-lg font-bold text-[#252923] font-headline">
+                              {formatPrice(property.pricePerNight)}
+                            </span>
+                            <span className="text-xs text-[#73776F]"> / night</span>
+                            <span className="block text-[11px] text-[#73776F]/80">
+                              {formatPrice(property.totalBeforeTaxes)} total before taxes
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </article>
@@ -1437,6 +1462,48 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
           </div>
         </div>
       </footer>
+
+      {/* Floating Compare Bar */}
+      {selectedForCompare.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#252923] text-white rounded-full px-5 py-3 shadow-2xl border border-[#234B36] flex items-center gap-4 animate-fade-in-up">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span className="material-symbols-outlined text-lg text-[#D87836]">balance</span>
+            <span>{selectedForCompare.length} {selectedForCompare.length === 1 ? 'property' : 'properties'} selected</span>
+            <span className="text-white/60 hidden sm:inline">(Select 2 to 4 to compare)</span>
+          </div>
+          <button
+            type="button"
+            disabled={selectedForCompare.length < 2}
+            onClick={() => setCompareModalOpen(true)}
+            className="px-4 py-1.5 rounded-full bg-[#234B36] hover:bg-[#2D5E43] disabled:opacity-40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <span>Compare with AI</span>
+            <span className="material-symbols-outlined text-sm">auto_awesome</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedForCompare([])}
+            className="text-xs text-white/70 hover:text-white underline cursor-pointer"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* AI Conversational Search Modal */}
+      <AiConversationalSearchModal
+        isOpen={aiSearchModalOpen}
+        onClose={() => setAiSearchModalOpen(false)}
+      />
+
+      {/* AI Property Comparison Modal */}
+      <AiPropertyComparisonModal
+        isOpen={compareModalOpen}
+        onClose={() => setCompareModalOpen(false)}
+        propertyIds={selectedForCompare}
+      />
+
+
     </div>
   );
 }

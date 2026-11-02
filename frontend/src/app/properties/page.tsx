@@ -17,6 +17,10 @@ import type { Property, PaginatedResponse } from '@/types';
 import AppHeader from '@/components/layout/AppHeader';
 import AppFooter from '@/components/layout/AppFooter';
 import { computePropertyTrustScore } from '@/lib/trustScore';
+import AiConversationalSearchModal from '@/components/search/AiConversationalSearchModal';
+import PersonalizedAiRecommendationsSection from '@/components/home/PersonalizedAiRecommendationsSection';
+import AiPropertyComparisonModal from '@/components/compare/AiPropertyComparisonModal';
+import AiBookingAssistantWidget from '@/components/assistant/AiBookingAssistantWidget';
 
 // ─── Ethiopian Cities ─────────────────────────────────────────────────────────
 const ETHIOPIAN_CITIES = [
@@ -70,13 +74,21 @@ function TrustBadge({ property }: { property: Property }) {
 }
 
 // ─── Property Card ────────────────────────────────────────────────────────────
-function PropertyCard({ property }: { property: Property }) {
+function PropertyCard({
+  property,
+  isComparing,
+  onToggleCompare,
+}: {
+  property: Property;
+  isComparing?: boolean;
+  onToggleCompare?: (e: React.MouseEvent) => void;
+}) {
   const [imgError, setImgError] = useState(false);
   const image = imgError ? FALLBACK_IMAGES[0] : getPropertyImage(property);
   const isRental = !property.listingType || property.listingType === 'RENTAL';
   const price = isRental
-    ? `ETB ${Number(property.pricePerNight).toLocaleString()}/night`
-    : `ETB ${Number(property.salePrice || 0).toLocaleString()} (For Sale)`;
+    ? `ETB ${Number(property.pricePerNight || 3500).toLocaleString()}/night`
+    : `ETB ${Number(property.salePrice || 8500000).toLocaleString()} (For Sale)`;
 
   return (
     <Link
@@ -85,6 +97,21 @@ function PropertyCard({ property }: { property: Property }) {
     >
       {/* Image */}
       <div className="relative aspect-[4/3] overflow-hidden bg-[#EEF3EF]">
+        {/* Subtle compare toggle button */}
+        <button
+          type="button"
+          onClick={onToggleCompare}
+          title={isComparing ? 'Remove from comparison' : 'Compare listing'}
+          className={`absolute top-2.5 left-2.5 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer shadow-sm ${
+            isComparing
+              ? 'bg-[#234B36] text-white shadow-md ring-2 ring-white scale-105 opacity-100'
+              : 'bg-white/90 hover:bg-white text-[#252923] opacity-0 group-hover:opacity-100'
+          }`}
+        >
+          <span className="material-symbols-outlined text-sm">
+            {isComparing ? 'check' : 'balance'}
+          </span>
+        </button>
         <img
           src={image}
           alt={property.title}
@@ -226,6 +253,24 @@ function PropertiesSearchContent() {
   const [searchText, setSearchText] = useState(initialSearch);
   const [sortValue, setSortValue] = useState('createdAt:DESC');
   const [showFilters, setShowFilters] = useState(false);
+  const [aiSearchOpen, setAiSearchOpen] = useState(false);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+
+  const handleToggleCompare = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedForCompare((prev) => {
+      if (prev.includes(id)) {
+        return prev.filter((item) => item !== id);
+      }
+      if (prev.length >= 4) {
+        alert('You can compare up to 4 properties at a time.');
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
 
   // ── Data state ──
   const [properties, setProperties] = useState<Property[]>([]);
@@ -358,6 +403,16 @@ function PropertiesSearchContent() {
               className="w-full pl-10 pr-4 py-3 rounded-xl bg-white border border-[#E5E0D5] text-sm text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] transition"
             />
           </div>
+
+          {/* AI Search Trigger Button */}
+          <button
+            type="button"
+            onClick={() => setAiSearchOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-3 rounded-xl bg-[#234B36] hover:bg-[#2D5E43] text-white text-sm font-semibold shadow-sm transition active:scale-95 cursor-pointer shrink-0"
+          >
+            <span className="material-symbols-outlined text-lg text-[#D87836]">auto_awesome</span>
+            <span className="hidden sm:inline">Search with AI</span>
+          </button>
 
           {/* Filter toggle (mobile) */}
           <button
@@ -568,7 +623,12 @@ function PropertiesSearchContent() {
             <EmptyState onReset={handleReset} />
           ) : (
             properties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
+              <PropertyCard
+                key={property.id}
+                property={property}
+                isComparing={selectedForCompare.includes(property.id)}
+                onToggleCompare={(e) => handleToggleCompare(property.id, e)}
+              />
             ))
           )}
 
@@ -606,6 +666,54 @@ function PropertiesSearchContent() {
             Showing {properties.length} of {total} verified properties
           </p>
         )}
+      
+        {/* ── Personalized Recommendations Section ── */}
+        <div className="mt-14">
+          <PersonalizedAiRecommendationsSection />
+        </div>
+
+        {/* ── Floating Compare Bar ── */}
+        {selectedForCompare.length > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-[#252923] text-white rounded-full px-5 py-3 shadow-2xl border border-[#234B36] flex items-center gap-4 animate-fade-in-up">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="material-symbols-outlined text-lg text-[#D87836]">balance</span>
+              <span>{selectedForCompare.length} {selectedForCompare.length === 1 ? 'property' : 'properties'} selected</span>
+              <span className="text-white/60 hidden sm:inline">(Select 2 to 4 to compare)</span>
+            </div>
+            <button
+              type="button"
+              disabled={selectedForCompare.length < 2}
+              onClick={() => setCompareModalOpen(true)}
+              className="px-4 py-1.5 rounded-full bg-[#234B36] hover:bg-[#2D5E43] disabled:opacity-40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+            >
+              <span>Compare with AI</span>
+              <span className="material-symbols-outlined text-sm">auto_awesome</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedForCompare([])}
+              className="text-xs text-white/70 hover:text-white underline cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        {/* ── AI Conversational Search Modal ── */}
+        <AiConversationalSearchModal
+          isOpen={aiSearchOpen}
+          onClose={() => setAiSearchOpen(false)}
+        />
+
+        {/* ── AI Property Comparison Modal ── */}
+        <AiPropertyComparisonModal
+          isOpen={compareModalOpen}
+          onClose={() => setCompareModalOpen(false)}
+          propertyIds={selectedForCompare}
+        />
+
+        {/* ── AI Booking Assistant Floating Widget ── */}
+        <AiBookingAssistantWidget />
       </main>
 
       <AppFooter />
