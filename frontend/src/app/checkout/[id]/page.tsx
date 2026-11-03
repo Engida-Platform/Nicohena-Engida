@@ -40,11 +40,7 @@ interface BookingDetail {
   createdAt: string;
 }
 
-type PaymentMethod =
-  | 'TELEBIRR'
-  | 'CBE_BIRR'
-  | 'CHAPA'
-  | 'CASH_ON_ARRIVAL';
+type PaymentMethod = 'CHAPA';
 
 const PAYMENT_OPTIONS: {
   value: PaymentMethod;
@@ -54,25 +50,11 @@ const PAYMENT_OPTIONS: {
   badge?: string;
 }[] = [
   {
-    value: 'TELEBIRR',
-    label: 'Telebirr Mobile Money',
-    description: 'Instant transfer via Telebirr app · Locked in platform escrow',
-    icon: 'phone_iphone',
-    badge: 'Popular in Ethiopia',
-  },
-  {
-    value: 'CBE_BIRR',
-    label: 'CBE Birr Mobile Banking',
-    description: 'Commercial Bank of Ethiopia direct mobile checkout',
-    icon: 'account_balance',
-    badge: 'Direct Bank Transfer',
-  },
-  {
     value: 'CHAPA',
-    label: 'Chapa (Debit Cards & International)',
-    description: 'Visa, Mastercard, and Ethiopian domestic debit cards',
-    icon: 'credit_card',
-    badge: 'Cards & Online',
+    label: 'Chapa Unified Payment Gateway',
+    description: 'Instant & secure checkout via Telebirr, CBE Birr, Awash Birr, Visa & Mastercard',
+    icon: 'verified_user',
+    badge: 'Official Ethiopian Gateway',
   },
 ];
 
@@ -136,7 +118,7 @@ function CheckoutContent() {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('TELEBIRR');
+  const [selectedPayment, setSelectedPayment] = useState<PaymentMethod>('CHAPA');
   const [confirming, setConfirming] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -427,7 +409,7 @@ function CheckoutContent() {
                 </>
               ) : (
                 <>
-                  <span>Pay ETB {totalETB.toLocaleString()} via {selectedPayment === 'TELEBIRR' ? 'Telebirr' : selectedPayment === 'CBE_BIRR' ? 'CBE Birr' : 'Chapa'}</span>
+                  <span>Pay ETB {totalETB.toLocaleString()} via Chapa</span>
                   <span className="material-symbols-outlined text-lg">lock</span>
                 </>
               )}

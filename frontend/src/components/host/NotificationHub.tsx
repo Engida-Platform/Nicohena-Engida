@@ -318,23 +318,17 @@ export default function NotificationHub({
         </button>
       )}
 
-      {/* ── Modal / Docked Popover Panel ── */}
+      {/* ── Centered Modal Notification Hub ── */}
       {isOpen && (
-        <>
-          {/* Subtle click-outside backdrop without heavy blur */}
-          <div
-            className="fixed inset-0 z-40 bg-black/10 transition-opacity"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* Panel: anchored popover card beside sidebar or under icon */}
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setIsOpen(false)}
+        >
+          {/* Centered Dialog: Perfectly balanced in the middle of the viewport */}
           <div
             ref={panelRef}
-            className={`fixed z-50 bg-[#FAF8F2] rounded-2xl shadow-2xl border border-[#E5E0D5] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${
-              variant === 'sidebar-item'
-                ? 'left-4 bottom-4 sm:left-68 sm:bottom-6 w-[calc(100vw-2rem)] sm:w-[430px] max-h-[82vh] sm:max-h-[620px]'
-                : 'right-4 top-16 sm:right-6 sm:top-14 w-[calc(100vw-2rem)] sm:w-[400px] max-h-[80vh] sm:max-h-[580px]'
-            }`}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-lg bg-[#FAF8F2] rounded-3xl shadow-2xl border border-[#E5E0D5] flex flex-col max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-150"
           >
             {/* Header */}
             <div className="px-5 py-4 border-b border-[#E5E0D5] flex items-center justify-between bg-[#EEF3EF]/60">
@@ -560,7 +554,7 @@ export default function NotificationHub({
               <span className="text-[11px] text-[#73776F]">Auto-refreshed</span>
             </div>
           </div>
-        </>
+        </div>
       )}
     </>
   );

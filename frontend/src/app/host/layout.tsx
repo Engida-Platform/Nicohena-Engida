@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import HostAvatar from '../../components/host/HostAvatar';
 import {
   Building2,
+  Compass,
   LayoutDashboard,
   ListTodo,
   CalendarDays,
@@ -38,12 +39,17 @@ const NAV_ITEMS = [
     icon: ListTodo,
   },
   {
+    href: '/host/experiences',
+    label: 'Experiences',
+    icon: Compass,
+  },
+  {
     href: '/host/reservations',
     label: 'Reservations',
     icon: CalendarDays,
   },
   {
-    href: '/messages',
+    href: '/host/messages',
     label: 'Messages',
     icon: MessageSquare,
   },
@@ -63,7 +69,7 @@ const NAV_ITEMS = [
     icon: CalendarRange,
   },
   {
-    href: '/support',
+    href: '/host/support',
     label: 'Support & Help',
     icon: HelpCircle,
   },

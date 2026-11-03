@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { showPlatformToast } from '@/context/ToastContext';
 import {
@@ -18,13 +18,19 @@ import {
 } from 'lucide-react';
 import {
   CURATED_ETHIOPIAN_EXPERIENCES,
+  getAllExperiences,
   type EthiopianExperience,
 } from '@/data/experiences';
 
 export { CURATED_ETHIOPIAN_EXPERIENCES, type EthiopianExperience };
 
 export default function ExperiencesSection() {
+  const [allExps, setAllExps] = useState<EthiopianExperience[]>(CURATED_ETHIOPIAN_EXPERIENCES);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  useEffect(() => {
+    setAllExps(getAllExperiences());
+  }, []);
   const [bookingModalExp, setBookingModalExp] = useState<EthiopianExperience | null>(null);
   const [guestCount, setGuestCount] = useState(2);
   const [selectedDate, setSelectedDate] = useState(() => {
@@ -45,7 +51,7 @@ export default function ExperiencesSection() {
     { id: 'wildlife', label: 'Wildlife & Safari', icon: 'pets' },
   ];
 
-  const filteredExperiences = CURATED_ETHIOPIAN_EXPERIENCES.filter((exp) => {
+  const filteredExperiences = allExps.filter((exp) => {
     if (selectedCategory === 'all') return true;
     return exp.category === selectedCategory;
   });
@@ -85,15 +91,8 @@ export default function ExperiencesSection() {
 
           <div className="flex items-center gap-2">
             <Link
-              href="/how-it-works"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-[#E5E0D5] bg-white text-xs font-semibold text-[#252923] hover:bg-[#FAF8F2] transition shadow-2xs"
-            >
-              <Compass className="w-3.5 h-3.5 text-[#234B36]" />
-              <span>How It Works</span>
-            </Link>
-            <Link
-              href="/become-a-host"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#234B36] text-white text-xs font-bold hover:bg-[#1a3828] transition shadow-xs active:scale-95"
+              href="/host/experiences/new"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#234B36] text-white text-xs font-bold hover:bg-[#1a3828] transition shadow-xs active:scale-95 cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>Host an Experience</span>

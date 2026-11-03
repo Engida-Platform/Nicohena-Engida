@@ -296,11 +296,11 @@ function MessagesContent() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
         <div className="mb-4">
           <Link
-            href="/"
+            href={Boolean(user?.hostProfile) ? '/host/dashboard' : '/'}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#73776F] hover:text-[#234B36] transition group cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-            <span>Back to Explore Stays</span>
+            <span>{Boolean(user?.hostProfile) ? 'Back to Host Dashboard' : 'Back to Explore Stays'}</span>
           </Link>
         </div>
         {/* Page Title & Navigation Bar */}

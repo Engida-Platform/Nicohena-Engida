@@ -66,15 +66,7 @@ function SandboxPaymentContent() {
   };
 
   const getMethodTitle = () => {
-    switch (method.toUpperCase()) {
-      case 'TELEBIRR':
-        return 'Telebirr Mobile Payment (Simulated)';
-      case 'CBE_BIRR':
-        return 'CBE Birr Mobile Banking (Simulated)';
-      case 'CHAPA':
-      default:
-        return 'Chapa Payment Gateway (Simulated)';
-    }
+    return 'Chapa Payment Gateway (Test Mode)';
   };
 
   return (
@@ -161,7 +153,7 @@ function SandboxPaymentContent() {
             ) : (
               <>
                 <span className="material-symbols-outlined text-base">check_circle</span>
-                <span>Confirm & Pay ETB {amountETB}</span>
+                <span>Authorize & Complete Payment via Chapa (ETB {amountETB})</span>
               </>
             )}
           </button>

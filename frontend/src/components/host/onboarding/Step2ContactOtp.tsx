@@ -140,8 +140,8 @@ export default function Step2ContactOtp({
         </p>
       </div>
 
-      {/* Contact Channels Status Overview */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Contact Channels Status Overview - Email Only */}
+      <div className="w-full">
         {/* Email Card (Active & Mandatory) */}
         <div className="p-4 rounded-xl border border-[#234B36] bg-[#F8F5ED] ring-2 ring-[#234B36]/20 flex items-start gap-3 shadow-xs">
           <div className="p-2 rounded-lg bg-[#234B36] text-white shrink-0 mt-0.5 shadow-2xs">
@@ -162,27 +162,6 @@ export default function Step2ContactOtp({
             </div>
             <span className="block text-xs text-[#252923] font-mono font-medium truncate mt-0.5">
               {targetEmail || 'No email provided'}
-            </span>
-          </div>
-        </div>
-
-        {/* Phone Card (Recorded on Profile, SMS on Hold) */}
-        <div className="p-4 rounded-xl border border-[#E5E0D5] bg-white flex items-start gap-3 shadow-xs">
-          <div className="p-2 rounded-lg bg-[#EEF3EF] text-[#73776F] shrink-0 mt-0.5">
-            <Phone className="w-4 h-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-1">
-              <span className="block text-xs font-bold text-[#252923]">Mobile Phone</span>
-              <span className="text-[10px] font-semibold text-[#73776F] bg-[#EEF3EF] px-2 py-0.5 rounded-full border border-[#E5E0D5]/40">
-                On Profile
-              </span>
-            </div>
-            <span className="block text-xs text-[#73776F] font-mono truncate mt-0.5">
-              {data.phone || 'Phone not set'}
-            </span>
-            <span className="block text-[11px] text-[#73776F]/70 mt-1">
-              SMS verification on hold for this release
             </span>
           </div>
         </div>

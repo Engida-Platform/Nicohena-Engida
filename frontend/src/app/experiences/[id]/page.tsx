@@ -5,10 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppHeader from '@/components/layout/AppHeader';
 import AppFooter from '@/components/layout/AppFooter';
-import { CURATED_ETHIOPIAN_EXPERIENCES, type EthiopianExperience } from '@/data/experiences';
+import { CURATED_ETHIOPIAN_EXPERIENCES, getExperienceById, type EthiopianExperience } from '@/data/experiences';
 import { useAuth } from '@/context/AuthContext';
 import { showPlatformToast } from '@/context/ToastContext';
 import {
+  Printer,
+  Receipt,
   MapPin,
   Clock,
   Users,
@@ -37,7 +39,7 @@ export default function ExperienceDetailsPage() {
   const { user } = useAuth();
   const expId = params?.id as string;
 
-  const experience = CURATED_ETHIOPIAN_EXPERIENCES.find((e) => e.id === expId) || CURATED_ETHIOPIAN_EXPERIENCES[0];
+  const experience = getExperienceById(expId) || CURATED_ETHIOPIAN_EXPERIENCES.find((e) => e.id === expId) || CURATED_ETHIOPIAN_EXPERIENCES[0];
 
   const [selectedSlot, setSelectedSlot] = useState(experience.timeSlots[0]?.id || 'default');
   const [guestCount, setGuestCount] = useState(2);
@@ -54,6 +56,8 @@ export default function ExperienceDetailsPage() {
   const [specialNotes, setSpecialNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reservationSuccess, setReservationSuccess] = useState(false);
+  const [receiptRef, setReceiptRef] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'CHAPA'>('CHAPA');
 
   // Review modal state
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
@@ -83,15 +87,17 @@ export default function ExperienceDetailsPage() {
   const handleConfirmReservation = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    const tx = 'CHAPA-EXP-' + Math.floor(100000 + Math.random() * 900000);
+    setReceiptRef(tx);
     setTimeout(() => {
       setIsSubmitting(false);
       setReservationSuccess(true);
       showPlatformToast(
-        `Reservation confirmed! ${experience.hostName} has received your schedule for ${guestCount} guest(s).`,
+        `Payment of ETB ${totalPrice.toLocaleString()} settled via Chapa! Reservation confirmed with ${experience.hostName}.`,
         'success',
-        'Experience Reserved'
+        'Experience Paid & Confirmed'
       );
-    }, 700);
+    }, 900);
   };
 
   const handleSubmitReview = (e: React.FormEvent) => {
@@ -660,54 +666,130 @@ export default function ExperienceDetailsPage() {
             </div>
 
             {reservationSuccess ? (
-              <div className="py-6 text-center space-y-4">
-                <div className="w-14 h-14 rounded-full bg-[#EEF3EF] text-[#234B36] mx-auto flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8" />
+              <div className="py-4 space-y-4">
+                {/* Official Escrow Stamp Header */}
+                <div className="p-4 rounded-2xl bg-[#EEF3EF] border border-[#234B36]/30 text-center space-y-1.5 shadow-2xs">
+                  <div className="w-12 h-12 rounded-full bg-[#234B36] text-white mx-auto flex items-center justify-center shadow-xs">
+                    <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+                  </div>
+                  <h4 className="text-base font-bold font-headline text-[#252923]">
+                    Payment Confirmed & Spot Secured
+                  </h4>
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] font-bold text-[#234B36]">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Protected by ENGIDA Escrow · Paid via Chapa</span>
+                  </div>
                 </div>
-                <h4 className="text-base font-bold text-[#252923]">
-                  Reservation Confirmed!
-                </h4>
-                <p className="text-xs text-[#73776F] leading-relaxed">
-                  Your spot for <strong>{guestCount} guest(s)</strong> on{' '}
-                  <strong>{selectedDate}</strong> has been secured with{' '}
-                  <strong>{experience.hostName}</strong>. A voucher has been dispatched to your account.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReservationModalOpen(false);
-                    setReservationSuccess(false);
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-[#234B36] text-white text-xs font-bold hover:bg-[#1a3828] transition"
-                >
-                  Done
-                </button>
+
+                {/* Printable Receipt Card */}
+                <div id="experience-receipt" className="p-4 bg-white rounded-2xl border border-[#E5E0D5] text-xs space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-[#E5E0D5]">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#73776F] tracking-wider block">Chapa Transaction Ref</span>
+                      <span className="font-mono font-bold text-xs text-[#252923]">{receiptRef || 'CHAPA-EXP-849201'}</span>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Paid & Verified
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <p className="font-bold text-sm text-[#252923]">{experience.title}</p>
+                    <p className="text-[#73776F] flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-[#234B36]" />
+                      <span>{selectedDate} · {selectedSlot ? experience.timeSlots.find(s => s.id === selectedSlot)?.label || 'Morning' : 'Scheduled Slot'}</span>
+                    </p>
+                    <p className="text-[#73776F] flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-[#234B36]" />
+                      <span>{guestCount} Guest(s) · Hosted by {experience.hostName}</span>
+                    </p>
+                    <p className="text-[#73776F] flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-[#234B36]" />
+                      <span>{experience.meetingPoint}</span>
+                    </p>
+                  </div>
+
+                  <div className="pt-2.5 border-t border-[#E5E0D5] flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#73776F] tracking-wider block">Total Amount Paid</span>
+                      <span className="text-base font-black text-[#234B36]">ETB {totalPrice.toLocaleString()}</span>
+                    </div>
+                    <span className="text-[10px] text-[#73776F] italic">Held in escrow until tour start</span>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== 'undefined') window.print();
+                    }}
+                    className="flex-1 py-2.5 rounded-xl border border-[#E5E0D5] bg-white hover:bg-[#FAF8F2] text-[#252923] text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-[#73776F]" />
+                    <span>Print Receipt</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReservationModalOpen(false);
+                      setReservationSuccess(false);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs font-bold transition shadow-sm cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleConfirmReservation} className="space-y-4 pt-4">
-                <div className="p-3 bg-white rounded-xl border border-[#E5E0D5] text-xs space-y-1">
-                  <p className="font-bold text-[#252923]">{experience.title}</p>
-                  <p className="text-[#73776F]">
-                    Date: {selectedDate} · {guestCount} Guest(s)
+                <div className="p-3.5 bg-white rounded-2xl border border-[#E5E0D5] text-xs space-y-1.5">
+                  <p className="font-bold text-sm text-[#252923]">{experience.title}</p>
+                  <p className="text-[#73776F] flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-[#234B36]" />
+                    <span>Date: {selectedDate} · {guestCount} Guest(s)</span>
                   </p>
-                  <p className="text-[#234B36] font-bold">
-                    Total: ETB {totalPrice.toLocaleString()}
-                  </p>
+                  <div className="pt-1 flex items-center justify-between font-bold text-[#234B36]">
+                    <span>Total to Pay:</span>
+                    <span className="text-sm">ETB {totalPrice.toLocaleString()}</span>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1">
                     Contact Phone Number (Telebirr / Call)
                   </label>
-                  <div className="relative">
-                    <input
-                      type="tel"
-                      required
-                      value={contactPhone}
-                      onChange={(e) => setContactPhone(e.target.value)}
-                      placeholder="+251 9... or 09..."
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36]"
-                    />
+                  <input
+                    type="tel"
+                    required
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="+251 9... or 09..."
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36]"
+                  />
+                </div>
+
+                {/* Chapa Payment Gateway Selection */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-1.5">
+                    Payment Gateway
+                  </label>
+                  <div className="p-3.5 rounded-xl border-2 border-[#234B36] bg-[#EEF3EF]/60 flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-[#234B36] text-white shrink-0 mt-0.5">
+                      <CreditCard className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-[#252923]">Chapa Unified Gateway</span>
+                        <span className="px-2 py-0.5 rounded-full bg-[#234B36]/10 text-[#234B36] text-[9px] font-bold">
+                          Official Gateway
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#73776F] mt-0.5">
+                        Telebirr, CBE Birr, Awash Birr, Visa & Mastercard with instant escrow confirmation
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -719,7 +801,7 @@ export default function ExperienceDetailsPage() {
                     rows={2}
                     value={specialNotes}
                     onChange={(e) => setSpecialNotes(e.target.value)}
-                    placeholder="e.g. Vegetarian diet, hotel pickup inquiry..."
+                    placeholder="e.g. Vegetarian meal, hotel pickup inquiry..."
                     className="w-full p-2.5 rounded-xl bg-white border border-[#E5E0D5] text-xs text-[#252923] placeholder-[#73776F] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] resize-none"
                   />
                 </div>
@@ -741,9 +823,19 @@ export default function ExperienceDetailsPage() {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-6 py-2 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs font-bold transition active:scale-95 shadow-sm cursor-pointer"
+                    className="px-6 py-2.5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white text-xs font-bold transition active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
                   >
-                    {isSubmitting ? 'Securing Spot...' : 'Confirm & Reserve'}
+                    {isSubmitting ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Processing via Chapa...
+                      </>
+                    ) : (
+                      <>
+                        <span>Pay ETB {totalPrice.toLocaleString()} via Chapa</span>
+                        <ShieldCheck className="w-4 h-4" />
+                      </>
+                    )}
                   </button>
                 </div>
               </form>

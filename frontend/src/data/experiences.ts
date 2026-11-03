@@ -688,3 +688,79 @@ export const CURATED_ETHIOPIAN_EXPERIENCES: EthiopianExperience[] = [
   },
 ];
 
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Host Experience Storage & Synchronization Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HOST_EXPERIENCES_STORAGE_KEY = 'engida_host_experiences';
+
+/**
+ * Returns user-created experiences from browser local storage (if running client-side).
+ */
+export function getHostExperiences(): EthiopianExperience[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(HOST_EXPERIENCES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves or updates a host experience in persistent local storage.
+ */
+export function saveHostExperience(experience: EthiopianExperience): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getHostExperiences();
+    const existingIndex = current.findIndex((e) => e.id === experience.id);
+    let updated: EthiopianExperience[];
+    if (existingIndex >= 0) {
+      updated = [...current];
+      updated[existingIndex] = experience;
+    } else {
+      updated = [experience, ...current];
+    }
+    localStorage.setItem(HOST_EXPERIENCES_STORAGE_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.error('Failed to save host experience to storage', err);
+  }
+}
+
+/**
+ * Deletes a host experience from local storage.
+ */
+export function deleteHostExperience(id: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const current = getHostExperiences();
+    const filtered = current.filter((e) => e.id !== id);
+    localStorage.setItem(HOST_EXPERIENCES_STORAGE_KEY, JSON.stringify(filtered));
+  } catch (err) {
+    console.error('Failed to delete host experience', err);
+  }
+}
+
+/**
+ * Returns all experiences: curated library combined with host-created experiences.
+ */
+export function getAllExperiences(): EthiopianExperience[] {
+  const hostExps = getHostExperiences();
+  // Filter out any duplicates if IDs match
+  const hostIds = new Set(hostExps.map((e) => e.id));
+  const curatedFiltered = CURATED_ETHIOPIAN_EXPERIENCES.filter((e) => !hostIds.has(e.id));
+  return [...hostExps, ...curatedFiltered];
+}
+
+/**
+ * Finds an experience by ID from both host-created and curated collections.
+ */
+export function getExperienceById(id: string): EthiopianExperience | undefined {
+  const all = getAllExperiences();
+  return all.find((e) => e.id === id);
+}

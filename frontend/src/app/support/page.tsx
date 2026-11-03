@@ -211,11 +211,11 @@ export default function SupportCenterPage() {
       <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         <div className="mb-4">
           <Link
-            href="/"
+            href={Boolean(user?.hostProfile) ? '/host/dashboard' : '/'}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#73776F] hover:text-[#234B36] transition group cursor-pointer"
           >
             <span className="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-1">arrow_back</span>
-            <span>Back to Explore Stays</span>
+            <span>{Boolean(user?.hostProfile) ? 'Back to Host Dashboard' : 'Back to Explore Stays'}</span>
           </Link>
         </div>
         {/* Header Hero */}
