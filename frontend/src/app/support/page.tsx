@@ -46,24 +46,41 @@ const CATEGORIES = [
   { value: 'OTHER', label: 'General Inquiry', icon: 'help', desc: 'Account settings, feedback, or other questions' },
 ];
 
-const FAQS = [
+const DEFAULT_FAQS = [
   {
     q: 'How does the ENGIDA Escrow Guarantee work?',
+    qAmharic: 'የእንግዳ ኢስክሮ ዋስትና እንዴት ይሰራል?',
     a: 'Your payment is held safely in our banking escrow account. The host receives payment 24 hours after your successful checkout. If the listing does not match or access is not provided, you receive a full refund.',
+    aAmharic: 'ክፍያዎ በባንክ የኢስክሮ ሒሳባችን ውስጥ በደህና ይያዛል። አስተናጋጁ ክፍያ የሚያገኘው በተሳካ ሁኔታ ከወጡ 24 ሰዓታት በኋላ ነው። ንብረቱ የማይዛመድ ከሆነ ሙሉ ገንዘብ ተመላሽ ይደረግልዎታል።',
   },
   {
     q: 'How do I cancel my reservation and get a refund?',
+    qAmharic: 'ቦታ ማስያዣዬን እንዴት መሰረዝ እና ገንዘብ ተመላሽ ማግኘት እችላለሁ?',
     a: 'Visit your Trips dashboard and select "Request Cancellation". You will see an exact policy refund preview before confirming. Once approved, refunds are credited back to your original payment method.',
+    aAmharic: 'የጉዞዎች ዳሽቦርድዎን ይጎብኙ እና "መሰረዝን ጠይቅ" የሚለውን ይምረጡ። ከማረጋገጥዎ በፊት ትክክለኛውን የፖሊሲ ተመላሽ ቅድመ-እይታ ያያሉ።',
   },
   {
     q: 'What should I do if a host does not respond?',
+    qAmharic: 'አስተናጋጅ ምላሽ ካልሰጠ ምን ማድረግ አለብኝ?',
     a: 'Hosts typically respond within 2 hours. If your check-in date is approaching and the host is unresponsive, open a Priority Safety & Booking ticket here and our team will assist you immediately.',
+    aAmharic: 'አስተናጋጆች በተለምዶ በ2 ሰዓታት ውስጥ ምላሽ ይሰጣሉ። የመግቢያ ቀንዎ እየቀረበ ከሆነ እና አስተናጋጁ ምላሽ የማይሰጥ ከሆነ እዚህ የቅድሚያ ትኬት ይክፈቱ እና ቡድናችን ወዲያውኑ ይረዳዎታል።',
   },
   {
     q: 'How are disputes resolved?',
+    qAmharic: 'አለመግባባቶች እንዴት ይፈታሉ?',
     a: 'When you submit a dispute with photos or details, our operations team reviews both guest and host records. If compensation or a refund is warranted, an offer will be sent directly to your ticket for your review.',
+    aAmharic: 'አለመግባባትን ከፎቶዎች ወይም ዝርዝሮች ጋር ሲያቀርቡ የኦፕሬሽን ቡድናችን የእንግዳ እና የአስተናጋጅ መዝገቦችን ይገመግማል። ካሳ ወይም ተመላሽ ገንዘብ አስፈላጊ ከሆነ ቀጥታ ወደ ትኬትዎ ይላካል።',
   },
 ];
+
+interface DynamicFaqItem {
+  id: string;
+  category: string;
+  question: string;
+  questionAmharic?: string | null;
+  answer: string;
+  answerAmharic?: string | null;
+}
 
 export default function SupportCenterPage() {
   const { user, loading: authLoading } = useAuth();
@@ -74,6 +91,11 @@ export default function SupportCenterPage() {
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
 
+  // Dynamic FAQs from Admin Content CMS
+  const [dynamicFaqs, setDynamicFaqs] = useState<DynamicFaqItem[]>([]);
+  const [faqLang, setFaqLang] = useState<'en' | 'am'>('en');
+  const [loadingFaqs, setLoadingFaqs] = useState(false);
+
   // New Ticket Form State
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState('BOOKING');
@@ -82,6 +104,26 @@ export default function SupportCenterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    setLoadingFaqs(true);
+    apiFetch<DynamicFaqItem[]>('/content/faqs')
+      .then((data) => {
+        if (!ignore && Array.isArray(data) && data.length > 0) {
+          setDynamicFaqs(data);
+        }
+      })
+      .catch(() => {
+        // Fallback to default FAQs
+      })
+      .finally(() => {
+        if (!ignore) setLoadingFaqs(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const loadMyCases = useCallback(async () => {
     if (!user) return;
@@ -597,22 +639,78 @@ export default function SupportCenterPage() {
         {/* Tab 3: FAQs */}
         {activeTab === 'faqs' && (
           <div className="max-w-3xl mx-auto space-y-4">
-            <div className="bg-white rounded-2xl border border-[#E5E0D5] p-6 mb-6">
-              <h3 className="text-base font-bold text-[#252923] mb-1">Frequently Asked Questions</h3>
-              <p className="text-xs text-[#73776F]">
-                Quick solutions to our most common guest and host inquiries.
-              </p>
+            <div className="bg-white rounded-2xl border border-[#E5E0D5] p-6 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-base font-bold text-[#252923] mb-1">Frequently Asked Questions</h3>
+                <p className="text-xs text-[#73776F]">
+                  Quick solutions to our most common guest and host inquiries.
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 p-1 bg-[#F8F5ED] rounded-xl border border-[#E5E0D5]">
+                <button
+                  type="button"
+                  onClick={() => setFaqLang('en')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                    faqLang === 'en'
+                      ? 'bg-[#234B36] text-white shadow-xs'
+                      : 'text-[#73776F] hover:text-[#252923]'
+                  }`}
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFaqLang('am')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                    faqLang === 'am'
+                      ? 'bg-[#234B36] text-white shadow-xs'
+                      : 'text-[#73776F] hover:text-[#252923]'
+                  }`}
+                >
+                  አማርኛ
+                </button>
+              </div>
             </div>
 
-            {FAQS.map((faq, idx) => (
-              <div key={idx} className="bg-white rounded-2xl border border-[#E5E0D5] p-5 shadow-xs">
-                <h4 className="text-sm font-bold text-[#252923] flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-base text-[#234B36]">help_outline</span>
-                  {faq.q}
-                </h4>
-                <p className="text-xs sm:text-sm text-[#73776F] leading-relaxed pl-6">{faq.a}</p>
+            {loadingFaqs ? (
+              <div className="p-8 text-center bg-white rounded-2xl border border-[#E5E0D5]">
+                <span className="material-symbols-outlined text-2xl animate-spin text-[#234B36]">progress_activity</span>
+                <p className="text-xs text-[#73776F] mt-2">Loading verified knowledge base...</p>
               </div>
-            ))}
+            ) : dynamicFaqs.length > 0 ? (
+              dynamicFaqs.map((faq) => {
+                const questionText = faqLang === 'am' && faq.questionAmharic ? faq.questionAmharic : faq.question;
+                const answerText = faqLang === 'am' && faq.answerAmharic ? faq.answerAmharic : faq.answer;
+                return (
+                  <div key={faq.id} className="bg-white rounded-2xl border border-[#E5E0D5] p-5 shadow-xs transition hover:border-[#234B36]/30">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <h4 className="text-sm font-bold text-[#252923] flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-[#234B36]">help_outline</span>
+                        {questionText}
+                      </h4>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-[#EEF3EF] text-[#234B36]">
+                        {faq.category}
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm text-[#73776F] leading-relaxed pl-6">{answerText}</p>
+                  </div>
+                );
+              })
+            ) : (
+              DEFAULT_FAQS.map((faq, idx) => {
+                const questionText = faqLang === 'am' ? faq.qAmharic : faq.q;
+                const answerText = faqLang === 'am' ? faq.aAmharic : faq.a;
+                return (
+                  <div key={idx} className="bg-white rounded-2xl border border-[#E5E0D5] p-5 shadow-xs">
+                    <h4 className="text-sm font-bold text-[#252923] flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-base text-[#234B36]">help_outline</span>
+                      {questionText}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-[#73776F] leading-relaxed pl-6">{answerText}</p>
+                  </div>
+                );
+              })
+            )}
           </div>
         )}
       </main>

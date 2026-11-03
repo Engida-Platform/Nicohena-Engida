@@ -58,6 +58,8 @@ export interface CreateHostListingPayload {
   coverImage?: string;
   images?: string[];
   amenityIds?: string[];
+  categoryId?: string;
+  destinationId?: string;
 }
 
 export interface UpdateHostListingPayload {
@@ -84,6 +86,8 @@ export interface UpdateHostListingPayload {
   coverImage?: string;
   images?: string[];
   amenityIds?: string[];
+  categoryId?: string;
+  destinationId?: string;
 }
 
 export interface HostListingDetail {

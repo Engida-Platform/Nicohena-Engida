@@ -118,6 +118,8 @@ function initFormFromListing(data: HostListingDetail): EditFormState {
       : Array.isArray(data.amenities)
       ? data.amenities.map((a) => a.id)
       : [],
+    categoryId: (proposed.categoryId as string) ?? (data as any).categoryId ?? '',
+    destinationId: (proposed.destinationId as string) ?? (data as any).destinationId ?? '',
   };
 }
 
@@ -194,6 +196,8 @@ interface EditFormState {
   coverImage: string;
   images: string[];
   amenityIds: string[];
+  categoryId?: string;
+  destinationId?: string;
 }
 
 export default function EditListingPage() {
@@ -216,6 +220,8 @@ export default function EditListingPage() {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [copilotMode, setCopilotMode] = useState<CopilotMode>('both');
   const [amenitiesCatalog, setAmenitiesCatalog] = useState<{ id: string; name: string }[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [catalogDestinations, setCatalogDestinations] = useState<Array<{ id: string; name: string; city: string }>>([]);
 
   const fetchListing = useCallback(async () => {
     try {
@@ -223,15 +229,23 @@ export default function EditListingPage() {
       setFetchError(null);
       setIs404(false);
 
-      const [listingData, amenitiesData] = await Promise.all([
+      const [listingData, amenitiesData, categoriesData, destinationsData] = await Promise.all([
         apiFetch<HostListingDetail>(`/host/listings/${listingId}`),
         apiFetch<{ id: string; name: string }[]>('/amenities').catch(() => []),
+        apiFetch<Array<{ id: string; name: string }>>('/catalog/categories', { skipAuth: true }).catch(() => []),
+        apiFetch<Array<{ id: string; name: string; city: string }>>('/catalog/destinations', { skipAuth: true }).catch(() => []),
       ]);
 
       setListing(listingData);
       setForm(initFormFromListing(listingData));
       if (Array.isArray(amenitiesData)) {
         setAmenitiesCatalog(amenitiesData);
+      }
+      if (Array.isArray(categoriesData)) {
+        setCatalogCategories(categoriesData);
+      }
+      if (Array.isArray(destinationsData)) {
+        setCatalogDestinations(destinationsData);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to load listing.';
@@ -443,6 +457,8 @@ export default function EditListingPage() {
         coverImage: form.coverImage.trim() || undefined,
         images: form.images,
         amenityIds: form.amenityIds,
+        ...(form.categoryId?.trim() ? { categoryId: form.categoryId.trim() } : {}),
+        ...(form.destinationId?.trim() ? { destinationId: form.destinationId.trim() } : {}),
       };
 
       if (listing.listingType === 'RENTAL') {
@@ -669,6 +685,30 @@ export default function EditListingPage() {
                     );
                   })}
                 </div>
+
+                {/* Marketplace Category Selection */}
+                {catalogCategories.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-[#EEF3EF]">
+                    <label className="block text-sm font-bold text-[#252923]">
+                      Marketplace Category <span className="text-xs text-[#73776F] font-normal">(Links listing to guest discovery categories)</span>
+                    </label>
+                    <select
+                      value={form.categoryId || ''}
+                      onChange={(e) => {
+                        setForm((prev) => (prev ? { ...prev, categoryId: e.target.value } : null));
+                        setIsDirty(true);
+                      }}
+                      className="w-full max-w-md px-3.5 py-2.5 rounded-xl border border-[#E5E0D5] bg-white text-sm text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] cursor-pointer"
+                    >
+                      <option value="">Auto-assign from Property Architecture</option>
+                      {catalogCategories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -817,6 +857,32 @@ export default function EditListingPage() {
                     className="w-full px-3 py-2 rounded-xl border border-[#E5E0D5] text-sm font-medium text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] transition"
                   />
                 </div>
+
+                {/* Destination Link */}
+                {catalogDestinations.length > 0 && (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <label htmlFor="destinationId" className="block text-xs font-bold text-[#252923]">
+                      Curated Destination <span className="text-[#73776F] font-normal">(Optional — showcases listing in regional discovery guides)</span>
+                    </label>
+                    <select
+                      id="destinationId"
+                      name="destinationId"
+                      value={form.destinationId || ''}
+                      onChange={(e) => {
+                        setForm((prev) => (prev ? { ...prev, destinationId: e.target.value } : null));
+                        setIsDirty(true);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-[#E5E0D5] bg-white text-sm font-medium text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] cursor-pointer"
+                    >
+                      <option value="">None / Standard City Listing</option>
+                      {catalogDestinations.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} ({d.city})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </section>
 

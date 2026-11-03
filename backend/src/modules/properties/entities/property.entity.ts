@@ -18,6 +18,8 @@ import { Booking } from '../../bookings/entities/booking.entity';
 import { Review } from '../../reviews/entities/review.entity';
 import { AvailabilityBlock } from './availability-block.entity';
 import { ListingReview } from './listing-review.entity';
+import { PropertyCategory } from '../../catalog/entities/property-category.entity';
+import { Destination } from '../../catalog/entities/destination.entity';
 
 export enum PropertyType {
   HOUSE = 'HOUSE',
@@ -48,6 +50,8 @@ export enum ListingStatus {
 @Index('idx_properties_status', ['status'])
 @Index('idx_properties_sub_city', ['subCity'])
 @Index('idx_properties_admin_hidden', ['adminHidden'])
+@Index('idx_properties_category_id', ['categoryId'])
+@Index('idx_properties_destination_id', ['destinationId'])
 export class Property {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -58,6 +62,20 @@ export class Property {
   @ManyToOne(() => User, (user) => user.properties, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'host_id' })
   host: User;
+
+  @Column({ type: 'uuid', nullable: true, name: 'category_id' })
+  categoryId?: string | null;
+
+  @ManyToOne(() => PropertyCategory, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'category_id' })
+  category?: PropertyCategory | null;
+
+  @Column({ type: 'uuid', nullable: true, name: 'destination_id' })
+  destinationId?: string | null;
+
+  @ManyToOne(() => Destination, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'destination_id' })
+  destination?: Destination | null;
 
   @Column({ type: 'varchar', length: 255 })
   title: string;

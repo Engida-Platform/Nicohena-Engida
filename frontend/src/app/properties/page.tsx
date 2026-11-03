@@ -242,10 +242,16 @@ function PropertiesSearchContent() {
   const initialCity = searchParams.get('city') || 'All Ethiopia';
   const initialListingType = (searchParams.get('listingType') as 'RENTAL' | 'SALE' | '') || '';
   const initialPropertyType = (searchParams.get('propertyType') as PropertyTypeFilter | '') || '';
+  const initialCategory = searchParams.get('category') || '';
+  const initialDestination = searchParams.get('destination') || '';
   const initialSearch = searchParams.get('search') || '';
 
   // ── Filter state ──
   const [selectedCity, setSelectedCity] = useState<string>(initialCity);
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
+  const [selectedDestination, setSelectedDestination] = useState<string>(initialDestination);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string; slug: string; icon?: string }>>([]);
+  const [destinations, setDestinations] = useState<Array<{ id: string; name: string; slug: string; city: string }>>([]);
   const [listingType, setListingType] = useState<'RENTAL' | 'SALE' | ''>(initialListingType);
   const [propertyType, setPropertyType] = useState<PropertyTypeFilter | ''>(initialPropertyType);
   const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
@@ -257,6 +263,20 @@ function PropertiesSearchContent() {
   const [aiSearchOpen, setAiSearchOpen] = useState(false);
   const [compareModalOpen, setCompareModalOpen] = useState(false);
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+
+  // Load catalog categories and destinations
+  useEffect(() => {
+    apiFetch<Array<{ id: string; name: string; slug: string; icon?: string }>>('/catalog/categories', { skipAuth: true })
+      .then((data) => {
+        if (Array.isArray(data)) setCategories(data);
+      })
+      .catch(() => {});
+    apiFetch<Array<{ id: string; name: string; slug: string; city: string }>>('/catalog/destinations', { skipAuth: true })
+      .then((data) => {
+        if (Array.isArray(data)) setDestinations(data);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleToggleCompare = (id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -294,6 +314,8 @@ function PropertiesSearchContent() {
       try {
         const params = new URLSearchParams();
         if (selectedCity !== 'All Ethiopia') params.set('city', selectedCity);
+        if (selectedCategory) params.set('category', selectedCategory);
+        if (selectedDestination) params.set('destination', selectedDestination);
         if (listingType) params.set('listingType', listingType);
         if (propertyType) params.set('propertyType', propertyType);
         if (minPrice) params.set('minPrice', minPrice);
@@ -325,14 +347,14 @@ function PropertiesSearchContent() {
         setLoadingMore(false);
       }
     },
-    [selectedCity, listingType, propertyType, minPrice, maxPrice, guestCount, searchText, sortValue],
+    [selectedCity, selectedCategory, selectedDestination, listingType, propertyType, minPrice, maxPrice, guestCount, searchText, sortValue],
   );
 
   // Fetch on filter change (reset to page 1)
   useEffect(() => {
     fetchProperties(1, false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCity, listingType, propertyType, sortValue]);
+  }, [selectedCity, selectedCategory, selectedDestination, listingType, propertyType, sortValue]);
 
   // Debounced fetch for text/number inputs
   useEffect(() => {
@@ -349,6 +371,8 @@ function PropertiesSearchContent() {
 
   const handleReset = () => {
     setSelectedCity('All Ethiopia');
+    setSelectedCategory('');
+    setSelectedDestination('');
     setListingType('');
     setPropertyType('');
     setMinPrice('');
@@ -360,6 +384,8 @@ function PropertiesSearchContent() {
 
   const activeFilterCount = [
     selectedCity !== 'All Ethiopia',
+    selectedCategory !== '',
+    selectedDestination !== '',
     listingType !== '',
     propertyType !== '',
     minPrice !== '',
@@ -452,12 +478,15 @@ function PropertiesSearchContent() {
         </div>
 
         {/* ── City Quick-Filter Pills ── */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-3 scrollbar-hide">
           {ETHIOPIAN_CITIES.map((city) => (
             <button
               key={city}
               type="button"
-              onClick={() => setSelectedCity(city)}
+              onClick={() => {
+                setSelectedCity(city);
+                if (city !== 'All Ethiopia') setSelectedDestination('');
+              }}
               className={`shrink-0 px-4 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
                 selectedCity === city
                   ? 'bg-[#234B36] text-white border-[#234B36] shadow-md shadow-[#234B36]/20'
@@ -468,6 +497,41 @@ function PropertiesSearchContent() {
             </button>
           ))}
         </div>
+
+        {/* ── Dynamic Category Pills ── */}
+        {categories.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6 scrollbar-hide">
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('')}
+              className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
+                selectedCategory === ''
+                  ? 'bg-[#234B36] text-white border-[#234B36] shadow-xs'
+                  : 'bg-white text-[#73776F] border-[#E5E0D5] hover:border-[#234B36]/40 hover:text-[#234B36]'
+              }`}
+            >
+              All Categories
+            </button>
+            {categories.map((c) => {
+              const catKey = c.slug || c.name;
+              const isSelected = selectedCategory === catKey;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(isSelected ? '' : catKey)}
+                  className={`shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer border ${
+                    isSelected
+                      ? 'bg-[#234B36] text-white border-[#234B36] shadow-xs'
+                      : 'bg-white text-[#73776F] border-[#E5E0D5] hover:border-[#234B36]/40 hover:text-[#234B36]'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Expanded Filters Panel ── */}
         {showFilters && (
@@ -574,6 +638,27 @@ function PropertiesSearchContent() {
                   />
                 </div>
               </div>
+
+              {/* Destination Filter */}
+              {destinations.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[#73776F] mb-2">
+                    Curated Destination
+                  </label>
+                  <select
+                    value={selectedDestination}
+                    onChange={(e) => setSelectedDestination(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E5E0D5] bg-[#F8F5ED] text-xs text-[#252923] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] cursor-pointer"
+                  >
+                    <option value="">All Curated Destinations</option>
+                    {destinations.map((d) => (
+                      <option key={d.id} value={d.slug || d.name}>
+                        {d.name} ({d.city})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Filter actions */}

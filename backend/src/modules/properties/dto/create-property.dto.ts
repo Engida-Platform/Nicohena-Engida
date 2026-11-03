@@ -150,4 +150,12 @@ export class CreatePropertyDto {
   @IsString({ each: true })
   @IsOptional()
   amenityIds?: string[];
+
+  @IsString()
+  @IsOptional()
+  categoryId?: string;
+
+  @IsString()
+  @IsOptional()
+  destinationId?: string;
 }

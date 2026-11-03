@@ -122,6 +122,16 @@ function CheckoutContent() {
   const [confirming, setConfirming] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Coupon state
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<{
+    code: string;
+    discountAmountMinor: number;
+    discountType: string;
+  } | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponError, setCouponError] = useState<string | null>(null);
+
   // Check if user came back from cancelled sandbox payment
   useEffect(() => {
     if (searchParams.get('cancelled') === 'true') {
@@ -163,6 +173,55 @@ function CheckoutContent() {
 
   const nights = booking ? calcNights(booking.checkInDate, booking.checkOutDate) : 0;
   const totalETB = booking ? Number(booking.totalPrice) : 0;
+  const discountETB = appliedCoupon ? appliedCoupon.discountAmountMinor / 100 : 0;
+  const finalTotalETB = Math.max(0, totalETB - discountETB);
+
+  const handleApplyCoupon = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = couponCodeInput.trim().toUpperCase();
+    if (!clean) return;
+    setCouponLoading(true);
+    setCouponError(null);
+    try {
+      const res = await apiFetch<{
+        valid: boolean;
+        code: string;
+        discountType: string;
+        discountAmountMinor: number;
+        reason?: string;
+      }>('/coupons/validate', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: clean,
+          bookingAmountMinor: Math.round(totalETB * 100),
+        }),
+      });
+
+      if (!res.valid) {
+        setCouponError(res.reason || 'This promotional code is invalid or has expired');
+        setAppliedCoupon(null);
+      } else {
+        setAppliedCoupon({
+          code: res.code,
+          discountAmountMinor: res.discountAmountMinor,
+          discountType: res.discountType,
+        });
+        setCouponError(null);
+        setToast(`Promo code "${res.code}" applied! You save ETB ${(res.discountAmountMinor / 100).toLocaleString()}`);
+        setTimeout(() => setToast(null), 4000);
+      }
+    } catch (err: unknown) {
+      setCouponError(err instanceof Error ? err.message : 'Failed to validate promo code');
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput('');
+    setCouponError(null);
+  };
 
   const handleProceedToPayment = async () => {
     if (!booking) return;
@@ -188,6 +247,7 @@ function CheckoutContent() {
           currency: 'ETB',
           customerPhone: user?.hostProfile?.phone || '0911000000',
           returnUrl,
+          couponCode: appliedCoupon?.code,
         }),
       });
 
@@ -333,16 +393,90 @@ function CheckoutContent() {
                 </div>
               </div>
 
+              {/* Coupon Code Section */}
+              <div className="mt-4 pt-4 border-t border-[#E5E0D5]/70">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#73776F] mb-2">Promotional Code / Coupon</p>
+                {appliedCoupon ? (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-[#EEF3EF] border border-[#234B36]/30">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[#234B36] text-lg">local_activity</span>
+                      <div>
+                        <p className="text-xs font-bold text-[#234B36]">
+                          {appliedCoupon.code}
+                          <span className="ml-2 font-normal text-[11px] text-[#234B36]/80">
+                            (-ETB {(appliedCoupon.discountAmountMinor / 100).toLocaleString()})
+                          </span>
+                        </p>
+                        <p className="text-[10px] text-[#73776F]">
+                          {appliedCoupon.discountType === 'PERCENTAGE' ? 'Percentage discount' : 'Fixed discount'} applied
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      className="text-xs text-rose-600 hover:text-rose-800 font-semibold cursor-pointer px-2 py-1 rounded-lg hover:bg-rose-50 transition"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleApplyCoupon} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponCodeInput}
+                      onChange={(e) => {
+                        setCouponCodeInput(e.target.value.toUpperCase());
+                        if (couponError) setCouponError(null);
+                      }}
+                      placeholder="e.g. WELCOME2026"
+                      className="flex-1 px-3 py-2 text-xs rounded-xl border border-[#E5E0D5] bg-white text-[#252923] uppercase font-mono tracking-wider focus:outline-hidden focus:border-[#234B36]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={couponLoading || !couponCodeInput.trim()}
+                      className="px-4 py-2 rounded-xl bg-[#234B36] text-white text-xs font-bold hover:bg-[#1a3828] disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      {couponLoading ? (
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        'Apply'
+                      )}
+                    </button>
+                  </form>
+                )}
+                {couponError && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs">error</span>
+                    {couponError}
+                  </p>
+                )}
+              </div>
+
               {/* Price total */}
-              <div className="mt-4 pt-4 border-t border-[#E5E0D5]/70 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-[#73776F]">Total to Pay (ETB)</p>
-                  <p className="text-2xl font-black text-[#252923]">ETB {totalETB.toLocaleString()}</p>
-                  <p className="text-[10px] text-[#73776F] mt-0.5">Includes taxes and platform service fee</p>
+              <div className="mt-4 pt-4 border-t border-[#E5E0D5]/70">
+                {appliedCoupon && (
+                  <div className="space-y-1.5 mb-3 text-xs">
+                    <div className="flex justify-between text-[#73776F]">
+                      <span>Original stay total</span>
+                      <span>ETB {totalETB.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-[#234B36] font-semibold">
+                      <span>Promo discount ({appliedCoupon.code})</span>
+                      <span>-ETB {discountETB.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-[#73776F]">Total to Pay (ETB)</p>
+                    <p className="text-2xl font-black text-[#252923]">ETB {finalTotalETB.toLocaleString()}</p>
+                    <p className="text-[10px] text-[#73776F] mt-0.5">Includes taxes and platform service fee</p>
+                  </div>
+                  <span className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
+                    {booking.status}
+                  </span>
                 </div>
-                <span className="px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
-                  {booking.status}
-                </span>
               </div>
             </div>
 
@@ -409,7 +543,7 @@ function CheckoutContent() {
                 </>
               ) : (
                 <>
-                  <span>Pay ETB {totalETB.toLocaleString()} via Chapa</span>
+                  <span>Pay ETB {finalTotalETB.toLocaleString()} via Chapa</span>
                   <span className="material-symbols-outlined text-lg">lock</span>
                 </>
               )}

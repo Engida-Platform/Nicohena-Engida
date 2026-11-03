@@ -152,4 +152,12 @@ export class UpdateHostListingDto {
   @IsString({ each: true })
   @IsOptional()
   amenityIds?: string[];
+
+  @IsString()
+  @IsOptional()
+  categoryId?: string;
+
+  @IsString()
+  @IsOptional()
+  destinationId?: string;
 }

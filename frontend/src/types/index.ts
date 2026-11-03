@@ -110,6 +110,10 @@ export interface Property {
   amenities: Amenity[];
   rooms: Room[];
   reviews: Review[];
+  categoryId?: string | null;
+  category?: { id: string; name: string; slug: string; icon?: string } | null;
+  destinationId?: string | null;
+  destination?: { id: string; name: string; slug: string; city: string } | null;
   createdAt: string;
   updatedAt: string;
 }
