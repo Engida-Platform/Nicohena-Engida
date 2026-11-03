@@ -742,7 +742,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
     <div className="min-h-screen bg-[#faf5ee] text-[#3a302a] flex flex-col font-body selection:bg-[#c2652a]/20 selection:text-[#3a302a]">
       <AppHeader />
 
-      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-12 py-8 w-full flex-1">
+      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-12 py-6 sm:py-8 pb-28 lg:pb-8 w-full flex-1">
         {/* Breadcrumb Navigation & Action Bar */}
         <div className="flex items-center justify-between gap-4 mb-6">
           <Link
@@ -877,7 +877,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-3.5 h-[360px] sm:h-[460px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative group">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-3.5 h-[280px] sm:h-[400px] md:h-[520px] rounded-2xl sm:rounded-3xl overflow-hidden relative group">
               {/* Primary Hero Image */}
               <div
                 className="md:col-span-2 relative h-full overflow-hidden cursor-pointer"
@@ -888,6 +888,11 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                   alt={property.title}
                   className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                 />
+                {property.images.length > 1 && (
+                  <span className="md:hidden absolute top-3 right-3 z-10 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-xs text-white text-[11px] font-medium tracking-wide shadow-sm">
+                    1 / {property.images.length}
+                  </span>
+                )}
               </div>
 
               {/* Sub-photo 1 */}
@@ -931,7 +936,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                 <button
                   type="button"
                   onClick={() => openPhotoModal(0)}
-                  className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
+                  className="absolute bottom-4 right-4 z-10 inline-flex items-center gap-2 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-white/95 backdrop-blur-md text-[#3a302a] text-xs font-semibold hover:bg-white transition-all shadow-md hover:shadow-lg active:scale-95 cursor-pointer font-body"
                 >
                   <span className="material-symbols-outlined text-sm">grid_view</span>
                   <span>View all {property.images.length} photos</span>
@@ -1177,7 +1182,7 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
           </div>
 
           {/* Right Column (4 cols): Sticky Reservation / Purchase Card */}
-          <aside className="lg:col-span-5 xl:col-span-4 sticky top-28">
+          <aside id="reservation-widget" className="lg:col-span-5 xl:col-span-4 sticky top-28">
             <div className="bg-white rounded-3xl border border-[#d8d0c8] p-6 sm:p-8 shadow-[0_12px_40px_rgba(58,48,42,0.08)]">
               {property.listingType === 'SALE' ? (
                 <div>
@@ -1400,6 +1405,115 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
           </aside>
         </div>
       </main>
+
+      {/* Mobile Sticky Reservation Bottom Bar (< lg) */}
+      <aside
+        aria-label="Mobile reservation action bar"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-[#d8d0c8] px-4 py-3 sm:px-6 shadow-[0_-4px_24px_rgba(0,0,0,0.08)]"
+      >
+        <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-3">
+          {/* Price & Date/Rating on Left */}
+          <div className="flex flex-col min-w-0">
+            {property.listingType === 'SALE' ? (
+              <>
+                <span className="text-base sm:text-lg font-bold font-headline text-[#234B36] truncate">
+                  ETB {Number(property.salePrice || 0).toLocaleString()}
+                </span>
+                <span className="text-[11px] text-[#73776F]">Property for Sale</span>
+              </>
+            ) : (
+              <>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-base sm:text-lg font-bold font-headline text-[#3a302a]">
+                    {property.currency} {property.pricePerNight.toLocaleString()}
+                  </span>
+                  <span className="text-xs text-[#605850]">/ night</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-[#605850]">
+                  {nightsCount > 0 ? (
+                    <span className="text-[#234B36] font-semibold">
+                      {nightsCount} {nightsCount === 1 ? 'night' : 'nights'}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById('reservation-widget');
+                        if (el) el.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="underline font-medium text-[#a84d16] hover:text-[#994413] cursor-pointer"
+                    >
+                      Add dates
+                    </button>
+                  )}
+                  <span>·</span>
+                  <span className="flex items-center gap-0.5 font-semibold text-[#3a302a]">
+                    <span
+                      className="text-[#a84d16] material-symbols-outlined text-[13px]"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      star
+                    </span>
+                    {property.rating}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Action Button on Right */}
+          {property.listingType === 'SALE' ? (
+            <button
+              type="button"
+              onClick={() => {
+                setViewingSuccess(false);
+                setViewingError(null);
+                setViewingModalOpen(true);
+              }}
+              className="py-3 px-5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white font-semibold text-xs sm:text-sm transition-all duration-200 shadow-md shadow-[#234B36]/25 active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">calendar_month</span>
+              <span>Schedule Viewing</span>
+            </button>
+          ) : Boolean(user?.id && (user.id === property.host?.id || user.id === property.hostId)) ? (
+            <Link
+              href={`/host/listings/${property.id}/edit`}
+              className="py-3 px-5 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white font-semibold text-xs sm:text-sm transition-all shadow-md active:scale-95 shrink-0 flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-base">edit</span>
+              <span>Edit Listing</span>
+            </Link>
+          ) : nightsCount < 1 ? (
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById('reservation-widget');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="py-3 px-5 sm:px-6 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-[#234B36]/25 active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">event</span>
+              <span>Check Availability</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={isBookingLoading}
+              onClick={handleBooking}
+              className="py-3 px-5 sm:px-6 rounded-xl bg-[#b2531b] hover:bg-[#994413] disabled:opacity-50 text-white font-semibold text-xs sm:text-sm transition-all shadow-md shadow-[#b2531b]/25 active:scale-95 shrink-0 flex items-center gap-1.5 cursor-pointer"
+            >
+              {isBookingLoading ? (
+                <span>Processing...</span>
+              ) : (
+                <>
+                  <span>Reserve</span>
+                  <span className="material-symbols-outlined text-base">arrow_forward</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </aside>
 
       {/* Fullscreen Photo Lightbox Modal */}
       {activePhotoModal !== null && (

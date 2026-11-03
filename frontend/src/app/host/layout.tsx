@@ -110,7 +110,7 @@ function SidebarContent({ onClose }: { onClose?: () => void }) {
           {onClose && (
             <button
               onClick={onClose}
-              className="md:hidden p-1.5 rounded-lg text-[#E5E0D5] hover:text-white hover:bg-white/10 transition"
+              className="md:hidden p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-[#E5E0D5] hover:text-white hover:bg-white/10 transition cursor-pointer active:scale-95"
               aria-label="Close menu"
             >
               <X className="w-5 h-5" />
@@ -280,7 +280,7 @@ export default function HostLayout({ children }: { children: React.ReactNode }) 
         <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[#1A2E21] border-b border-[#252923] text-white flex-shrink-0 shadow-xs">
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="p-2 rounded-xl text-[#E5E0D5] hover:text-white hover:bg-white/10 transition"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl text-[#E5E0D5] hover:text-white hover:bg-white/10 transition cursor-pointer active:scale-95"
             aria-label="Open navigation menu"
           >
             <Menu className="w-5 h-5" />

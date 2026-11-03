@@ -1007,7 +1007,34 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
             {/* ============================================================ */}
         <section className="sticky top-0 z-[45] w-full px-4 sm:px-6 lg:px-12 pt-3 pb-3 flex flex-col items-center justify-center bg-[#F8F5ED]/95 backdrop-blur-md animate-fade-in-up">
           <div className="w-full max-w-4xl mx-auto flex justify-center relative">
-            <div className="search-bar-container inline-flex flex-wrap sm:flex-nowrap items-center bg-white rounded-full border border-[#E5E0D5] shadow-[0_4px_16px_rgba(58,48,42,0.06)] hover:shadow-[0_8px_28px_rgba(194,101,42,0.16)] hover:border-[#234B36]/50 transition-all duration-300 pl-4 sm:pl-8 pr-2.5 py-2.5 gap-2 focus-within:ring-2 focus-within:ring-[#234B36]/40 focus-within:border-[#234B36]">
+            {/* Mobile Compact Search Pill (< sm) */}
+            <div
+              onClick={() => {
+                setActiveSegment('where');
+                setSearchPopoverOpen(true);
+              }}
+              className="sm:hidden flex items-center justify-between w-full max-w-md bg-white rounded-full border border-[#E5E0D5] shadow-[0_4px_16px_rgba(58,48,42,0.06)] hover:shadow-[0_8px_24px_rgba(35,75,54,0.12)] p-2 pl-3.5 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-[#234B36] flex items-center justify-center text-white shrink-0 shadow-xs">
+                  <span className="material-symbols-outlined text-lg font-bold">search</span>
+                </div>
+                <div className="flex flex-col min-w-0 text-left">
+                  <span className="text-xs font-bold text-[#252923] truncate">
+                    {destinationSearch || 'Where to in Ethiopia?'}
+                  </span>
+                  <span className="text-[11px] text-[#73776F] truncate">
+                    {datesSelected || 'Anytime'} • {guestCount > 1 ? `${guestCount} guests` : 'Add guests'}
+                  </span>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full border border-[#E5E0D5] flex items-center justify-center text-[#252923] shrink-0 ml-2">
+                <span className="material-symbols-outlined text-base">tune</span>
+              </div>
+            </div>
+
+            {/* Desktop Segmented Search Pill (>= sm) */}
+            <div className="search-bar-container hidden sm:inline-flex flex-nowrap items-center bg-white rounded-full border border-[#E5E0D5] shadow-[0_4px_16px_rgba(58,48,42,0.06)] hover:shadow-[0_8px_28px_rgba(194,101,42,0.16)] hover:border-[#234B36]/50 transition-all duration-300 pl-4 sm:pl-8 pr-2.5 py-2.5 gap-2 focus-within:ring-2 focus-within:ring-[#234B36]/40 focus-within:border-[#234B36]">
               {/* WHERE SEGMENT */}
               <button
                 type="button"
@@ -1081,11 +1108,9 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               </button>
             </div>
 
-
-
             {/* Interactive Search Popover */}
             {searchPopoverOpen && (
-              <div className="absolute top-20 w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-[#E5E0D5] p-6 z-50 animate-fade-in-up">
+              <div className="absolute top-16 sm:top-20 left-2 right-2 sm:left-auto sm:right-auto w-auto sm:w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-[#E5E0D5] p-5 sm:p-6 z-50 animate-fade-in-up">
                 <div className="flex items-center justify-between pb-3 border-b border-[#E5E0D5]/40 mb-4">
                   <h4 className="font-bold text-sm text-[#252923]">
                     {activeSegment === 'where' && 'Search by destination or property'}
@@ -1219,24 +1244,24 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
             </div>
 
             {/* Action Controls: AI Search, Saved Favorites, Filters & Sort */}
-            <div className="flex items-center gap-2 shrink-0 pl-4 border-l border-[#E5E0D5]/40">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 pl-2 sm:pl-4 border-l border-[#E5E0D5]/40">
               <button
                 type="button"
                 onClick={() => setAiSearchModalOpen(true)}
-                className="ai-search-action-btn flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-linear-to-r from-white to-[#FAF8F2] border border-[#D87836]/40 hover:border-[#D87836] text-[#252923] hover:text-[#234B36] shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(216,120,54,0.15)] active:scale-95 transition-all duration-200 cursor-pointer"
+                className="ai-search-action-btn flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-full bg-linear-to-r from-white to-[#FAF8F2] border border-[#D87836]/40 hover:border-[#D87836] text-[#252923] hover:text-[#234B36] shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(216,120,54,0.15)] active:scale-95 transition-all duration-200 cursor-pointer"
                 title="Search using conversational Ethiopian AI"
               >
                 <span className="material-symbols-outlined text-base text-[#D87836] transition-transform duration-200 hover:rotate-12">
                   auto_awesome
                 </span>
-                <span className="text-xs sm:text-sm font-semibold text-[#234B36]">AI Search</span>
+                <span className="hidden sm:inline text-xs sm:text-sm font-semibold text-[#234B36]">AI Search</span>
               </button>
 
               {/* Saved Stays / Favorites Toggle */}
               <button
                 type="button"
                 onClick={() => setShowSavedOnly((prev) => !prev)}
-                className={`favorites-action-btn flex items-center gap-1.5 px-3.5 py-2 rounded-full transition-all duration-200 cursor-pointer ${
+                className={`favorites-action-btn flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-2 rounded-full transition-all duration-200 cursor-pointer ${
                   showSavedOnly
                     ? 'bg-[#234B36] text-white border border-[#234B36] shadow-sm hover:bg-[#1a3828]'
                     : savedCount > 0
@@ -1253,26 +1278,32 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                 >
                   favorite
                 </span>
-                <span className="text-xs sm:text-sm font-semibold">
+                <span className="hidden sm:inline text-xs sm:text-sm font-semibold">
                   Saved{savedCount > 0 ? ` (${savedCount})` : ''}
                 </span>
+                {savedCount > 0 && (
+                  <span className="sm:hidden text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#D87836] text-white">
+                    {savedCount}
+                  </span>
+                )}
               </button>
 
               <button
                 type="button"
                 onClick={() => setFilterModalOpen(true)}
-                className={`filter-action-btn flex items-center gap-1.5 px-4 py-2 rounded-full transition-all duration-200 cursor-pointer ${
+                className={`filter-action-btn flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-2 rounded-full transition-all duration-200 cursor-pointer ${
                   totalActiveFilterCount > 0
                     ? 'bg-[#234B36] text-white border border-[#234B36] shadow-sm hover:bg-[#1a3828]'
                     : 'bg-white border border-[#E5E0D5] text-[#252923] hover:text-[#234B36] hover:border-[#234B36]/50 shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(194,101,42,0.15)] active:scale-95'
                 }`}
+                title="Filter properties"
               >
-                <span className="material-symbols-outlined text-lg transition-transform duration-200 hover:rotate-45">
+                <span className="material-symbols-outlined text-base sm:text-lg transition-transform duration-200 hover:rotate-45">
                   tune
                 </span>
-                <span className="text-sm font-semibold">Filters</span>
+                <span className="hidden sm:inline text-sm font-semibold">Filters</span>
                 {totalActiveFilterCount > 0 && (
-                  <span className="inline-flex items-center justify-center w-5 h-5 ml-1 text-xs font-bold rounded-full bg-white text-[#234B36]">
+                  <span className="inline-flex items-center justify-center w-5 h-5 sm:ml-1 text-xs font-bold rounded-full bg-white text-[#234B36]">
                     {totalActiveFilterCount}
                   </span>
                 )}
@@ -1282,15 +1313,17 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                 <button
                   type="button"
                   onClick={() => setSortDropdownOpen((open) => !open)}
-                  className="sort-action-btn flex items-center gap-1 px-4 py-2 rounded-full bg-white border border-[#E5E0D5] text-[#252923] hover:text-[#234B36] hover:border-[#234B36]/50 shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(194,101,42,0.15)] active:scale-95 transition-all duration-200 cursor-pointer"
+                  className="sort-action-btn flex items-center gap-1 px-2.5 sm:px-4 py-2 rounded-full bg-white border border-[#E5E0D5] text-[#252923] hover:text-[#234B36] hover:border-[#234B36]/50 shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(194,101,42,0.15)] active:scale-95 transition-all duration-200 cursor-pointer"
+                  title="Sort properties"
                 >
-                  <span className="text-sm font-semibold capitalize">
+                  <span className="material-symbols-outlined text-base">swap_vert</span>
+                  <span className="hidden md:inline text-sm font-semibold capitalize">
                     {sortOption === 'recommended' && 'Sort: Recommended'}
                     {sortOption === 'price-asc' && 'Price: Low to High'}
                     {sortOption === 'price-desc' && 'Price: High to Low'}
                     {sortOption === 'rating' && 'Highest Rated'}
                   </span>
-                  <span className="material-symbols-outlined text-base transition-transform duration-200">
+                  <span className="material-symbols-outlined text-base transition-transform duration-200 hidden sm:inline">
                     expand_more
                   </span>
                 </button>
@@ -1585,7 +1618,7 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
               </div>
             )
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 sm:gap-6">
               {displayedListings.map((property, idx) => {
                 const isSaved = wishlist[property.id];
                 return (
