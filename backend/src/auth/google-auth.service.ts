@@ -73,15 +73,16 @@ export class GoogleAuthService {
         }
         // Any Vercel deployment (preview URLs or production)
         // must use the canonical authorized production domain registered with Google Cloud.
-        const canonicalVercel = this.configService.get<string>('CANONICAL_VERCEL_DOMAIN') || 'engida-virid.vercel.app';
-        const cleanHost = host.endsWith('.vercel.app') ? canonicalVercel : host;
+        // On Vercel, the backend API runs at nicohena-engida.vercel.app
+        const canonicalBackendHost = this.configService.get<string>('CANONICAL_BACKEND_DOMAIN') || 'nicohena-engida.vercel.app';
+        const cleanHost = host.endsWith('.vercel.app') ? canonicalBackendHost : host;
         return `${proto}://${cleanHost}/auth/google/callback`;
       }
     }
 
     const backendUrl =
       this.configService.get<string>('BACKEND_URL') ||
-      'https://engida-virid.vercel.app';
+      'https://nicohena-engida.vercel.app';
     return `${backendUrl.replace(/\/$/, '')}/auth/google/callback`;
   }
 

@@ -28,6 +28,17 @@ export default function GoogleCallbackPage() {
       const token = params.get('token');
       const refresh = params.get('refresh');
       const rawNext = params.get('next');
+      const code = params.get('code');
+      const state = params.get('state');
+
+      // Defensive fallback: if Google redirected directly to frontend with code and state,
+      // forward to backend callback so it can exchange code for tokens
+      if (!token && code && state) {
+        const { getApiBaseUrl } = await import('@/lib/api');
+        const backendBase = getApiBaseUrl();
+        window.location.href = `${backendBase}/auth/google/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
+        return;
+      }
 
       if (token) {
         setAccessToken(token);
