@@ -15,49 +15,62 @@ import { setAccessToken, setRefreshToken } from '@/lib/api';
  */
 export default function GoogleCallbackPage() {
   const router = useRouter();
-  const { user, loading, refreshUser } = useAuth();
+  const { refreshUser } = useAuth();
   const [status, setStatus] = useState<'working' | 'error'>('working');
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    let active = true;
+
+    async function processCallback() {
+      if (typeof window === 'undefined') return;
+
       const params = new URLSearchParams(window.location.search);
       const token = params.get('token');
       const refresh = params.get('refresh');
+      const rawNext = params.get('next');
+
       if (token) {
         setAccessToken(token);
       }
       if (refresh) {
         setRefreshToken(refresh);
       }
-      if (token || refresh) {
-        refreshUser();
+
+      try {
+        const freshUser = await refreshUser();
+        if (!active) return;
+
+        if (freshUser) {
+          if (freshUser.role === 'ADMIN') {
+            const adminDest =
+              rawNext && rawNext.startsWith('/admin')
+                ? getSafeReturnPath(rawNext, '/admin')
+                : '/admin';
+            router.replace(adminDest);
+          } else {
+            const defaultFallback = freshUser.hostProfile ? '/host/dashboard' : '/';
+            const nextPath = getSafeReturnPath(rawNext, defaultFallback);
+            router.replace(nextPath);
+          }
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to restore session after Google callback:', err);
       }
-    }
-  }, [refreshUser]);
 
-  useEffect(() => {
-    if (loading) return;
-
-    const params = new URLSearchParams(window.location.search);
-    const rawNext = params.get('next');
-
-    if (user) {
-      if (user.role === 'ADMIN') {
-        const adminDest =
-          rawNext && rawNext.startsWith('/admin')
-            ? getSafeReturnPath(rawNext, '/admin')
-            : '/admin';
-        router.replace(adminDest);
-      } else {
-        const defaultFallback = user.hostProfile ? '/host/dashboard' : '/';
-        const nextPath = getSafeReturnPath(rawNext, defaultFallback);
-        router.replace(nextPath);
-      }
-    } else {
+      if (!active) return;
       setStatus('error');
-      router.replace('/login?error=google_failed');
+      setTimeout(() => {
+        router.replace('/login?error=google_failed');
+      }, 1200);
     }
-  }, [user, loading, router]);
+
+    processCallback();
+
+    return () => {
+      active = false;
+    };
+  }, [refreshUser, router]);
 
   return (
     <div className="min-h-screen bg-[#F8F5ED] flex items-center justify-center px-4 font-body">

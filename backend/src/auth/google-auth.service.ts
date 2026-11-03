@@ -52,7 +52,10 @@ export class GoogleAuthService {
     const explicit = this.configService.get<string>('GOOGLE_CALLBACK_URL');
     if (explicit) return explicit;
 
-    const backendUrl = this.configService.get<string>('BACKEND_URL', 'http://localhost:3000');
+    const backendUrl =
+      this.configService.get<string>('BACKEND_URL') ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+      'https://nicohena-engida.vercel.app';
     return `${backendUrl.replace(/\/$/, '')}/auth/google/callback`;
   }
 

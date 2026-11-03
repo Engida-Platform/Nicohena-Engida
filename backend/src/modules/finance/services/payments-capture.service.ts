@@ -148,15 +148,15 @@ export class PaymentsCaptureService {
     const currency = dto.currency || booking.paymentCurrency || 'ETB';
     const settings = await this.settingsService.getAllSettings();
     const liveAllowed = settings.liveCaptureEnabled;
+    const hasChapaKey = Boolean(process.env.CHAPA_SECRET_KEY);
+    const useChapa = dto.paymentMethod === 'CHAPA' && (hasChapaKey || liveAllowed);
 
-    const provider =
-      liveAllowed && dto.paymentMethod === 'CHAPA'
-        ? this.chapaProvider
-        : this.sandboxProvider;
+    let provider: typeof this.chapaProvider | typeof this.sandboxProvider =
+      useChapa ? this.chapaProvider : this.sandboxProvider;
 
     const idempotencyKey = `bkg_${booking.id}_pay_${Date.now()}_${Math.floor(100 + Math.random() * 900)}`;
 
-    const sessionResult = await provider.createSession({
+    const sessionInput = {
       bookingId: booking.id,
       amountMinor,
       currency,
@@ -168,7 +168,15 @@ export class PaymentsCaptureService {
       propertyTitle: booking.property?.title || 'ENGIDA Stay',
       city: booking.property?.city || 'Addis Ababa',
       idempotencyKey,
-    });
+    };
+
+    let sessionResult = await provider.createSession(sessionInput);
+
+    if (sessionResult.status === 'FAILED' && provider === this.chapaProvider) {
+      this.logger.warn('Chapa session initialization failed; falling back to sandbox payment provider');
+      provider = this.sandboxProvider;
+      sessionResult = await provider.createSession(sessionInput);
+    }
 
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 

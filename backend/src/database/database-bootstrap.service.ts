@@ -231,5 +231,79 @@ export class DatabaseBootstrapService implements OnApplicationBootstrap {
         (gen_random_uuid(), 'finance.vat_rate_bps', '1500', 'int', 'VAT rate in basis points (15%)', NOW())
       ON CONFLICT ("key") DO NOTHING;
     `).catch((e) => this.logger.warn(`Could not ensure finance_settings: ${e.message}`));
+
+    // 12. Ensure coupons and coupon_redemptions tables, enums, columns, and default coupons
+    await this.dataSource.query(`
+      DO $$ BEGIN
+        CREATE TYPE "coupons_discount_type_enum" AS ENUM ('PERCENTAGE', 'FIXED_AMOUNT');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+
+      DO $$ BEGIN
+        CREATE TYPE "coupons_approval_status_enum" AS ENUM ('APPROVED', 'PENDING_APPROVAL', 'REJECTED');
+      EXCEPTION
+        WHEN duplicate_object THEN null;
+      END $$;
+
+      CREATE TABLE IF NOT EXISTS "coupons" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "code" VARCHAR(50) NOT NULL UNIQUE,
+        "description" VARCHAR(255),
+        "discount_type" "coupons_discount_type_enum" NOT NULL DEFAULT 'PERCENTAGE',
+        "discount_value" BIGINT NOT NULL DEFAULT 10,
+        "currency" VARCHAR(10) NOT NULL DEFAULT 'ETB',
+        "min_booking_amount_minor" BIGINT NOT NULL DEFAULT 0,
+        "max_discount_amount_minor" BIGINT,
+        "starts_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "expires_at" TIMESTAMPTZ,
+        "max_redemptions" INT,
+        "redemptions_count" INT NOT NULL DEFAULT 0,
+        "per_user_limit" INT NOT NULL DEFAULT 1,
+        "is_active" BOOLEAN NOT NULL DEFAULT true,
+        "approval_status" "coupons_approval_status_enum" NOT NULL DEFAULT 'APPROVED',
+        "created_by_id" UUID,
+        "approved_by_id" UUID,
+        "approved_at" TIMESTAMPTZ,
+        "rejection_reason" TEXT,
+        "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "approval_status" "coupons_approval_status_enum" NOT NULL DEFAULT 'APPROVED';
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "created_by_id" UUID;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "approved_by_id" UUID;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "approved_at" TIMESTAMPTZ;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "rejection_reason" TEXT;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "currency" VARCHAR(10) NOT NULL DEFAULT 'ETB';
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "min_booking_amount_minor" BIGINT NOT NULL DEFAULT 0;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "max_discount_amount_minor" BIGINT;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "starts_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMPTZ;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "max_redemptions" INT;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "redemptions_count" INT NOT NULL DEFAULT 0;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "per_user_limit" INT NOT NULL DEFAULT 1;
+      ALTER TABLE "coupons" ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN NOT NULL DEFAULT true;
+
+      CREATE TABLE IF NOT EXISTS "coupon_redemptions" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "coupon_id" UUID NOT NULL REFERENCES "coupons"("id") ON DELETE CASCADE,
+        "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "booking_id" UUID,
+        "discount_amount_minor" BIGINT NOT NULL DEFAULT 0,
+        "redeemed_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS "idx_coupons_code" ON "coupons"("code");
+      CREATE INDEX IF NOT EXISTS "idx_coupons_is_active" ON "coupons"("is_active");
+      CREATE INDEX IF NOT EXISTS "idx_coupon_redemptions_coupon_id" ON "coupon_redemptions"("coupon_id");
+      CREATE INDEX IF NOT EXISTS "idx_coupon_redemptions_user_id" ON "coupon_redemptions"("user_id");
+
+      INSERT INTO "coupons" ("code", "description", "discount_type", "discount_value", "currency", "min_booking_amount_minor", "max_discount_amount_minor", "starts_at", "max_redemptions", "per_user_limit", "is_active", "approval_status")
+      VALUES
+        ('WELCOME10', '10% off your inaugural stay in Ethiopia', 'PERCENTAGE', 10, 'ETB', 0, 500000, NOW(), 1000, 1, true, 'APPROVED'),
+        ('HABESHA20', '20% exclusive festive discount for local stays', 'PERCENTAGE', 20, 'ETB', 500000, 1000000, NOW(), 500, 1, true, 'APPROVED')
+      ON CONFLICT ("code") DO NOTHING;
+    `).catch((e) => this.logger.warn(`Could not ensure coupons schema: ${e.message}`));
   }
 }

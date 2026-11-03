@@ -33,8 +33,26 @@ export class ChapaPaymentProvider implements PaymentProvider {
     const txRef = `ENGIDA-${input.bookingId.slice(0, 8)}-${Date.now()}`;
     const amountDecimal = fromMinorUnits(input.amountMinor);
 
+    const backendUrl =
+      this.configService.get<string>('BACKEND_URL') ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+      'https://nicohena-engida.vercel.app';
+
+    const callbackUrl =
+      input.callbackUrl ||
+      `${backendUrl.replace(/\/$/, '')}/payments/webhook/chapa`;
+
+    const frontendUrl =
+      this.configService.get<string>('FRONTEND_URL') ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
+      'https://nicohena-engida.vercel.app';
+
+    const returnUrl =
+      input.returnUrl ||
+      `${frontendUrl.replace(/\/$/, '')}/checkout/${input.bookingId}/success`;
+
     if (!this.secretKey) {
-      this.logger.warn('Chapa secret key missing; cannot generate live session');
+      this.logger.warn('Chapa secret key missing in environment; cannot generate live Chapa session');
       return {
         sessionId: txRef,
         status: 'FAILED',
@@ -58,8 +76,8 @@ export class ChapaPaymentProvider implements PaymentProvider {
           last_name: input.customerName.split(' ').slice(1).join(' ') || 'User',
           phone_number: input.customerPhone || '0911000000',
           tx_ref: txRef,
-          callback_url: input.callbackUrl,
-          return_url: input.returnUrl,
+          callback_url: callbackUrl,
+          return_url: returnUrl,
           'customization[title]': `ENGIDA - ${input.propertyTitle.slice(0, 30)}`,
           'customization[description]': `Stay in ${input.city}`,
         }),
@@ -123,6 +141,28 @@ export class ChapaPaymentProvider implements PaymentProvider {
     }
 
     const txRef = parsed?.tx_ref || parsed?.data?.tx_ref;
+
+    // Direct fallback verification with Chapa API if signature didn't match or was omitted
+    if (!isValid && this.secretKey && txRef) {
+      try {
+        const verifyRes = await fetch(`${this.baseUrl}/transaction/verify/${encodeURIComponent(txRef)}`, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${this.secretKey}`,
+          },
+        });
+        if (verifyRes.ok) {
+          const verifyData: any = await verifyRes.json();
+          if (verifyData?.status === 'success' && String(verifyData?.data?.status).toLowerCase() === 'success') {
+            this.logger.log(`Transaction ${txRef} verified directly with Chapa API`);
+            isValid = true;
+          }
+        }
+      } catch (verifyErr: any) {
+        this.logger.warn(`Chapa direct transaction verification error for ${txRef}: ${verifyErr.message}`);
+      }
+    }
+
     const providerEventId = parsed?.event_id || txRef || `chapa-${Date.now()}`;
     const status = parsed?.status || parsed?.data?.status;
 

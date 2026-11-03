@@ -63,7 +63,7 @@ export class GoogleAuthController {
       httpOnly: true,
       secure: this.configService.get<string>('NODE_ENV') === 'production',
       sameSite: 'lax',
-      path: '/auth/google',
+      path: '/',
       maxAge: STATE_COOKIE_TTL_MS,
     });
 
@@ -92,11 +92,11 @@ export class GoogleAuthController {
   ) {
     if (error) {
       this.logger.warn(`Google sign-in was not completed: ${error}`);
-      return this.redirectToClient(res, `/login?error=${encodeURIComponent(error)}`);
+      return this.redirectToClient(res, `/login?error=${encodeURIComponent(error)}`, req);
     }
 
     if (!code || !state) {
-      return this.redirectToClient(res, '/login?error=google_invalid_response');
+      return this.redirectToClient(res, '/login?error=google_invalid_response', req);
     }
 
     // The intended destination is only trusted once the signed state verified.
@@ -124,38 +124,48 @@ export class GoogleAuthController {
 
       setRefreshCookie(res, result.refreshToken, this.configService);
 
-      // The access token is never put in the URL. The frontend exchanges the
-      // HttpOnly refresh cookie for an access token on the callback page.
+      // Clear OAuth state cookie
       res.clearCookie(STATE_COOKIE, {
         httpOnly: true,
         secure: this.configService.get<string>('NODE_ENV') === 'production',
         sameSite: 'lax',
-        path: '/auth/google',
+        path: '/',
       });
 
       return this.redirectToClient(
         res,
         `/auth/google/callback?next=${encodeURIComponent(statePayload.next)}&token=${encodeURIComponent(result.accessToken)}&refresh=${encodeURIComponent(result.refreshToken)}`,
+        req,
       );
     } catch (err) {
       this.logger.warn(`Google sign-in failed: ${(err as Error).message}`);
 
-      // Only our own, user-safe messages are shown to the browser. Everything
-      // else (provider errors, network issues) is logged server-side only.
       const reason =
         err instanceof UnauthorizedException || err instanceof ConflictException
           ? err.message
           : 'google_failed';
 
-      // Send the user back to the page they started from (e.g. the host
-      // gateway) so the error is shown in the right context.
       const target = resolvedNext ?? '/login';
-      return this.redirectToClient(res, withQueryParam(target, 'error', reason));
+      return this.redirectToClient(res, withQueryParam(target, 'error', reason), req);
     }
   }
 
-  private redirectToClient(res: Response, path: string) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL', 'http://localhost:3001');
+  private redirectToClient(res: Response, path: string, req?: Request) {
+    let frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    if (!frontendUrl || frontendUrl.includes('localhost')) {
+      if (req) {
+        const host = req.headers['x-forwarded-host'] || req.headers.host;
+        const proto = req.headers['x-forwarded-proto'] || 'https';
+        if (host && !String(host).includes('localhost')) {
+          frontendUrl = `${proto}://${host}`;
+        }
+      }
+      if (!frontendUrl || frontendUrl.includes('localhost')) {
+        frontendUrl = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : 'https://nicohena-engida.vercel.app';
+      }
+    }
     const target = `${frontendUrl.replace(/\/$/, '')}${path}`;
     return res.redirect(target);
   }
