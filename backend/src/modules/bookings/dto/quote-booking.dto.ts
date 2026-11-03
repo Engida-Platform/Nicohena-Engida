@@ -8,6 +8,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class QuoteBookingDto {
   @IsUUID()
@@ -26,6 +27,7 @@ export class QuoteBookingDto {
   @IsNotEmpty()
   checkOutDate: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(50)

@@ -181,5 +181,33 @@ export class DatabaseBootstrapService implements OnApplicationBootstrap {
           (p."property_type"::text = 'STUDIO' AND c."slug" = 'apartments')
         );
     `).catch((e) => this.logger.warn(`Could not backfill property categories: ${e.message}`));
+
+    // 10. Ensure host profiles exist and are marked VERIFIED for all hosts owning published properties
+    await this.dataSource.query(`
+      INSERT INTO "host_profiles" ("id", "user_id", "display_name", "bio", "phone", "verification_status", "created_at", "updated_at")
+      SELECT
+        gen_random_uuid(),
+        p."host_id",
+        COALESCE(u."name", 'Verified Host'),
+        'Experienced host in Ethiopia offering verified accommodations.',
+        '+251911000000',
+        'VERIFIED',
+        NOW(),
+        NOW()
+      FROM "properties" p
+      JOIN "users" u ON u."id" = p."host_id"
+      WHERE p."host_id" IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM "host_profiles" hp WHERE hp."user_id" = p."host_id"
+        )
+      GROUP BY p."host_id", u."name"
+      ON CONFLICT DO NOTHING;
+
+      UPDATE "host_profiles"
+      SET "verification_status" = 'VERIFIED'
+      WHERE "user_id" IN (
+        SELECT DISTINCT "host_id" FROM "properties" WHERE "status" = 'PUBLISHED'
+      );
+    `).catch((e) => this.logger.warn(`Could not ensure verified host profiles: ${e.message}`));
   }
 }

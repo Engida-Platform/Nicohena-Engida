@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsDateString, IsUUID, IsInt, Min, Max, IsEnum, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PaymentMethod } from '../entities/booking.entity';
 
 export class CreateBookingDto {
@@ -18,6 +19,7 @@ export class CreateBookingDto {
   @IsNotEmpty()
   checkOutDate: string;
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(50)

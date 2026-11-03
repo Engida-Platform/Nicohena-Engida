@@ -54,12 +54,14 @@ interface DetailedProperty {
   category: string;
   description: string;
   host: {
+    id?: string;
     name: string;
     avatar: string;
     isSuperhost: boolean;
     joinedYear: number;
     responseRate: string;
   };
+  hostId?: string;
   highlights: {
     title: string;
     description: string;
@@ -132,7 +134,9 @@ function adaptBackendProperty(data: Property): DetailedProperty {
     instantBook: !isSale,
     category: data.propertyType?.toLowerCase() || 'apartment',
     description: data.description || 'A serene property in Ethiopia crafted for restorative living.',
+    hostId: data.hostId || (data.host as any)?.id,
     host: {
+      id: (data.host as any)?.id || data.hostId,
       name: data.host?.name || data.host?.hostProfile?.displayName || 'Verified Engida Host',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
       isSuperhost: true,
@@ -642,6 +646,12 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
     // If user is unauthenticated, redirect to login with safe next parameter
     if (!user) {
       router.push(`/login?next=${encodeURIComponent(`/properties/${property?.id || id}`)}`);
+      return;
+    }
+
+    const hostId = property.host?.id || property.hostId;
+    if (user.id === hostId) {
+      setBookingError('You cannot book your own property. You can manage and edit this listing in your Host Portal.');
       return;
     }
 
@@ -1313,22 +1323,32 @@ ${viewingNotes.trim() ? `Additional Notes: ${viewingNotes.trim()}` : ''}`.trim()
                     </div>
                   </div>
 
-                  {/* Reserve Button */}
-                  <button
-                    type="button"
-                    disabled={nightsCount < 1 || isBookingLoading}
-                    onClick={handleBooking}
-                    className="w-full py-4 px-4 rounded-xl bg-[#b2531b] hover:bg-[#994413] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-[#b2531b]/25 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
-                  >
-                    {isBookingLoading ? (
-                      <span>Processing Reservation...</span>
-                    ) : (
-                      <>
-                        <span>{nightsCount < 1 ? 'Select valid dates' : 'Reserve this Stay'}</span>
-                        <span className="material-symbols-outlined text-base">arrow_forward</span>
-                      </>
-                    )}
-                  </button>
+                  {/* Reserve or Host Manage Button */}
+                  {Boolean(user?.id && (user.id === property.host?.id || user.id === property.hostId)) ? (
+                    <Link
+                      href={`/host/listings/${property.id}/edit`}
+                      className="w-full py-3.5 px-4 rounded-xl bg-[#234B36] hover:bg-[#1a3828] text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-[#234B36]/25 active:scale-[0.99] flex items-center justify-center gap-2 text-center"
+                    >
+                      <span className="material-symbols-outlined text-base">edit</span>
+                      <span>Manage Your Listing (Host)</span>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={nightsCount < 1 || isBookingLoading}
+                      onClick={handleBooking}
+                      className="w-full py-4 px-4 rounded-xl bg-[#b2531b] hover:bg-[#994413] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm transition-all duration-200 shadow-md shadow-[#b2531b]/25 active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {isBookingLoading ? (
+                        <span>Processing Reservation...</span>
+                      ) : (
+                        <>
+                          <span>{nightsCount < 1 ? 'Select valid dates' : 'Reserve this Stay'}</span>
+                          <span className="material-symbols-outlined text-base">arrow_forward</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                   {isBookingSuccess && (
                     <div className="mt-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold text-center animate-fade-in-up">
