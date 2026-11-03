@@ -135,13 +135,17 @@ export default function LoginPage() {
 
       {/* Main Container */}
       <div className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full bg-white border border-[#E5E0D5] p-8 sm:p-10 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgba(58,48,42,0.06)] animate-fade-in-up">
+        <div className="max-w-md w-full bg-[#FFFDF9] border border-[#E8E2D5] p-8 sm:p-10 rounded-2xl sm:rounded-3xl shadow-[0_12px_40px_rgba(35,75,54,0.08)] animate-fade-in-up">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl sm:text-4xl font-bold text-[#252923] font-headline tracking-tight">
+            <h1 className="text-3xl sm:text-4xl font-bold text-[#234B36] font-headline tracking-tight">
               {isHostFlow ? 'Host Sign In' : 'Welcome back'}
             </h1>
-         
+            <p className="mt-2 text-xs sm:text-sm text-[#73776F] font-body">
+              {isHostFlow
+                ? 'Access your listings, reservations, and host tools'
+                : 'Sign in to explore verified Ethiopian stays & experiences'}
+            </p>
           </div>
 
           {/* Error Alert */}
@@ -156,7 +160,7 @@ export default function LoginPage() {
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-[#73776F] mb-2 flex items-center gap-1.5 font-body">
-                <Mail className="w-3.5 h-3.5 text-[#b2531b]" />
+                <Mail className="w-3.5 h-3.5 text-[#234B36]" />
                 Email Address
               </label>
               <input
@@ -165,14 +169,14 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="w-full px-4 py-3 bg-[#F8F5ED]/50 border border-[#E5E0D5] rounded-xl text-[#252923] font-medium placeholder-[#706860] focus:outline-none focus:ring-2 focus:ring-[#b2531b]/20 focus:border-[#b2531b] focus:bg-white text-sm transition-all font-body"
+                className="w-full px-4 py-3 bg-[#FAF6F0]/80 border border-[#E5E0D5] rounded-xl text-[#252923] font-medium placeholder-[#8A8F85] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] focus:bg-white text-sm transition-all font-body"
               />
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-[#73776F] flex items-center gap-1.5 font-body">
-                  <Lock className="w-3.5 h-3.5 text-[#b2531b]" />
+                  <Lock className="w-3.5 h-3.5 text-[#234B36]" />
                   Password
                 </label>
               </div>
@@ -182,14 +186,14 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-3 bg-[#F8F5ED]/50 border border-[#E5E0D5] rounded-xl text-[#252923] font-medium placeholder-[#706860] focus:outline-none focus:ring-2 focus:ring-[#b2531b]/20 focus:border-[#b2531b] focus:bg-white text-sm transition-all font-body"
+                className="w-full px-4 py-3 bg-[#FAF6F0]/80 border border-[#E5E0D5] rounded-xl text-[#252923] font-medium placeholder-[#8A8F85] focus:outline-none focus:ring-2 focus:ring-[#234B36]/20 focus:border-[#234B36] focus:bg-white text-sm transition-all font-body"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center items-center gap-2 py-3.5 px-4 rounded-xl text-sm font-semibold text-white bg-[#b2531b] hover:bg-[#994413] focus:outline-none focus:ring-2 focus:ring-[#b2531b]/40 disabled:opacity-50 transition-all duration-200 shadow-md shadow-[#b2531b]/20 active:scale-[0.99] cursor-pointer font-body"
+              className="w-full flex justify-center items-center gap-2 py-3.5 px-4 rounded-xl text-sm font-semibold text-white bg-[#234B36] hover:bg-[#1B3D2B] focus:outline-none focus:ring-2 focus:ring-[#234B36]/40 disabled:opacity-50 transition-all duration-200 shadow-md shadow-[#234B36]/25 active:scale-[0.99] cursor-pointer font-body"
             >
               {loading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -205,7 +209,7 @@ export default function LoginPage() {
           {/* Divider */}
           <div className="my-6 flex items-center gap-4">
             <span className="h-px flex-1 bg-[#E5E0D5]" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-[#706860] px-1 font-body">
+            <span className="text-xs font-semibold uppercase tracking-widest text-[#73776F] px-1 font-body">
               or
             </span>
             <span className="h-px flex-1 bg-[#E5E0D5]" />
@@ -219,7 +223,7 @@ export default function LoginPage() {
             Don&apos;t have an account?{' '}
             <Link
               href={returnPath === '/dashboard' ? '/register' : `/register?next=${encodeURIComponent(returnPath)}`}
-              className="font-semibold text-[#b2531b] hover:text-[#994413] hover:underline transition-colors"
+              className="font-semibold text-[#234B36] hover:text-[#1B3D2B] hover:underline transition-colors"
             >
               Create an account
             </Link>

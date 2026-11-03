@@ -451,7 +451,7 @@ export default function AdminUsersPage() {
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
                   placeholder="Search name, email or phone"
-                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] pl-9 pr-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] pl-9 pr-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 />
               </div>
 
@@ -464,7 +464,7 @@ export default function AdminUsersPage() {
                     page: 1,
                   }))
                 }
-                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 aria-label="Filter by account type"
               >
                 <option value="all">All account types</option>
@@ -481,7 +481,7 @@ export default function AdminUsersPage() {
                     page: 1,
                   }))
                 }
-                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 aria-label="Filter by admin role"
               >
                 <option value="all">All admin roles</option>
@@ -501,7 +501,7 @@ export default function AdminUsersPage() {
                     page: 1,
                   }))
                 }
-                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 aria-label="Filter by status"
               >
                 <option value="all">All statuses</option>
@@ -549,7 +549,7 @@ export default function AdminUsersPage() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="font-bold text-[#b3541e] hover:text-[#934313]"
+                  className="font-bold text-[#234B36] hover:text-[#1B3D2B]"
                 >
                   Clear all
                 </button>
@@ -626,7 +626,7 @@ export default function AdminUsersPage() {
                                   className="h-10 w-10 rounded-full object-cover ring-2 ring-white"
                                 />
                               ) : (
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#b3541e]/10 text-xs font-bold text-[#9f4a19]">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#234B36]/10 text-xs font-bold text-[#234B36]">
                                   {initials(account.name) || '?'}
                                 </div>
                               )}
@@ -654,7 +654,7 @@ export default function AdminUsersPage() {
                           <td className="px-5 py-4">
                             {account.role === 'ADMIN' ? (
                               <div className="flex flex-col items-start gap-1">
-                                <span className="inline-flex items-center gap-1 rounded-full border border-[#b3541e]/20 bg-[#b3541e]/5 px-2.5 py-1 text-xs font-bold text-[#9f4a19]">
+                                <span className="inline-flex items-center gap-1 rounded-full border border-[#234B36]/20 bg-[#234B36]/5 px-2.5 py-1 text-xs font-bold text-[#234B36]">
                                   <ShieldCheck className="h-3 w-3" />
                                   {account.adminRole
                                     ? formatAdminRole(account.adminRole)
@@ -706,7 +706,7 @@ export default function AdminUsersPage() {
                               <button
                                 type="button"
                                 onClick={() => openDetail(account.id)}
-                                className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-bold text-[#b3541e] hover:bg-[#b3541e]/5"
+                                className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 View
@@ -837,7 +837,7 @@ export default function AdminUsersPage() {
               <button
                 type="button"
                 onClick={() => openRoleDialog(detail)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-[#b3541e]/20 bg-[#b3541e]/5 px-3 py-2 text-sm font-semibold text-[#9f4a19] hover:bg-[#b3541e]/10"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#234B36]/20 bg-[#234B36]/5 px-3 py-2 text-sm font-semibold text-[#234B36] hover:bg-[#234B36]/10"
               >
                 <KeyRound className="h-4 w-4" />
                 Admin access
@@ -865,7 +865,7 @@ export default function AdminUsersPage() {
       >
         {detailLoading ? (
           <div className="flex flex-col items-center justify-center py-14 text-[#7a6b5f]">
-            <Loader2 className="h-6 w-6 animate-spin text-[#b3541e]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[#234B36]" />
             <p className="mt-2 text-sm font-medium">Loading account…</p>
           </div>
         ) : detailError ? (
@@ -884,7 +884,7 @@ export default function AdminUsersPage() {
                   className="h-14 w-14 rounded-full object-cover ring-2 ring-[#ece4d9]"
                 />
               ) : (
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#b3541e]/10 text-lg font-bold text-[#9f4a19]">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#234B36]/10 text-lg font-bold text-[#234B36]">
                   {initials(detail.name) || '?'}
                 </div>
               )}
@@ -901,7 +901,7 @@ export default function AdminUsersPage() {
                     {detail.isActive ? 'Active' : 'Suspended'}
                   </span>
                   {detail.role === 'ADMIN' && (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-[#b3541e]/20 bg-[#b3541e]/5 px-2.5 py-1 text-xs font-bold text-[#9f4a19]">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-[#234B36]/20 bg-[#234B36]/5 px-2.5 py-1 text-xs font-bold text-[#234B36]">
                       <ShieldCheck className="h-3 w-3" />
                       {detail.adminRole ? formatAdminRole(detail.adminRole) : 'Administrator'}
                     </span>
@@ -1064,7 +1064,7 @@ export default function AdminUsersPage() {
               rows={3}
               maxLength={500}
               placeholder="What happened? This is written to the audit log."
-              className="mt-1.5 w-full resize-none rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 py-2.5 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+              className="mt-1.5 w-full resize-none rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 py-2.5 text-sm text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
             />
             <div className="mt-1 flex justify-between text-xs text-[#7a6b5f]">
               <span>Minimum 5 characters</span>
@@ -1101,7 +1101,7 @@ export default function AdminUsersPage() {
               type="button"
               onClick={changeRole}
               disabled={roleSubmitting || !roleValue || roleReason.trim().length < 5}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#b3541e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#934313] disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[#234B36] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1B3D2B] disabled:opacity-50 shadow-sm shadow-[#234B36]/20"
             >
               {roleSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1122,7 +1122,7 @@ export default function AdminUsersPage() {
               id="admin-role"
               value={roleValue}
               onChange={(event) => setRoleValue(event.target.value as AdminRole | 'NONE' | '')}
-              className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+              className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
             >
               <option value="" disabled>
                 Choose a role
@@ -1152,7 +1152,7 @@ export default function AdminUsersPage() {
               rows={3}
               maxLength={500}
               placeholder="Why is this access change needed?"
-              className="mt-1.5 w-full resize-none rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 py-2.5 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+              className="mt-1.5 w-full resize-none rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 py-2.5 text-sm text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
             />
             <div className="mt-1 flex justify-between text-xs text-[#7a6b5f]">
               <span>Minimum 5 characters</span>
@@ -1186,7 +1186,7 @@ export default function AdminUsersPage() {
                   setCreateOpen(false);
                   setCreatedAdmin(null);
                 }}
-                className="rounded-xl bg-[#b3541e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#934313]"
+                className="rounded-xl bg-[#234B36] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1B3D2B]"
               >
                 Done
               </button>
@@ -1205,7 +1205,7 @@ export default function AdminUsersPage() {
                 type="submit"
                 form="create-admin-form"
                 disabled={createSubmitting}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#b3541e] px-4 py-2 text-sm font-semibold text-white hover:bg-[#934313] disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#234B36] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1B3D2B] disabled:opacity-50 shadow-sm shadow-[#234B36]/20"
               >
                 {createSubmitting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1250,7 +1250,7 @@ export default function AdminUsersPage() {
                 onChange={(event) =>
                   setCreateForm((form) => ({ ...form, name: event.target.value }))
                 }
-                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 placeholder="e.g. Selam Tesfaye"
               />
             </div>
@@ -1267,7 +1267,7 @@ export default function AdminUsersPage() {
                 onChange={(event) =>
                   setCreateForm((form) => ({ ...form, email: event.target.value }))
                 }
-                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 placeholder="name@engida.com"
               />
             </div>
@@ -1286,7 +1286,7 @@ export default function AdminUsersPage() {
                 onChange={(event) =>
                   setCreateForm((form) => ({ ...form, password: event.target.value }))
                 }
-                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 placeholder="At least 12 characters"
               />
               <p className="mt-1.5 text-xs text-[#7a6b5f]">
@@ -1308,7 +1308,7 @@ export default function AdminUsersPage() {
                     adminRole: event.target.value as AdminRole,
                   }))
                 }
-                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="mt-1.5 h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
               >
                 {ADMIN_ROLE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>

@@ -167,15 +167,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="group inline-flex items-center gap-2.5 transition-opacity hover:opacity-90"
           title="Engida Operations Console"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#c2652a] text-white shadow-[0_4px_12px_-2px_rgba(194,101,42,0.45)]">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#234B36] text-white shadow-[0_4px_12px_-2px_rgba(35,75,54,0.35)]">
             <span className="font-headline text-lg font-bold">E</span>
           </div>
           {!isCollapsedMode && (
             <div className="flex flex-col">
-              <span className="font-headline text-xl font-bold leading-none tracking-[-0.02em] text-[#3a302a] group-hover:text-[#c2652a] transition-colors">
+              <span className="font-headline text-xl font-bold leading-none tracking-[-0.02em] text-[#252923] group-hover:text-[#234B36] transition-colors">
                 Engida
               </span>
-              <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6c5d52]">
+              <span className="mt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#596156]">
                 Operations
               </span>
             </div>
@@ -234,15 +234,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         : 'gap-3 px-3 py-2.5 w-full'
                     } ${
                       active
-                        ? 'bg-[#b3541e] text-white shadow-[0_6px_16px_-6px_rgba(179,84,30,0.7)]'
-                        : 'text-[#605850] hover:bg-[#eae2da] hover:text-[#3a302a]'
+                        ? 'bg-[#234B36] text-white shadow-[0_6px_16px_-6px_rgba(35,75,54,0.6)]'
+                        : 'text-[#596156] hover:bg-[#e8e0d4] hover:text-[#252923]'
                     }`}
                   >
                     <Icon
                       className={`h-[18px] w-[18px] shrink-0 transition-colors ${
                         active
                           ? 'text-white'
-                          : 'text-[#6c5d52] group-hover:text-[#b3541e]'
+                          : 'text-[#6b7367] group-hover:text-[#234B36]'
                       }`}
                       strokeWidth={1.8}
                     />

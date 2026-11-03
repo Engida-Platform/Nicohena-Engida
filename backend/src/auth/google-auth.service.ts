@@ -49,12 +49,34 @@ export class GoogleAuthService {
   }
 
   get callbackUrl(): string {
+    return this.getCallbackUrl();
+  }
+
+  getCallbackUrl(req?: any): string {
     const explicit = this.configService.get<string>('GOOGLE_CALLBACK_URL');
-    if (explicit) return explicit;
+    const isProdOrVercel = Boolean(
+      process.env.VERCEL ||
+      this.configService.get<string>('NODE_ENV') === 'production',
+    );
+
+    // If explicitly set, accept it, but ignore 'localhost' if running in production/Vercel
+    if (explicit && (!isProdOrVercel || !explicit.includes('localhost'))) {
+      return explicit;
+    }
+
+    if (req) {
+      const host = (req.headers?.['x-forwarded-host'] || req.headers?.host || '') as string;
+      const proto = (req.headers?.['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https')) as string;
+      if (host) {
+        // Any Vercel deployment (preview hashes like nicohena-engida-xxx.vercel.app or production)
+        // must use the canonical authorized production domain registered with Google Cloud.
+        const cleanHost = host.endsWith('.vercel.app') ? 'nicohena-engida.vercel.app' : host;
+        return `${proto}://${cleanHost}/auth/google/callback`;
+      }
+    }
 
     const backendUrl =
       this.configService.get<string>('BACKEND_URL') ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
       'https://nicohena-engida.vercel.app';
     return `${backendUrl.replace(/\/$/, '')}/auth/google/callback`;
   }
@@ -118,23 +140,29 @@ export class GoogleAuthService {
     };
   }
 
-  getAuthorizationUrl(state: string): string {
-    const client = this.getClient();
+  getAuthorizationUrl(state: string, req?: any): string {
+    const callbackUrl = this.getCallbackUrl(req);
+    const client = this.getClient(callbackUrl);
     return client.generateAuthUrl({
       access_type: 'offline',
       scope: GOOGLE_SCOPES,
       state,
       prompt: 'select_account',
       include_granted_scopes: true,
+      redirect_uri: callbackUrl,
     });
   }
 
   /**
    * Exchange the authorization code and return a verified Google profile.
    */
-  async verifyCode(code: string): Promise<GoogleProfile> {
-    const client = this.getClient();
-    const { tokens } = await client.getToken(code);
+  async verifyCode(code: string, req?: any): Promise<GoogleProfile> {
+    const callbackUrl = this.getCallbackUrl(req);
+    const client = this.getClient(callbackUrl);
+    const { tokens } = await client.getToken({
+      code,
+      redirect_uri: callbackUrl,
+    });
 
     let profile: GoogleProfile | null = null;
 
@@ -214,21 +242,22 @@ export class GoogleAuthService {
     }
   }
 
-  private getClient(): OAuth2Client {
+  getClient(callbackUrl?: string): OAuth2Client {
     if (!this.isEnabled()) {
       throw new ServiceUnavailableException(
         'Google sign-in is not configured on this server (missing GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)',
       );
     }
 
-    if (!this.client) {
-      this.client = new OAuth2Client(
-        this.clientId as string,
-        this.clientSecret as string,
-        this.callbackUrl,
-      );
+    if (this.client) {
+      return this.client;
     }
 
-    return this.client;
+    const effectiveCallback = callbackUrl || this.getCallbackUrl();
+    return new OAuth2Client(
+      this.clientId as string,
+      this.clientSecret as string,
+      effectiveCallback,
+    );
   }
 }

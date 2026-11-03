@@ -263,20 +263,20 @@ body {
 /* ============================================================ */
 
 .admin-shell {
-  --admin-canvas: #faf5ee;
-  --admin-surface: #f2ece4;
-  --admin-surface-low: #f6f0e8;
-  --admin-surface-high: #ece6dc;
-  --admin-ink: #3a302a;
-  --admin-muted: #605850;
-  --admin-subtle: #78706a;
-  --admin-outline: #d8d0c8;
-  --admin-outline-strong: #c9bdb1;
-  --admin-primary: #b3541e;
-  --admin-primary-hover: #934313;
-  --admin-primary-soft: #f5e4d7;
-  --admin-success: #536b4a;
-  --admin-success-soft: #edf1e8;
+  --admin-canvas: #faf6f0;
+  --admin-surface: #f4eee6;
+  --admin-surface-low: #f8f4ed;
+  --admin-surface-high: #eae2d6;
+  --admin-ink: #252923;
+  --admin-muted: #596156;
+  --admin-subtle: #737b70;
+  --admin-outline: #dcd3c7;
+  --admin-outline-strong: #cac0b1;
+  --admin-primary: #234b36;
+  --admin-primary-hover: #1b3d2b;
+  --admin-primary-soft: #eaf2ec;
+  --admin-success: #234b36;
+  --admin-success-soft: #eaf2ec;
   --admin-warning: #95631f;
   --admin-warning-soft: #f7ebda;
   --admin-danger: #9a3f33;
@@ -291,8 +291,8 @@ body {
 }
 
 .admin-shell ::selection {
-  background: #e9c8b3;
-  color: #3a302a;
+  background: rgba(35, 75, 54, 0.2);
+  color: #1b3d2b;
 }
 
 .admin-shell ::-webkit-scrollbar {
@@ -336,7 +336,7 @@ body {
 }
 
 .admin-shell :focus-visible {
-  outline: 2px solid rgba(179, 84, 30, 0.75);
+  outline: 2px solid rgba(35, 75, 54, 0.75);
   outline-offset: 2px;
 }
 
@@ -416,12 +416,12 @@ body {
 .admin-btn-primary {
   background: var(--admin-primary);
   color: #ffffff;
-  box-shadow: 0 8px 20px -14px rgba(179, 84, 30, 0.9);
+  box-shadow: 0 8px 20px -14px rgba(35, 75, 54, 0.8);
 }
 
 .admin-btn-primary:hover:not(:disabled) {
   background: var(--admin-primary-hover);
-  box-shadow: 0 10px 24px -14px rgba(147, 67, 19, 0.9);
+  box-shadow: 0 10px 24px -14px rgba(27, 61, 43, 0.9);
 }
 
 .admin-btn-secondary {

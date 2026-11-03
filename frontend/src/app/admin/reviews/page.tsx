@@ -271,7 +271,7 @@ export default function AdminGuestReviewsPage() {
                     setDraft((current) => ({ ...current, q: event.target.value }))
                   }
                   placeholder="Search comment, author or listing"
-                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] pl-9 pr-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] pl-9 pr-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 />
               </div>
 
@@ -283,7 +283,7 @@ export default function AdminGuestReviewsPage() {
                     setDraft((current) => ({ ...current, propertyId: event.target.value }))
                   }
                   placeholder="Listing ID (UUID)"
-                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                  className="h-10 w-full rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm text-[#4a3e35] outline-none transition focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 />
               </div>
 
@@ -292,7 +292,7 @@ export default function AdminGuestReviewsPage() {
                 onChange={(event) =>
                   setDraft((current) => ({ ...current, status: event.target.value }))
                 }
-                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+                className="h-10 rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 text-sm font-medium text-[#5a4c42] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
                 aria-label="Filter by visibility"
               >
                 <option value="all">All visibility</option>
@@ -307,7 +307,7 @@ export default function AdminGuestReviewsPage() {
                   onChange={(event) =>
                     setDraft((current) => ({ ...current, reported: event.target.checked }))
                   }
-                  className="h-4 w-4 accent-[#b3541e]"
+                  className="h-4 w-4 accent-[#234B36]"
                 />
                 Has open reports
               </label>
@@ -315,7 +315,7 @@ export default function AdminGuestReviewsPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
-                  className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#b3541e] px-4 text-sm font-semibold text-white hover:bg-[#934313]"
+                  className="inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#234B36] px-4 text-sm font-semibold text-white hover:bg-[#1B3D2B] shadow-sm shadow-[#234B36]/20"
                 >
                   Apply
                 </button>
@@ -344,7 +344,7 @@ export default function AdminGuestReviewsPage() {
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="text-xs font-bold text-[#b3541e] hover:text-[#934313]"
+                  className="text-xs font-bold text-[#234B36] hover:text-[#1B3D2B]"
                 >
                   Clear all filters
                 </button>
@@ -465,7 +465,7 @@ export default function AdminGuestReviewsPage() {
                               <button
                                 type="button"
                                 onClick={() => openDetail(review.id)}
-                                className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-bold text-[#b3541e] hover:bg-[#b3541e]/5"
+                                className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-bold text-[#234B36] hover:bg-[#234B36]/10"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 View
@@ -589,7 +589,7 @@ export default function AdminGuestReviewsPage() {
       >
         {detailLoading ? (
           <div className="flex flex-col items-center justify-center py-14 text-[#7a6b5f]">
-            <Loader2 className="h-6 w-6 animate-spin text-[#b3541e]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[#234B36]" />
             <p className="mt-2 text-sm font-medium">Loading review…</p>
           </div>
         ) : detailError ? (
@@ -767,7 +767,7 @@ export default function AdminGuestReviewsPage() {
               rows={3}
               maxLength={500}
               placeholder="What policy does this review break? This goes to the audit log."
-              className="mt-1.5 w-full resize-none rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 py-2.5 text-sm text-[#4a3e35] outline-none focus:border-[#b3541e] focus:bg-white focus:ring-2 focus:ring-[#b3541e]/15"
+              className="mt-1.5 w-full resize-none rounded-xl border border-[#d8d0c8] bg-[#f6f0e8] px-3 py-2.5 text-sm text-[#4a3e35] outline-none focus:border-[#234B36] focus:bg-white focus:ring-2 focus:ring-[#234B36]/15"
             />
             <div className="mt-1 flex justify-between text-xs text-[#7a6b5f]">
               <span>Minimum 5 characters</span>

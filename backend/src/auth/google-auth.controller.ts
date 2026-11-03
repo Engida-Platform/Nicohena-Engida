@@ -49,10 +49,11 @@ export class GoogleAuthController {
   async startGoogleAuth(
     @Query('next') next: string | undefined,
     @Res() res: Response,
+    @Req() req: Request,
   ) {
     if (!this.googleAuthService.isEnabled()) {
       this.logger.warn('Google sign-in requested but the server is not configured for it');
-      return this.redirectToClient(res, '/login?error=google_not_configured');
+      return this.redirectToClient(res, '/login?error=google_not_configured', req);
     }
 
     const { state, nonce } = await this.googleAuthService.createState(next ?? '/dashboard');
@@ -67,7 +68,7 @@ export class GoogleAuthController {
       maxAge: STATE_COOKIE_TTL_MS,
     });
 
-    return res.redirect(this.googleAuthService.getAuthorizationUrl(state));
+    return res.redirect(this.googleAuthService.getAuthorizationUrl(state, req));
   }
 
   /**
@@ -106,7 +107,7 @@ export class GoogleAuthController {
       const nonce = req.cookies?.[STATE_COOKIE];
       const statePayload = await this.googleAuthService.verifyState(state, nonce);
       resolvedNext = statePayload.next;
-      const profile = await this.googleAuthService.verifyCode(code);
+      const profile = await this.googleAuthService.verifyCode(code, req);
 
       // A browser that is already signed in may link this Google identity to
       // the account it owns. Without a session, an existing local account with
