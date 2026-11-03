@@ -59,10 +59,24 @@ export function setRefreshToken(token: string | null) {
 }
 
 export function getAccessToken(): string | null {
+  if (!inMemoryToken && typeof window !== 'undefined') {
+    try {
+      inMemoryToken = localStorage.getItem(TOKEN_STORAGE_KEY);
+    } catch {
+      inMemoryToken = null;
+    }
+  }
   return inMemoryToken;
 }
 
 export function getRefreshToken(): string | null {
+  if (!inMemoryRefreshToken && typeof window !== 'undefined') {
+    try {
+      inMemoryRefreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+    } catch {
+      inMemoryRefreshToken = null;
+    }
+  }
   return inMemoryRefreshToken;
 }
 
@@ -138,8 +152,9 @@ export async function apiFetch<T = unknown>(endpoint: string, options: FetchOpti
     ...(customHeaders as Record<string, string>),
   };
 
-  if (!skipAuth && inMemoryToken) {
-    headers['Authorization'] = `Bearer ${inMemoryToken}`;
+  const token = getAccessToken();
+  if (!skipAuth && token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   const baseUrl = getApiBaseUrl();
@@ -195,7 +210,8 @@ export async function downloadAuthedFile(
   const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   const headers: Record<string, string> = {};
 
-  if (inMemoryToken) headers['Authorization'] = `Bearer ${inMemoryToken}`;
+  const dlToken = getAccessToken();
+  if (dlToken) headers['Authorization'] = `Bearer ${dlToken}`;
 
   let response = await fetch(url, { headers, credentials: 'include' });
   if (response.status === 401 && !endpoint.includes('/auth/')) {
