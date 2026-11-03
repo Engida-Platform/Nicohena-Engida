@@ -249,18 +249,22 @@ export class AuthService {
           );
         }
 
-        if (!sessionUserId || sessionUserId !== existing.id) {
+        // If email is verified by Google, safely link the Google identity to the existing account.
+        // Also allow linking if an active authenticated session owns the account.
+        if (profile.emailVerified || (sessionUserId && sessionUserId === existing.id)) {
+          user = await this.usersService.linkProvider(
+            existing.id,
+            AuthProvider.GOOGLE,
+            profile.providerId,
+          );
+          this.logger.log(
+            `Linked Google identity to existing account ${existing.id} (emailVerified=${profile.emailVerified})`,
+          );
+        } else {
           throw new ConflictException(
             'An account with this email already exists. Please sign in with your password first, then use "Continue with Google" to link it.',
           );
         }
-
-        user = await this.usersService.linkProvider(
-          existing.id,
-          AuthProvider.GOOGLE,
-          profile.providerId,
-        );
-        this.logger.log(`Linked Google identity to existing account ${existing.id}`);
       } else {
         user = await this.usersService.createUser({
           name: profile.name,

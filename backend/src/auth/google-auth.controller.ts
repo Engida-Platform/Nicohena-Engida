@@ -146,13 +146,24 @@ export class GoogleAuthController {
           ? err.message
           : 'google_failed';
 
-      const target = resolvedNext ?? '/login';
+      const target = '/login';
       return this.redirectToClient(res, withQueryParam(target, 'error', reason), req);
     }
   }
 
   private redirectToClient(res: Response, path: string, req?: Request) {
     let frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    const isProdOrVercel = Boolean(
+      process.env.VERCEL ||
+      this.configService.get<string>('NODE_ENV') === 'production',
+    );
+
+    // In local development, always respect local FRONTEND_URL:
+    if (!isProdOrVercel && frontendUrl) {
+      const target = `${frontendUrl.replace(/\/$/, '')}${path}`;
+      return res.redirect(target);
+    }
+
     if (!frontendUrl || frontendUrl.includes('localhost')) {
       if (req) {
         const host = req.headers['x-forwarded-host'] || req.headers.host;
@@ -164,7 +175,7 @@ export class GoogleAuthController {
       if (!frontendUrl || frontendUrl.includes('localhost')) {
         frontendUrl = process.env.VERCEL_URL
           ? `https://${process.env.VERCEL_URL}`
-          : 'https://nicohena-engida.vercel.app';
+          : 'https://engida-virid.vercel.app';
       }
     }
     const target = `${frontendUrl.replace(/\/$/, '')}${path}`;

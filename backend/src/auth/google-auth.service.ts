@@ -68,16 +68,20 @@ export class GoogleAuthService {
       const host = (req.headers?.['x-forwarded-host'] || req.headers?.host || '') as string;
       const proto = (req.headers?.['x-forwarded-proto'] || (host.includes('localhost') ? 'http' : 'https')) as string;
       if (host) {
-        // Any Vercel deployment (preview hashes like nicohena-engida-xxx.vercel.app or production)
+        if (host.includes('localhost') || host.includes('127.0.0.1')) {
+          return `${proto}://${host}/auth/google/callback`;
+        }
+        // Any Vercel deployment (preview URLs or production)
         // must use the canonical authorized production domain registered with Google Cloud.
-        const cleanHost = host.endsWith('.vercel.app') ? 'nicohena-engida.vercel.app' : host;
+        const canonicalVercel = this.configService.get<string>('CANONICAL_VERCEL_DOMAIN') || 'engida-virid.vercel.app';
+        const cleanHost = host.endsWith('.vercel.app') ? canonicalVercel : host;
         return `${proto}://${cleanHost}/auth/google/callback`;
       }
     }
 
     const backendUrl =
       this.configService.get<string>('BACKEND_URL') ||
-      'https://nicohena-engida.vercel.app';
+      'https://engida-virid.vercel.app';
     return `${backendUrl.replace(/\/$/, '')}/auth/google/callback`;
   }
 

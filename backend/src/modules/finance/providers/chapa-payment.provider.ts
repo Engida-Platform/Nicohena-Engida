@@ -36,7 +36,7 @@ export class ChapaPaymentProvider implements PaymentProvider {
     const backendUrl =
       this.configService.get<string>('BACKEND_URL') ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
-      'https://nicohena-engida.vercel.app';
+      'https://engida-virid.vercel.app';
 
     const callbackUrl =
       input.callbackUrl ||
@@ -45,7 +45,7 @@ export class ChapaPaymentProvider implements PaymentProvider {
     const frontendUrl =
       this.configService.get<string>('FRONTEND_URL') ||
       (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined) ||
-      'https://nicohena-engida.vercel.app';
+      'https://engida-virid.vercel.app';
 
     const returnUrl =
       input.returnUrl ||

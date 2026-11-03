@@ -251,7 +251,7 @@ describe('AuthService', () => {
       expect(mockUsersService.createUser).not.toHaveBeenCalled();
     });
 
-    it('should refuse to link a local account without an existing session', async () => {
+    it('should automatically link an existing local account when Google email is verified', async () => {
       mockUsersService.findByProvider.mockResolvedValue(null);
       mockUsersService.findByEmail.mockResolvedValue({
         ...mockUser,
@@ -259,15 +259,19 @@ describe('AuthService', () => {
         authProvider: AuthProvider.LOCAL,
         providerId: null,
       });
+      mockUsersService.linkProvider.mockResolvedValue(googleUser);
 
-      await expect(authService.loginWithGoogle(googleProfile)).rejects.toThrow(
-        ConflictException,
+      const result = await authService.loginWithGoogle(googleProfile);
+
+      expect(result.created).toBe(false);
+      expect(mockUsersService.linkProvider).toHaveBeenCalledWith(
+        mockUser.id,
+        AuthProvider.GOOGLE,
+        'google-sub-123',
       );
-      expect(mockUsersService.linkProvider).not.toHaveBeenCalled();
-      expect(mockUsersService.createUser).not.toHaveBeenCalled();
     });
 
-    it('should refuse to link a local account owned by another session', async () => {
+    it('should refuse to link a local account if Google email is not verified and no session exists', async () => {
       mockUsersService.findByProvider.mockResolvedValue(null);
       mockUsersService.findByEmail.mockResolvedValue({
         ...mockUser,
@@ -277,9 +281,10 @@ describe('AuthService', () => {
       });
 
       await expect(
-        authService.loginWithGoogle(googleProfile, undefined, undefined, 'a-different-user-id'),
+        authService.loginWithGoogle({ ...googleProfile, emailVerified: false }),
       ).rejects.toThrow(ConflictException);
       expect(mockUsersService.linkProvider).not.toHaveBeenCalled();
+      expect(mockUsersService.createUser).not.toHaveBeenCalled();
     });
 
     it('should reject an email that is linked to a different Google account', async () => {
