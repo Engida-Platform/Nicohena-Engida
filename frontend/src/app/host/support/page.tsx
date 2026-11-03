@@ -125,7 +125,7 @@ export default function HostSupportPage() {
   };
 
   return (
-    <div className="space-y-6 font-body">
+    <div className="p-4 sm:p-6 md:p-8 space-y-6 sm:space-y-8 max-w-7xl mx-auto text-[#252923] font-body">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E0D5]">
         <div className="flex items-center gap-3">
@@ -339,3 +339,4 @@ export default function HostSupportPage() {
     </div>
   );
 }
+
