@@ -65,6 +65,7 @@ describe('PaymentsCaptureService (Server Quote Binding & Idempotent Capture)', (
         status: 'PENDING',
         mode: 'sandbox',
       }),
+      generateSignature: jest.fn().mockReturnValue('mock-sig'),
       verifyWebhook: jest.fn().mockResolvedValue({
         isValid: true,
         providerEventId: 'evt-123',
@@ -286,6 +287,68 @@ describe('PaymentsCaptureService (Server Quote Binding & Idempotent Capture)', (
       expect(session.checkoutUrl).toBe('https://checkout.chapa.co/pay/123');
       // Should not create another payment row
       expect(mockPaymentRepo.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('completeSandboxPayment', () => {
+    it('allows sandbox completion when live capture is disabled', async () => {
+      mockSettingsService.getAllSettings.mockResolvedValueOnce({
+        liveCaptureEnabled: false,
+      });
+
+      mockBookingRepo.findOne.mockResolvedValueOnce({
+        id: 'booking-sb-1',
+        guestId: mockUser.id,
+        paymentStatus: 'PENDING',
+        totalPrice: 2000,
+        currency: 'ETB',
+        property: { hostId: 'host-1' },
+      });
+
+      mockPaymentRepo.findOne.mockResolvedValueOnce({
+        id: 'pay-sb-1',
+        bookingId: 'booking-sb-1',
+        status: 'INITIATED',
+        amountMinor: '200000',
+        currency: 'ETB',
+        providerPaymentId: 'sb-ref-1',
+      });
+
+      mockSandboxProvider.generateSignature.mockReturnValueOnce('sig-123');
+      mockSandboxProvider.verifyWebhook.mockResolvedValueOnce({
+        isValid: true,
+        providerEventId: 'evt-sb-1',
+        eventType: 'charge.completed',
+        payload: { tx_ref: 'sb-ref-1' },
+      });
+      mockEventRepo.findOne.mockResolvedValueOnce(null);
+
+      const result = await service.completeSandboxPayment(
+        { bookingId: 'booking-sb-1', providerPaymentId: 'sb-ref-1' },
+        mockUser,
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.status).toBe('PAID');
+    });
+
+    it('rejects unrelated user who is neither guest, host, nor admin', async () => {
+      mockSettingsService.getAllSettings.mockResolvedValueOnce({
+        liveCaptureEnabled: false,
+      });
+
+      mockBookingRepo.findOne.mockResolvedValueOnce({
+        id: 'booking-sb-2',
+        guestId: 'other-guest-id',
+        property: { hostId: 'other-host-id' },
+      });
+
+      await expect(
+        service.completeSandboxPayment(
+          { bookingId: 'booking-sb-2' },
+          { id: 'random-user-id', role: UserRole.USER } as User,
+        ),
+      ).rejects.toThrow('You do not have permission to pay for this booking');
     });
   });
 });

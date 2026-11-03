@@ -209,5 +209,27 @@ export class DatabaseBootstrapService implements OnApplicationBootstrap {
         SELECT DISTINCT "host_id" FROM "properties" WHERE "status" = 'PUBLISHED'
       );
     `).catch((e) => this.logger.warn(`Could not ensure verified host profiles: ${e.message}`));
+
+    // 11. Ensure default finance_settings exist
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS "finance_settings" (
+        "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        "key" VARCHAR(100) NOT NULL UNIQUE,
+        "value" TEXT NOT NULL,
+        "type" VARCHAR(20) NOT NULL DEFAULT 'string',
+        "description" TEXT,
+        "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_by_id" UUID
+      );
+
+      INSERT INTO "finance_settings" ("id", "key", "value", "type", "description", "updated_at")
+      VALUES
+        (gen_random_uuid(), 'finance.live_capture_enabled', 'false', 'boolean', 'Whether live payment gateway capture is active', NOW()),
+        (gen_random_uuid(), 'finance.live_refunds_enabled', 'false', 'boolean', 'Whether live refund processing is active', NOW()),
+        (gen_random_uuid(), 'finance.live_payouts_enabled', 'false', 'boolean', 'Whether live payout transfers are active', NOW()),
+        (gen_random_uuid(), 'finance.commission_rate_bps', '1500', 'int', 'Default platform commission in basis points (15%)', NOW()),
+        (gen_random_uuid(), 'finance.vat_rate_bps', '1500', 'int', 'VAT rate in basis points (15%)', NOW())
+      ON CONFLICT ("key") DO NOTHING;
+    `).catch((e) => this.logger.warn(`Could not ensure finance_settings: ${e.message}`));
   }
 }

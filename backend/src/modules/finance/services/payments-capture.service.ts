@@ -237,17 +237,44 @@ export class PaymentsCaptureService {
   /**
    * Webhook ingestion with signature verification and replay safety.
    */
+  /**
+   * Evaluates whether sandbox payments and webhooks are permitted.
+   * Allowed in non-production, when explicitly enabled via env, or when live gateway
+   * capture is not active in platform settings (default sandbox mode).
+   */
+  private async isSandboxAllowed(): Promise<boolean> {
+    if (
+      process.env.SANDBOX_WEBHOOKS_ENABLED === 'false' ||
+      process.env.ALLOW_SANDBOX_PAYMENTS === 'false'
+    ) {
+      return false;
+    }
+    if (
+      process.env.NODE_ENV !== 'production' ||
+      process.env.SANDBOX_WEBHOOKS_ENABLED === 'true' ||
+      process.env.ALLOW_SANDBOX_PAYMENTS === 'true'
+    ) {
+      return true;
+    }
+    try {
+      const settings = await this.settingsService.getAllSettings();
+      // If live gateway capture is not enabled, sandbox simulation is the active checkout method
+      return !settings.liveCaptureEnabled;
+    } catch {
+      return true;
+    }
+  }
+
   async handleWebhook(
     providerName: string,
     rawBody: string | Buffer,
     headers: Record<string, string | string[] | undefined>,
   ) {
-    if (
-      providerName.toUpperCase() === 'SANDBOX' &&
-      process.env.NODE_ENV === 'production' &&
-      process.env.SANDBOX_WEBHOOKS_ENABLED !== 'true'
-    ) {
-      throw new ForbiddenException('Sandbox payment gateway is disabled in production');
+    if (providerName.toUpperCase() === 'SANDBOX') {
+      const allowed = await this.isSandboxAllowed();
+      if (!allowed) {
+        throw new ForbiddenException('Sandbox payment gateway is disabled in production');
+      }
     }
 
     const provider =
@@ -626,11 +653,10 @@ export class PaymentsCaptureService {
     dto: { bookingId: string; providerPaymentId?: string; txRef?: string },
     user: User,
   ) {
-    if (
-      process.env.NODE_ENV === 'production' &&
-      process.env.SANDBOX_WEBHOOKS_ENABLED !== 'true'
-    ) {
-      throw new ForbiddenException('Sandbox payment simulation is disabled in production');
+    const allowed = await this.isSandboxAllowed();
+    if (!allowed && user.role !== UserRole.ADMIN) {
+      this.logger.warn(`Sandbox payment simulation rejected for user ${user.id}: sandbox disabled while live capture is active`);
+      throw new ForbiddenException('Sandbox payment simulation is disabled while live payments are active in production');
     }
 
     const booking = await this.bookingRepository.findOne({
@@ -642,7 +668,14 @@ export class PaymentsCaptureService {
       throw new NotFoundException(`Booking ${dto.bookingId} not found`);
     }
 
-    if (booking.guestId !== user.id && user.role !== UserRole.ADMIN) {
+    const isGuest = booking.guestId === user.id;
+    const isAdmin = user.role === UserRole.ADMIN;
+    const isHost = booking.property?.hostId === user.id;
+
+    if (!isGuest && !isAdmin && !isHost) {
+      this.logger.warn(
+        `Sandbox payment forbidden: user ${user.id} is not guest (${booking.guestId}), host (${booking.property?.hostId}), or admin`,
+      );
       throw new ForbiddenException('You do not have permission to pay for this booking');
     }
 
