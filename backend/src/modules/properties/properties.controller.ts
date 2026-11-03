@@ -57,12 +57,7 @@ export class PropertiesController {
   })
   @ApiResponse({ status: 200, description: 'List of matching properties with pagination metadata' })
   async findAll(@Query() query: QueryPropertyDto) {
-    try {
-      return await this.propertiesService.findAll(query);
-    } catch (err) {
-      console.error('PROPERTIES FINDALL ERROR:', err);
-      throw new BadRequestException(err?.message || 'Failed to fetch properties');
-    }
+    return this.propertiesService.findAll(query);
   }
 
   /**
