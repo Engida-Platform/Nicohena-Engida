@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -207,30 +207,32 @@ export default function HostDashboardPage() {
         </div>
 
         {/* Right: Clean Action Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 shrink-0 w-full md:w-auto">
           <Link
             href="/host/listings/new"
-            className="inline-flex items-center gap-1.5 bg-[#234B36] hover:bg-[#2D5E43] active:bg-[#1A3828] text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-xl shadow-xs hover:shadow-sm transition cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 bg-[#234B36] hover:bg-[#2D5E43] active:bg-[#1A3828] text-white text-xs sm:text-sm font-bold px-4 py-2.5 rounded-xl shadow-xs hover:shadow-sm transition cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[2.5]" />
             <span>Add New Property</span>
           </Link>
 
-          <Link
-            href="/host/availability"
-            className="inline-flex items-center gap-1.5 bg-white hover:bg-[#EEF3EF] text-[#252923] border border-[#E5E0D5] text-xs sm:text-sm font-semibold px-3.5 py-2.5 rounded-xl shadow-2xs hover:border-[#234B36]/40 transition cursor-pointer"
-          >
-            <CalendarRange className="w-3.5 h-3.5 text-[#234B36]" />
-            <span>Calendar & Rates</span>
-          </Link>
+          <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
+            <Link
+              href="/host/availability"
+              className="inline-flex items-center justify-center gap-1.5 bg-white hover:bg-[#EEF3EF] text-[#252923] border border-[#E5E0D5] text-xs sm:text-sm font-semibold px-3 py-2.5 rounded-xl shadow-2xs hover:border-[#234B36]/40 transition cursor-pointer"
+            >
+              <CalendarRange className="w-3.5 h-3.5 text-[#234B36]" />
+              <span>Calendar & Rates</span>
+            </Link>
 
-          <Link
-            href="/dashboard?view=guest"
-            className="inline-flex items-center gap-1.5 bg-white hover:bg-[#EEF3EF] text-[#73776F] hover:text-[#252923] border border-[#E5E0D5] text-xs sm:text-sm font-medium px-3.5 py-2.5 rounded-xl shadow-2xs hover:border-[#234B36]/40 transition cursor-pointer"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-[#73776F]" />
-            <span>Guest Mode</span>
-          </Link>
+            <Link
+              href="/dashboard?view=guest"
+              className="inline-flex items-center justify-center gap-1.5 bg-white hover:bg-[#EEF3EF] text-[#73776F] hover:text-[#252923] border border-[#E5E0D5] text-xs sm:text-sm font-medium px-3 py-2.5 rounded-xl shadow-2xs hover:border-[#234B36]/40 transition cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-[#73776F]" />
+              <span>Guest Mode</span>
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -364,7 +366,7 @@ export default function HostDashboardPage() {
       )}
 
       {/* ── 2. RESTRUCTURED 4-COLUMN METRIC CARDS ── */}
-      <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5" aria-label="Key performance indicators">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5" aria-label="Key performance indicators">
         
         {/* KPI 1: Active Portfolio */}
         <div className="bg-white border border-[#E5E0D5] rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-md transition-shadow">
@@ -649,22 +651,22 @@ export default function HostDashboardPage() {
           {recentReservations.length > 0 ? (
             <div className="divide-y divide-[#E5E0D5]/40">
               {recentReservations.map((reservation) => (
-                <div key={reservation.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                <div key={reservation.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-[#EEF3EF] text-[#234B36] flex items-center justify-center font-bold text-xs uppercase shrink-0 border border-[#E5E0D5]/40">
                       {reservation.guest?.name?.charAt(0) || 'G'}
                     </div>
-                    <div>
-                      <p className="text-xs font-bold text-[#252923]">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-[#252923] truncate">
                         {reservation.guest?.name || 'Guest Traveler'}
                       </p>
-                      <p className="text-[11px] text-[#73776F]">
+                      <p className="text-[11px] text-[#73776F] truncate max-w-[220px] sm:max-w-none">
                         {reservation.property?.title} • {reservation.checkInDate} to {reservation.checkOutDate}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 self-end sm:self-auto">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-1 sm:pt-0 pl-12 sm:pl-0">
                     <span className="text-xs font-bold text-[#252923] tabular-nums">
                       {formatETB(reservation.totalPrice)}
                     </span>

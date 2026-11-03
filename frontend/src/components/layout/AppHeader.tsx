@@ -34,7 +34,7 @@ export default function AppHeader() {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#F8F5ED]/95 backdrop-blur-xl border-b border-[#E5E0D5]/50 shadow-[0_1px_8px_rgba(58,48,42,0.04)]">
-      <div className="h-20 w-full px-4 sm:px-6 lg:px-12 flex items-center justify-between max-w-[1440px] mx-auto">
+      <div className="h-16 sm:h-20 w-full px-4 sm:px-6 lg:px-12 flex items-center justify-between max-w-[1440px] mx-auto">
         {/* Brand Logo */}
         <Link
           href="/"
