@@ -44,6 +44,20 @@ export class MessagesController {
   }
 
   /**
+   * Alias for threads matching frontend host messages expectations
+   */
+  @Get('threads')
+  @ApiOperation({
+    summary: 'List user conversation threads (host/guest alias)',
+    description: 'Retrieves all active message threads wrapped in a conversations object.',
+  })
+  @ApiResponse({ status: 200, description: 'Conversations container object' })
+  async getThreads(@GetUser() user: User) {
+    const conversations = await this.messagesService.getConversations(user.id);
+    return { conversations };
+  }
+
+  /**
    * Get total unread message count for badge display
    */
   @Get('unread-count')

@@ -67,8 +67,15 @@ export default function HostMessagesPage() {
   // Fetch threads
   const fetchThreads = async () => {
     try {
-      const data = await apiFetch<{ conversations: ConversationSummary[] }>('/messages/threads');
-      const list = data.conversations || [];
+      let data: any;
+      try {
+        data = await apiFetch<any>('/messages/threads');
+      } catch {
+        data = await apiFetch<any>('/messages/conversations');
+      }
+      const list: ConversationSummary[] = Array.isArray(data)
+        ? data
+        : (data?.conversations || []);
       setConversations(list);
       if (list.length > 0 && !activeConversation) {
         setActiveConversation(list[0]);
