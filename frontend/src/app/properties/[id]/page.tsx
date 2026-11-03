@@ -215,10 +215,11 @@ export default function PropertyDetailsPage() {
     if (!id) return;
     const nextState = toggleWishlistHelper(id);
     setIsWishlisted(nextState);
+    const propTitle = property?.title ? (property.title.length > 28 ? property.title.slice(0, 26) + '…' : property.title) : 'Stay';
     showPlatformToast(
-      nextState ? 'Property saved to your favorites!' : 'Removed from your favorites',
+      nextState ? `Added "${propTitle}" to your favorites` : `Removed "${propTitle}" from favorites`,
       nextState ? 'success' : 'info',
-      nextState ? 'Saved' : 'Removed'
+      nextState ? 'Saved to Wishlist' : 'Removed from Wishlist'
     );
   };
   const [activePhotoModal, setActivePhotoModal] = useState<number | null>(null);

@@ -517,10 +517,15 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
       return next;
     });
 
+    const prop = sourceListings.find((p) => p.id === id);
+    const title = prop?.title
+      ? (prop.title.length > 28 ? prop.title.slice(0, 26) + '…' : prop.title)
+      : 'Stay';
+
     showPlatformToast(
-      isNowSaved ? 'Saved to your favorites!' : 'Removed from your favorites',
+      isNowSaved ? `Added "${title}" to your favorites` : `Removed "${title}" from favorites`,
       isNowSaved ? 'success' : 'info',
-      isNowSaved ? 'Saved' : 'Removed'
+      isNowSaved ? 'Saved to Wishlist' : 'Removed from Wishlist'
     );
   };
 
@@ -1265,14 +1270,14 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                   showSavedOnly
                     ? 'bg-[#234B36] text-white border border-[#234B36] shadow-sm hover:bg-[#1a3828]'
                     : savedCount > 0
-                    ? 'bg-white border border-[#D87836]/40 text-[#252923] hover:text-[#234B36] hover:border-[#234B36] shadow-[0_2px_8px_rgba(58,48,42,0.04)] hover:shadow-[0_4px_16px_rgba(216,120,54,0.15)] active:scale-95'
+                    ? 'bg-white border border-rose-300 text-[#252923] hover:border-rose-500 shadow-[0_2px_8px_rgba(225,29,72,0.06)] hover:shadow-[0_4px_16px_rgba(225,29,72,0.18)] active:scale-95'
                     : 'bg-white border border-[#E5E0D5] text-[#73776F] hover:text-[#252923] hover:border-[#234B36]/50 shadow-[0_2px_8px_rgba(58,48,42,0.04)] active:scale-95'
                 }`}
                 title={showSavedOnly ? 'Show all stays' : 'Show only your saved properties'}
               >
                 <span
                   className={`material-symbols-outlined text-base transition-colors ${
-                    showSavedOnly ? 'text-white' : savedCount > 0 ? 'text-[#D87836]' : 'text-[#73776F]'
+                    showSavedOnly ? 'text-white' : savedCount > 0 ? 'text-rose-500' : 'text-[#73776F]'
                   }`}
                   style={showSavedOnly || savedCount > 0 ? { fontVariationSettings: "'FILL' 1" } : undefined}
                 >
@@ -1391,23 +1396,6 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
 
             {/* Quick Toggle & Active Filter Chips */}
             <div className="flex flex-wrap items-center gap-2">
-              {/* Saved filter chip */}
-              {showSavedOnly && (
-                <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#D87836]/15 text-[#9C4B18] font-bold text-xs border border-[#D87836]/40 shadow-2xs">
-                  <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>
-                    favorite
-                  </span>
-                  <span>Favorites Only ({savedCount})</span>
-                  <button
-                    type="button"
-                    aria-label="Remove saved stays filter"
-                    onClick={() => setShowSavedOnly(false)}
-                    className="hover:text-red-700 transition-transform duration-150 hover:scale-125 cursor-pointer ml-1"
-                  >
-                    <span className="material-symbols-outlined text-sm leading-none">close</span>
-                  </button>
-                </span>
-              )}
               {/* Category chip */}
               {selectedCategory !== 'all' && (
                 <span className="filter-chip inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#234B36]/10 text-[#234B36] font-semibold text-xs border border-[#234B36]/30 shadow-2xs">
@@ -1698,14 +1686,19 @@ export default function StitchHomePage({ onNavigateTab, activeNavTab = 'stays' }
                         {/* Wishlist Heart Button */}
                         <button
                           type="button"
-                          aria-label="Add to wishlist"
+                          aria-label={isSaved ? "Remove from wishlist" : "Add to wishlist"}
+                          title={isSaved ? "Saved to your favorites" : "Save to favorites"}
                           onClick={(e) => toggleWishlist(property.id, e)}
-                          className={`wishlist-btn w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm border border-[#E5E0D5]/60 flex items-center justify-center shadow-sm hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer ${
-                            isSaved ? 'text-[#234B36]' : 'text-[#252923]'
+                          className={`wishlist-btn w-8 h-8 rounded-full backdrop-blur-sm border flex items-center justify-center shadow-sm hover:scale-115 active:scale-90 transition-all duration-200 cursor-pointer ${
+                            isSaved
+                              ? 'bg-white border-rose-200 text-rose-500 shadow-md ring-2 ring-rose-100'
+                              : 'bg-white/90 border-[#E5E0D5]/60 text-[#252923] hover:text-rose-500 hover:border-rose-300'
                           }`}
                         >
                           <span
-                            className="material-symbols-outlined text-lg transition-all duration-200"
+                            className={`material-symbols-outlined text-lg transition-transform duration-200 ${
+                              isSaved ? 'text-rose-500 scale-105' : ''
+                            }`}
                             style={isSaved ? { fontVariationSettings: "'FILL' 1" } : undefined}
                           >
                             favorite

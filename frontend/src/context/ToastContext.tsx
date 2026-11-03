@@ -63,7 +63,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         duration,
       };
 
-      setToasts((prev) => [...prev.slice(-3), newToast]); // Keep max 4 visible
+      // Deduplicate to avoid stacking identical toasts
+      setToasts((prev) => {
+        const deduplicated = prev.filter((t) => t.message !== message);
+        return [...deduplicated.slice(-3), newToast];
+      });
 
       setTimeout(() => {
         removeToast(id);
